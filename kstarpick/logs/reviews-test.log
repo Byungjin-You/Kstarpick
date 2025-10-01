@@ -1,0 +1,69 @@
+스텔스 리뷰 크롤러 직접 테스트 시작...
+
+테스트 URL: https://mydramalist.com/33553-crash-landing-on-you/reviews
+브라우저 실행 중...
+브라우저 페이지 생성됨
+페이지 로딩 중... (https://mydramalist.com/33553-crash-landing-on-you/reviews)
+[브라우저 콘솔] Failed to load resource: the server responded with a status of 404 ()
+[브라우저 콘솔] Failed to load resource: net::ERR_FAILED
+[브라우저 콘솔] Failed to load resource: net::ERR_FAILED
+[브라우저 콘솔] Failed to load resource: net::ERR_FAILED
+[브라우저 콘솔] Failed to load resource: net::ERR_FAILED
+[브라우저 콘솔] Failed to load resource: net::ERR_FAILED
+[브라우저 콘솔] Failed to load resource: net::ERR_FAILED
+[브라우저 콘솔] Failed to load resource: net::ERR_FAILED
+[브라우저 콘솔] Failed to load resource: net::ERR_FAILED
+[브라우저 콘솔] Failed to load resource: net::ERR_FAILED
+[브라우저 콘솔] 3 is not a valid value for vendorSpecialPurposesIds
+[브라우저 콘솔] Google basic consent is not applicable.
+[브라우저 콘솔] Failed to load resource: net::ERR_FAILED
+[브라우저 콘솔] prebid-load.js loaded successfully.
+[브라우저 콘솔] Failed to load resource: net::ERR_FAILED
+[브라우저 콘솔] Failed to load resource: net::ERR_FAILED
+[브라우저 콘솔] Failed to load resource: net::ERR_FAILED
+[브라우저 콘솔] Failed to load resource: net::ERR_CONNECTION_REFUSED
+[브라우저 콘솔] %craven%c Raven v1.6.0 background-color:#000;margin-left:1px;padding:1px 3px;font-size:0.75em;color:#ffffff; font-size:0.9em;
+[브라우저 콘솔] Failed to load resource: net::ERR_NAME_NOT_RESOLVED
+페이지 스크롤링 중...
+[브라우저 콘솔] Failed to load resource: net::ERR_FAILED
+[브라우저 콘솔] Failed to load resource: net::ERR_FAILED
+스크롤링 완료
+추가 리뷰 로드 시도 중...
+페이지 완전 로드 대기 중...
+최종 페이지 리뷰 요소 통계: { posts: 0, comments: 0, reviews: 0, reviewContainers: 0 }
+HTML 추출 완료, 크기: 33481 바이트
+
+브라우저에서 직접 리뷰 추출 중...
+[브라우저 콘솔] 총 0개 고유 리뷰 요소 발견
+브라우저에서 0개 리뷰 추출됨
+
+Cheerio로 HTML 파싱해서 리뷰 추출 중...
+'posts' 선택자: 0개 발견
+'comments' 선택자: 0개 발견
+'reviews' 선택자: 0개 발견
+'reviewContainers' 선택자: 0개 발견
+'listItems' 선택자: 0개 발견
+'reviewBoxes' 선택자: 0개 발견
+'dramaReviews' 선택자: 0개 발견
+'reviewContentWraps' 선택자: 0개 발견
+'reviewList' 선택자: 0개 발견
+총 요소 수: 0개 (중복 포함)
+중복 제거 후 요소 수: 0개
+Cheerio로 0개 리뷰 추출됨
+
+--- 리뷰 추출 결과 분석 ---
+총 고유 리뷰 수: 0개
+
+--- 최종 통계 ---
+브라우저 추출 리뷰 수: 0개
+Cheerio 추출 리뷰 수: 0개
+총 고유 리뷰 수: 0개
+본문 있는 리뷰 수 (20자 이상): 0개
+추출 성공률: 0.00%
+
+추출된 리뷰 데이터를 extracted_reviews.json 파일에 저장했습니다.
+
+❌ 리뷰를 찾을 수 없습니다. 페이지 구조를 자세히 살펴봐야 합니다.
+페이지 HTML을 page_html.txt 파일에 저장했습니다.
+
+브라우저 종료됨

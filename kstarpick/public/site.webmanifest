@@ -1,0 +1,110 @@
+{
+  "name": "KstarPick - K-Pop News Portal",
+  "short_name": "KstarPick",
+  "description": "K-Pop, 한류, 드라마, TV/영화 소식을 한 곳에서 만나보세요. 최신 K-Pop 뉴스, BTS, 블랙핑크, 에스파 등 아이돌 소식과 한국 드라마 정보를 실시간으로 제공합니다.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#8B5CF6",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "ko-KR",
+  "dir": "ltr",
+  "categories": ["entertainment", "news", "music"],
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon-16x16.png",
+      "sizes": "16x16",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "최신 뉴스",
+      "short_name": "뉴스",
+      "description": "K-Pop 최신 뉴스 보기",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/icons/news-icon.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "드라마",
+      "short_name": "드라마",
+      "description": "한국 드라마 정보",
+      "url": "/drama",
+      "icons": [
+        {
+          "src": "/icons/drama-icon.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "TV/영화",
+      "short_name": "영화",
+      "description": "TV/영화 정보",
+      "url": "/tvfilm",
+      "icons": [
+        {
+          "src": "/icons/movie-icon.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "검색",
+      "short_name": "검색",
+      "description": "콘텐츠 검색",
+      "url": "/search",
+      "icons": [
+        {
+          "src": "/icons/search-icon.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/desktop-screenshot.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "KstarPick 데스크톱 화면"
+    },
+    {
+      "src": "/screenshots/mobile-screenshot.png",
+      "sizes": "360x800",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "KstarPick 모바일 화면"
+    }
+  ],
+  "prefer_related_applications": false
+} 

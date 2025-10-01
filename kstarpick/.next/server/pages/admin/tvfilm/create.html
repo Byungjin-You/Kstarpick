@@ -1,0 +1,69 @@
+<!DOCTYPE html><html lang="en"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="theme-color" content="#ffffff"/><link rel="icon" href="/favicon.ico"/><meta name="next-head-count" content="4"/><meta charSet="utf-8"/><meta property="og:site_name" content="KstarPick - K-Pop News Portal"/><meta property="og:type" content="website"/><meta property="og:locale" content="en_US"/><meta property="og:locale:alternate" content="ko_KR"/><meta name="twitter:card" content="summary_large_image"/><meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1"/><meta name="googlebot" content="index, follow"/><meta name="NaverBot" content="All"/><meta name="Yeti" content="All"/><meta name="DaumBot" content="All"/><meta name="google-site-verification" content="kstarpick-google-verification"/><meta name="naver-site-verification" content="kstarpick-naver-verification"/><meta name="msvalidate.01" content="kstarpick-bing-verification"/><meta name="application-name" content="KstarPick"/><meta name="apple-mobile-web-app-title" content="KstarPick"/><meta name="theme-color" content="#8B5CF6"/><meta name="apple-mobile-web-app-status-bar-style" content="default"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="mobile-web-app-capable" content="yes"/><meta name="msapplication-TileColor" content="#ffffff"/><meta name="msapplication-navbutton-color" content="#ffffff"/><link rel="preconnect" href="https://www.instagram.com"/><link rel="preconnect" href="https://platform.twitter.com"/><link rel="preconnect" href="https://cdn.riddle.com"/><link rel="dns-prefetch" href="https://www.instagram.com"/><link rel="dns-prefetch" href="https://platform.twitter.com"/><link rel="dns-prefetch" href="https://cdn.riddle.com"/><link rel="icon" type="image/x-icon" href="/favicon.ico"/><link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png"/><link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png"/><link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png"/><link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"/><link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png"/><link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png"/><link rel="manifest" href="/site.webmanifest"/><script>
+              // Instagram 스크립트 로드 함수
+              function loadInstagramScript() {
+                if (typeof window !== 'undefined' && !window.instgrm) {
+                  const script = document.createElement('script');
+                  script.async = true;
+                  script.src = 'https://www.instagram.com/embed.js';
+                  script.onload = function() {
+                    console.log('[Global] Instagram 스크립트 로드 완료');
+                    window.instagramScriptLoaded = true;
+                  };
+                  script.onerror = function() {
+                    console.error('[Global] Instagram 스크립트 로드 실패');
+                  };
+                  document.head.appendChild(script);
+                }
+              }
+              
+              // Twitter 스크립트 로드 함수
+              function loadTwitterScript() {
+                if (typeof window !== 'undefined' && !window.twttr) {
+                  const script = document.createElement('script');
+                  script.async = true;
+                  script.src = 'https://platform.twitter.com/widgets.js';
+                  script.charset = 'utf-8';
+                  script.onload = function() {
+                    console.log('[Global] Twitter 스크립트 로드 완료');
+                    window.twitterScriptLoaded = true;
+                  };
+                  script.onerror = function() {
+                    console.error('[Global] Twitter 스크립트 로드 실패');
+                  };
+                  document.head.appendChild(script);
+                }
+              }
+              
+              // Riddle 스크립트 로드 함수
+              function loadRiddleScript() {
+                if (typeof window !== 'undefined' && !window.Riddle) {
+                  const script = document.createElement('script');
+                  script.async = true;
+                  script.src = 'https://www.riddle.com/embed/build-embedjs/embedV2.js';
+                  script.onload = function() {
+                    console.log('[Global] Riddle 스크립트 로드 완료');
+                    window.riddleScriptLoaded = true;
+                  };
+                  script.onerror = function() {
+                    console.error('[Global] Riddle 스크립트 로드 실패');
+                  };
+                  document.head.appendChild(script);
+                }
+              }
+              
+              // 즉시 스크립트 로드 - 하이드레이션 전에 준비
+              loadInstagramScript();
+              loadTwitterScript();
+              loadRiddleScript();
+              
+              // 추가 안전장치: DOM 로드 완료 후에도 재시도
+              if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                  setTimeout(function() {
+                    if (!window.instgrm) loadInstagramScript();
+                    if (!window.twttr) loadTwitterScript();
+                    if (!window.Riddle) loadRiddleScript();
+                  }, 100);
+                });
+              }
+            </script><link rel="preload" href="/_next/static/css/2dde3b0753289dbe.css" as="style"/><link rel="stylesheet" href="/_next/static/css/2dde3b0753289dbe.css" data-n-g=""/><noscript data-n-css=""></noscript><script defer="" nomodule="" src="/_next/static/chunks/polyfills-42372ed130431b0a.js"></script><script src="/_next/static/chunks/webpack-ab536a165c8c4aa8.js" defer=""></script><script src="/_next/static/chunks/framework-945b357d4a851f4b.js" defer=""></script><script src="/_next/static/chunks/main-2df54d63059b9666.js" defer=""></script><script src="/_next/static/chunks/pages/_app-ccaff862230ba0e7.js" defer=""></script><script src="/_next/static/chunks/1664-097cf1773184f113.js" defer=""></script><script src="/_next/static/chunks/5089-3227ee88145750c3.js" defer=""></script><script src="/_next/static/chunks/1876-a3e3be66d40781dc.js" defer=""></script><script src="/_next/static/chunks/7066-2485b3db1b9ab405.js" defer=""></script><script src="/_next/static/chunks/8766-bd5ed2470aab3da3.js" defer=""></script><script src="/_next/static/chunks/2576-44da3487de7e8c63.js" defer=""></script><script src="/_next/static/chunks/9222-c45d928ae0dd8c81.js" defer=""></script><script src="/_next/static/chunks/pages/admin/tvfilm/create-a3adbb6bedd6a2e5.js" defer=""></script><script src="/_next/static/kstarpick-build-1756704349954/_buildManifest.js" defer=""></script><script src="/_next/static/kstarpick-build-1756704349954/_ssgManifest.js" defer=""></script></head><body><div id="__next"><div class="min-h-screen bg-white flex items-center justify-center"><div class="text-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div><p class="text-gray-500 text-sm">콘텐츠 로딩 중...</p></div></div></div><script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{}},"page":"/admin/tvfilm/create","query":{},"buildId":"kstarpick-build-1756704349954","nextExport":true,"autoExport":true,"isFallback":false,"scriptLoader":[]}</script></body></html>

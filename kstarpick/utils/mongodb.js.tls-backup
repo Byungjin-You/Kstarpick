@@ -1,0 +1,153 @@
+import { MongoClient } from 'mongodb';
+import fs from 'fs';
+import path from 'path';
+
+// 환경변수 명시적 로딩
+if (typeof window === 'undefined') {
+  const dotenv = require('dotenv');
+  
+  // 환경에 따른 env 파일 로딩
+  const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
+  const envPath = path.resolve(process.cwd(), envFile);
+  
+  if (fs.existsSync(envPath)) {
+    console.log(`[MongoDB Utils] Loading env from: ${envPath}`);
+    const result = dotenv.config({ path: envPath });
+    if (result.error) {
+      console.error(`[MongoDB Utils] Error loading env file:`, result.error);
+    }
+  } else {
+    console.warn(`[MongoDB Utils] Env file not found: ${envPath}`);
+  }
+}
+
+let MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_DB = process.env.MONGODB_DB || 'kstarpick';
+
+console.log('[MongoDB Utils] =====================');
+console.log('[MongoDB Utils] NODE_ENV:', process.env.NODE_ENV);
+console.log('[MongoDB Utils] MONGODB_URI exists:', !!MONGODB_URI);
+console.log('[MongoDB Utils] MONGODB_URI length:', MONGODB_URI ? MONGODB_URI.length : 0);
+console.log('[MongoDB Utils] MONGODB_DB:', MONGODB_DB);
+console.log('[MongoDB Utils] =====================');
+
+if (!MONGODB_URI) {
+  console.error('[MongoDB Utils] MONGODB_URI is not defined! Using fallback DocumentDB URI');
+  // DocumentDB URI 직접 설정
+  MONGODB_URI = 'mongodb://localhost:27017/kstarpick';
+}
+
+let cachedClient = null;
+let cachedDb = null;
+
+// 새로운 clientPromise 추가 (NextAuth MongoDB adapter용)
+let client;
+let clientPromise;
+
+// 로컬 MongoDB vs DocumentDB 구분
+const isLocalMongoDB = MONGODB_URI.includes('localhost') || MONGODB_URI.includes('127.0.0.1');
+const isDocumentDB = MONGODB_URI.includes('docdb.amazonaws.com');
+
+console.log('[MongoDB Utils] Connection type:', isLocalMongoDB ? 'Local MongoDB' : (isDocumentDB ? 'DocumentDB' : 'Remote MongoDB'));
+
+// 연결 옵션을 동적으로 설정
+const options = {
+  retryWrites: false,
+  // 기본 타임아웃 설정
+  connectTimeoutMS: 30000,
+  socketTimeoutMS: 45000,
+  serverSelectionTimeoutMS: 30000,
+  heartbeatFrequencyMS: 10000,
+  maxPoolSize: 5,
+  minPoolSize: 1,
+  maxIdleTimeMS: 30000,
+  waitQueueTimeoutMS: 5000,
+  retryReads: true,
+};
+
+// DocumentDB 전용 설정
+if (isDocumentDB) {
+  options.authSource = 'admin';
+  options.authMechanism = 'SCRAM-SHA-1';
+  options.tls = true;
+  options.tlsAllowInvalidCertificates = true;
+  options.tlsAllowInvalidHostnames = true;
+  
+  // CA 인증서 파일이 있으면 사용
+  const caFilePath = path.resolve(process.cwd(), 'rds-ca-2019-root.pem');
+  if (fs.existsSync(caFilePath)) {
+    console.log('[MongoDB Utils] Using CA certificate file');
+    options.tlsCAFile = caFilePath;
+  }
+}
+
+// 로컬 MongoDB 설정 (인증 없음)
+if (isLocalMongoDB) {
+  // 로컬 MongoDB는 기본적으로 인증이 비활성화되어 있음
+  console.log('[MongoDB Utils] Using local MongoDB without authentication');
+}
+
+// 연결 함수
+async function createConnection() {
+  console.log('[MongoDB Utils] Creating new MongoDB connection...');
+  console.log('[MongoDB Utils] URI (masked):', MONGODB_URI.replace(/:[^:]*@/, ':***@'));
+  console.log('[MongoDB Utils] Options:', JSON.stringify(options, null, 2));
+
+  const client = new MongoClient(MONGODB_URI, options);
+  
+  try {
+    await client.connect();
+    console.log('[MongoDB Utils] ✅ Successfully connected to MongoDB');
+    
+    // 연결 테스트
+    const adminDb = client.db('admin');
+    await adminDb.command({ ping: 1 });
+    console.log('[MongoDB Utils] ✅ Ping test successful');
+    
+    return client;
+  } catch (error) {
+    console.error('[MongoDB Utils] ❌ Connection failed:', error.message);
+    console.error('[MongoDB Utils] Error code:', error.code);
+    throw error;
+  }
+}
+
+// clientPromise 생성
+if (process.env.NODE_ENV === 'development') {
+  if (!global._mongoClientPromise) {
+    global._mongoClientPromise = createConnection();
+  }
+  clientPromise = global._mongoClientPromise;
+} else {
+  clientPromise = createConnection();
+}
+
+export async function connectToDatabase() {
+  // 이미 캐시된 연결이 있고 유효한지 확인
+  if (cachedClient && cachedDb) {
+    try {
+      // 연결 상태 확인
+      await cachedClient.db('admin').command({ ping: 1 });
+      console.log('[MongoDB Utils] Using cached connection');
+      return { client: cachedClient, db: cachedDb };
+    } catch (error) {
+      console.log('[MongoDB Utils] Cached connection invalid, creating new one');
+      cachedClient = null;
+      cachedDb = null;
+    }
+  }
+
+  console.log('[MongoDB Utils] Creating new database connection...');
+
+  const client = await clientPromise;
+  const db = client.db(MONGODB_DB);
+
+  // 연결 캐싱
+  cachedClient = client;
+  cachedDb = db;
+
+  return { client, db };
+}
+
+// Export clientPromise for NextAuth MongoDB adapter
+export default clientPromise; 

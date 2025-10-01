@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockquote 따옴표 디자인 테스트</title>
+    <link rel="stylesheet" href="/styles/globals.css">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+            line-height: 1.6;
+        }
+        .test-container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            margin: 20px 0;
+        }
+        .test-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 30px;
+            text-align: center;
+            background: linear-gradient(135deg, #9333ea, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .ql-editor {
+            border: none;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1 class="test-title">📝 Blockquote 따옴표 디자인 테스트</h1>
+        
+        <div class="ql-editor">
+            <h2>일반 텍스트</h2>
+            <p>이것은 일반적인 단락 텍스트입니다. 뉴스 기사에서 일반적으로 사용되는 텍스트 형태입니다.</p>
+            
+            <h3>인용구 테스트</h3>
+            <blockquote>
+                <p>Hello, this is FNC Entertainment. We would like to provide an update regarding the military enlistment schedule of our artist Rowoon.</p>
+            </blockquote>
+            
+            <p>인용구 다음에 오는 일반 텍스트입니다.</p>
+            
+            <blockquote>
+                <p>Rowoon, who was initially scheduled to enlist on July 21, received a re-examination notice (Grade 7) during his draft physical assessment. After undergoing the re-examination in early August, he has now been confirmed to enlist as an active-duty soldier on October 27.</p>
+            </blockquote>
+            
+            <h3>링크가 포함된 인용구</h3>
+            <blockquote>
+                <p>We sincerely thank you for the constant love and support you send to <a href="#">Rowoon</a>, and we ask for your continued encouragement until the day he safely completes his service and returns in good health.</p>
+            </blockquote>
+            
+            <h3>여러 단락이 포함된 인용구</h3>
+            <blockquote>
+                <p>As previously announced, no official event will be held on the day of enlistment in order to minimize congestion at the site.</p>
+                <p>Since enlistment takes place at a private location shared with many other soldiers, we kindly ask fans to refrain from visiting.</p>
+            </blockquote>
+            
+            <h3>소셜 미디어 임베드 (스타일링 제외)</h3>
+            <blockquote class="twitter-tweet">
+                <p>이것은 Twitter 임베드 blockquote입니다. 따옴표 스타일링이 적용되지 않아야 합니다.</p>
+                <a href="https://twitter.com/example">트위터에서 보기</a>
+            </blockquote>
+            
+            <blockquote class="instagram-media">
+                <p>이것은 Instagram 임베드 blockquote입니다. 따옴표 스타일링이 적용되지 않아야 합니다.</p>
+                <a href="https://instagram.com/example">인스타그램에서 보기</a>
+            </blockquote>
+        </div>
+    </div>
+    
+    <div style="text-align: center; margin-top: 40px; padding: 20px; color: #666;">
+        <p>위의 인용구들에 보라색-핑크색 그라데이션 따옴표가 표시되면 스타일링이 올바르게 작동하는 것입니다.</p>
+        <a href="/" style="color: #9333ea; text-decoration: none;">← 홈페이지로 돌아가기</a>
+    </div>
+</body>
+</html>

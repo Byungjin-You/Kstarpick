@@ -1,0 +1,2035 @@
+import axios from 'axios';
+import * as cheerio from 'cheerio';
+import { connectToDatabase } from '../../../utils/mongodb';
+import { ObjectId } from 'mongodb';
+import fs from 'fs';
+import puppeteer from 'puppeteer';
+
+const LOG_PATH = '/tmp/news-crawl-debug.log';
+
+// 디버깅 헬퍼 함수
+function logDebug(message, data = null) {
+  const logMsg = `[DEBUG] ${message} ${data ? JSON.stringify(data) : ''}`;
+  console.log(logMsg);
+  // 파일 쓰기 제거 - 권한 문제 가능성
+}
+
+// 강제 로그 함수 추가
+function forceLog(message) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[FORCE LOG] ${timestamp}: ${message}`;
+  console.log(logMessage);
+  
+  // 로그를 파일에도 저장
+  const fs = require('fs');
+  try {
+    fs.appendFileSync('/tmp/news-crawl-debug.log', logMessage + '\n');
+  } catch (e) {
+    // 파일 쓰기 실패해도 무시
+  }
+}
+
+// 뉴스 제목 필터링 함수 - 제외할 뉴스 유형 확인
+function shouldSkipNews(title) {
+  if (!title) return true; // 제목이 없으면 제외
+  
+  const lowerTitle = title.toLowerCase();
+  
+  // 제외할 키워드들
+  const excludeKeywords = [
+    'quiz:',
+    'soompi'
+  ];
+  
+  // 제외 키워드가 포함된 경우 true 반환 (제외)
+  for (const keyword of excludeKeywords) {
+    if (lowerTitle.includes(keyword)) {
+      logDebug(`뉴스 제외: "${title}" (키워드: "${keyword}")`);
+      return true;
+    }
+  }
+  
+  return false; // 제외하지 않음
+}
+
+// 해시 기반 이미지 프록시를 위한 함수들
+const crypto = require('crypto');
+
+// URL을 해시로 변환
+function createImageHash(url) {
+  return crypto.createHash('sha256').update(url).digest('hex').substring(0, 16);
+}
+
+// 이미지 해시를 DB에 저장하는 함수
+async function saveImageHash(url, hash) {
+  try {
+    const { db } = await connectToDatabase();
+    const collection = db.collection('image_hashes');
+    
+    // 이미 존재하는지 확인
+    const existing = await collection.findOne({ hash });
+    if (!existing) {
+      await collection.insertOne({
+        hash,
+        url,
+        createdAt: new Date()
+      });
+    }
+  } catch (error) {
+    console.error('이미지 해시 저장 오류:', error);
+  }
+}
+
+// Soompi 이미지 URL을 해시 기반 프록시 URL로 변환
+async function convertSoompiImageToProxy(soompiImageUrl) {
+  if (!soompiImageUrl) return null;
+  
+  // 이미 우리 사이트 URL이면 그대로 반환
+  if (soompiImageUrl.startsWith('/api/proxy/') || soompiImageUrl.startsWith('/images/')) {
+    return soompiImageUrl;
+  }
+  
+  // 외부 이미지 URL인 경우 해시 기반 프록시 URL로 변환
+  if (soompiImageUrl.startsWith('http://') || soompiImageUrl.startsWith('https://')) {
+    const hash = createImageHash(soompiImageUrl);
+    
+    // 해시를 DB에 저장
+    await saveImageHash(soompiImageUrl, hash);
+    
+    return `/api/proxy/hash-image?hash=${hash}`;
+  }
+  
+  return soompiImageUrl;
+}
+
+// 기사 내용에 마침표 뒤 줄바꿈 추가 유틸리티 함수
+function addLineBreakAfterPeriods(htmlContent) {
+  try {
+    const $ = cheerio.load(htmlContent);
+    
+    // 각 단락(p 태그)에 대해 처리
+    $('p').each(function(i, elem) {
+      const paragraphText = $(this).html();
+      if (!paragraphText) return;
+      
+      // 문장을 마침표로 분리 (단, HTML 태그 내부의 마침표는 제외)
+      let sentences = [];
+      let currentPos = 0;
+      let inTag = false;
+      let currentSentence = '';
+      
+      for (let i = 0; i < paragraphText.length; i++) {
+        const char = paragraphText[i];
+        currentSentence += char;
+        
+        // HTML 태그 안인지 밖인지 추적
+        if (char === '<') inTag = true;
+        else if (char === '>') inTag = false;
+        
+        // 마침표를 만나고, 태그 내부가 아니고, 다음 문자가 공백이거나 태그의 시작일 때
+        if (char === '.' && !inTag && 
+            (i + 1 >= paragraphText.length || 
+             paragraphText[i + 1] === ' ' || 
+             paragraphText[i + 1] === '\t' || 
+             paragraphText[i + 1] === '<')) {
+          
+          sentences.push(currentSentence);
+          currentSentence = '';
+        }
+      }
+      
+      // 마지막 문장이 남아있다면 추가
+      if (currentSentence.trim()) {
+        sentences.push(currentSentence);
+      }
+      
+      // 문장이 하나 이상이면 각 문장을 별도의 p 태그로 분리
+      if (sentences.length > 1) {
+        const newHtml = sentences.map(s => `<p>${s.trim()}</p>`).join('\n\n');
+        $(this).replaceWith(newHtml);
+      }
+    });
+    
+    return $.html();
+  } catch (error) {
+    console.error('addLineBreakAfterPeriods 함수 오류:', error);
+    // 오류 발생 시 원본 HTML 반환
+    return htmlContent;
+  }
+}
+
+// Puppeteer를 사용한 동적 크롤링 함수
+async function scrapeSoompiNewsWithPuppeteer(maxItemsLimit = 50) {
+  forceLog(`!!!!! 함수 진입 확인: maxItemsLimit=${maxItemsLimit} !!!!!`);
+  forceLog(`!!!!! maxItemsLimit 타입: ${typeof maxItemsLimit} !!!!!`);
+  forceLog(`!!!!! maxItemsLimit 값: ${JSON.stringify(maxItemsLimit)} !!!!!`);
+  let browser;
+  try {
+    logDebug('Puppeteer 크롤링 시작...');
+    forceLog('=== Puppeteer 크롤링 시작 ===');
+    forceLog(`=== DEBUG: Puppeteer 함수 진입, maxItemsLimit=${maxItemsLimit} ===`);
+    
+    // Puppeteer 브라우저 시작
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu'
+      ]
+    });
+    
+    const page = await browser.newPage();
+    
+    // User-Agent 설정
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36');
+    
+    // 페이지 로드
+    logDebug('https://www.soompi.com/ 접속 시도...');
+    forceLog('https://www.soompi.com/ 접속 시도...');
+    await page.goto('https://www.soompi.com/', { 
+      waitUntil: 'networkidle2',
+      timeout: 30000 
+    });
+    
+    logDebug('페이지 로드 완료');
+    forceLog('페이지 로드 완료');
+    
+    // 페이지 제목 확인
+    const pageTitle = await page.title();
+    forceLog(`페이지 제목: ${pageTitle}`);
+    
+    // 결과를 저장할 배열
+    const newsItems = [];
+    
+    // 현재 페이지의 뉴스 링크와 이미지 수집
+    const currentNewsLinks = await page.evaluate(() => {
+      const links = [];
+      
+      // 간단한 셀렉터들로 뉴스 링크 찾기
+      const selectors = [
+        'a[href*="/article/"]',         // /article/ 포함하는 모든 링크
+        'a[href*="soompi.com/article"]', // soompi.com/article 포함하는 모든 링크
+        'h4.media-heading a',           // 기존 셀렉터
+        'h3 a',                         // h3 태그 내 링크
+        'h2 a',                         // h2 태그 내 링크
+        '.entry-title a',               // WordPress 스타일
+        '.post-title a',                // 포스트 제목
+        'article a',                    // article 태그 내 링크
+        '.news-item a',                 // 뉴스 아이템
+        '.article-title a'              // 기사 제목
+      ];
+      
+      console.log('=== 셀렉터 테스트 시작 ===');
+      
+      for (const selector of selectors) {
+        const elements = document.querySelectorAll(selector);
+        console.log(`셀렉터 "${selector}"에서 ${elements.length}개 요소 발견`);
+        
+        elements.forEach((link, index) => {
+          const title = link.textContent.trim();
+          const url = link.href;
+          
+          console.log(`링크 ${index + 1}: title="${title}", url="${url}"`);
+          
+          // 유효한 뉴스 링크인지 확인
+          if (title && url && 
+              url.includes('soompi.com') && 
+              url.includes('/article/') &&
+              title.length > 5 && 
+              !links.some(existing => existing.url === url)) {
+            
+            // 이미지 찾기 - 링크 내부 또는 인근 이미지
+            let thumbnailUrl = '';
+            
+            // 1. 링크 내부 img 태그
+            const imgInLink = link.querySelector('img');
+            if (imgInLink && imgInLink.src) {
+              thumbnailUrl = imgInLink.src;
+            }
+            
+            // 2. 링크의 부모/형제 요소에서 이미지 찾기
+            if (!thumbnailUrl) {
+              const parent = link.closest('article, .post, .news-item, div[class*="article"], div[class*="post"]');
+              if (parent) {
+                const nearbyImg = parent.querySelector('img');
+                if (nearbyImg && nearbyImg.src) {
+                  thumbnailUrl = nearbyImg.src;
+                }
+              }
+            }
+            
+            // 3. 형제 요소에서 이미지 찾기
+            if (!thumbnailUrl && link.previousElementSibling) {
+              const prevImg = link.previousElementSibling.querySelector('img');
+              if (prevImg && prevImg.src) {
+                thumbnailUrl = prevImg.src;
+              }
+            }
+            
+            if (!thumbnailUrl && link.nextElementSibling) {
+              const nextImg = link.nextElementSibling.querySelector('img');
+              if (nextImg && nextImg.src) {
+                thumbnailUrl = nextImg.src;
+              }
+            }
+            
+            // ===== 카테고리 정보 추출 (새로 추가) =====
+            let category = '';
+            
+            // 방법 1: 링크 주변의 카테고리 태그 찾기
+            const parentContainer = link.closest('article, .post, .news-item, .media, div[class*="article"], div[class*="post"], div[class*="news"]');
+            if (parentContainer) {
+              // 카테고리 태그 찾기
+              const categoryElement = parentContainer.querySelector('.badges.tags a, .uppercase.badges.tags a, .tags-container a, .category a, [class*="category"] a, [class*="badge"] a');
+              if (categoryElement) {
+                const categoryText = categoryElement.textContent.trim();
+                const categoryHref = categoryElement.getAttribute('href') || '';
+                console.log(`카테고리 요소 발견: text="${categoryText}", href="${categoryHref}"`);
+                
+                if (categoryHref.includes('/category/') || categoryText.length > 0) {
+                  category = categoryText;
+                  console.log(`카테고리 추출 성공: "${category}"`);
+                }
+              }
+            }
+            
+            // 방법 2: 링크 자체에서 카테고리 정보 찾기 (data 속성 등)
+            if (!category) {
+              const linkCategory = link.getAttribute('data-category') || link.getAttribute('data-tag') || '';
+              if (linkCategory) {
+                category = linkCategory;
+                console.log(`링크에서 카테고리 추출: "${category}"`);
+              }
+            }
+            
+            // 방법 3: 부모 요소의 클래스명에서 카테고리 추론
+            if (!category && parentContainer) {
+              const parentClasses = parentContainer.className || '';
+              if (parentClasses.includes('drama')) {
+                category = 'Drama';
+              } else if (parentClasses.includes('music') || parentClasses.includes('kpop')) {
+                category = 'Music';
+              } else if (parentClasses.includes('film') || parentClasses.includes('movie')) {
+                category = 'Film';
+              } else if (parentClasses.includes('celeb')) {
+                category = 'Celeb';
+              }
+              
+              if (category) {
+                console.log(`부모 클래스에서 카테고리 추론: "${category}"`);
+              }
+            }
+            
+            // 방법 4: 제목에서 카테고리 추론 (개선됨)
+            if (!category) {
+              const lowerTitle = title.toLowerCase();
+              
+              // 드라마/TV 관련 패턴
+              if (lowerTitle.includes('watch:') && (lowerTitle.includes('teaser') || lowerTitle.includes('trailer'))) {
+                // "Watch: ... Teaser" 패턴은 대부분 드라마/영화
+                if (lowerTitle.includes('film') || lowerTitle.includes('movie') || lowerTitle.includes('cinema')) {
+                  category = 'Film';
+                } else {
+                  // 기본적으로 드라마로 분류 (대부분의 "Watch: ... Teaser"는 드라마)
+                  category = 'Drama Preview';
+                }
+              } else if (lowerTitle.includes('drama') || lowerTitle.includes('series') || lowerTitle.includes('season')) {
+                category = 'Drama Preview';
+              } else if (lowerTitle.includes('mv') || lowerTitle.includes('music video') || 
+                        lowerTitle.includes('comeback') || lowerTitle.includes('album') ||
+                        lowerTitle.includes('single') || lowerTitle.includes('song')) {
+                category = 'Music';
+              } else if (lowerTitle.includes('interview') || lowerTitle.includes('opens up') || 
+                        lowerTitle.includes('talks about') || lowerTitle.includes('shares') ||
+                        lowerTitle.includes('reveals') || lowerTitle.includes('discusses')) {
+                category = 'Celeb';
+              } else if (lowerTitle.includes('film') || lowerTitle.includes('movie') || lowerTitle.includes('cinema')) {
+                category = 'Film';
+              } else if (lowerTitle.includes('variety') || lowerTitle.includes('show') || lowerTitle.includes('reality')) {
+                category = 'Variety';
+              }
+              
+              if (category) {
+                console.log(`제목에서 카테고리 추론: "${category}"`);
+              }
+            }
+            
+            links.push({ 
+              title, 
+              url, 
+              thumbnailUrl: thumbnailUrl || '',
+              category: category || '', // 카테고리 정보 추가
+              index, 
+              selector 
+            });
+            console.log(`유효한 링크 추가: "${title}", 카테고리: "${category}"`);
+          }
+        });
+        
+        // 충분한 링크를 찾았으면 중단 (제한을 늘림) - evaluate 함수 밖에서 처리
+      }
+      
+      console.log(`총 ${links.length}개의 유효한 링크 발견`);
+      return links;
+    });
+    
+    forceLog(`currentNewsLinks 개수: ${currentNewsLinks.length}`);
+    logDebug(`currentNewsLinks 개수: ${currentNewsLinks.length}`);
+    logDebug(`현재 페이지에서 ${currentNewsLinks.length}개 뉴스 링크 발견`);
+    
+    // 링크가 너무 많으면 잘라내기 (첫 페이지에서는 적당히)
+    const initialLinkLimit = Math.min(maxItemsLimit * 2, 100);
+    const limitedCurrentNewsLinks = currentNewsLinks.slice(0, initialLinkLimit);
+    if (currentNewsLinks.length > initialLinkLimit) {
+      forceLog(`첫 페이지 링크를 ${currentNewsLinks.length}개에서 ${initialLinkLimit}개로 제한`);
+    }
+    
+    // 새로운 뉴스 링크만 추가
+    for (const link of limitedCurrentNewsLinks) {
+      if (newsItems.length >= maxItemsLimit) break;
+      
+      // 제목 필터링 확인
+      if (shouldSkipNews(link.title)) {
+        forceLog(`뉴스 제외됨: "${link.title}"`);
+        continue;
+      }
+      
+      // 중복 확인
+      if (!newsItems.some(item => item.articleUrl === link.url)) {
+        const timeText = 'Recently';
+        
+        // 이미지 URL을 프록시 URL로 변환
+        let proxyThumbnailUrl = '';
+        if (link.thumbnailUrl) {
+          proxyThumbnailUrl = `/api/proxy/image?url=${encodeURIComponent(link.thumbnailUrl)}`;
+          forceLog(`🖼️ 홈페이지 이미지 프록시 변환: ${link.thumbnailUrl} → ${proxyThumbnailUrl}`);
+        }
+        
+        // 홈페이지에서 추출한 카테고리 정보 사용
+        let category = link.category || '';
+        forceLog(`🏠 홈페이지에서 추출한 카테고리: "${link.title}" → "${category}"`);
+        
+        // URL에서 카테고리 추출 (보조)
+        if (!category && link.url && link.url.includes('/category/')) {
+          const categoryMatch = link.url.match(/\/category\/([^\/]+)/);
+          if (categoryMatch && categoryMatch[1]) {
+            category = categoryMatch[1];
+            forceLog(`🔗 URL에서 카테고리 추출: "${category}"`);
+          }
+        }
+        
+        try {
+          const newsItem = await createNewsItem(link.title, link.url, proxyThumbnailUrl, category, timeText, newsItems.length);
+          newsItems.push(newsItem);
+          logDebug(`뉴스 링크 추가: title="${link.title}", slug="${newsItem.slug}", category="${newsItem.category}"`);
+          forceLog(`뉴스 링크 추가: "${link.title}", 최종 카테고리: "${newsItem.category}"`);
+        } catch (error) {
+          logDebug(`뉴스 아이템 생성 실패: ${link.title}`, error);
+          forceLog(`뉴스 아이템 생성 실패: ${link.title} - ${error.message}`);
+        }
+      }
+    }
+    
+    logDebug(`총 ${newsItems.length}개의 뉴스 항목을 찾았습니다.`);
+    forceLog(`총 ${newsItems.length}개의 뉴스 항목을 찾았습니다.`);
+    forceLog(`=== 추가 뉴스 수집 시작 ===`);
+    forceLog(`현재 newsItems.length: ${newsItems.length}, maxItemsLimit: ${maxItemsLimit}`);
+    forceLog(`조건 체크: newsItems.length < maxItemsLimit = ${newsItems.length < maxItemsLimit}`);
+    
+    // /latest 페이지에서 Load More 기능을 사용하여 더 많은 뉴스 수집
+    if (newsItems.length < maxItemsLimit) {
+      forceLog(`=== /latest 페이지 Load More 크롤링 시작 ===`);
+      
+      try {
+        await page.goto('https://www.soompi.com/latest', { waitUntil: 'networkidle2', timeout: 30000 });
+        forceLog('/latest 페이지 로드 완료');
+        
+        let latestAttempt = 0;
+        const maxLatestAttempts = Math.ceil((maxItemsLimit - newsItems.length) / 15); // 15개씩 로드
+        
+        forceLog(`/latest Load More 시작: 현재 ${newsItems.length}개, 목표 ${maxItemsLimit}개, 최대 ${maxLatestAttempts}번 시도`);
+        
+        while (latestAttempt < maxLatestAttempts && newsItems.length < maxItemsLimit) {
+          latestAttempt++;
+          
+                     // 현재 페이지의 뉴스 링크와 이미지 수집
+           const latestNewsLinks = await page.evaluate(() => {
+             const links = [];
+             
+             // 뉴스 링크와 이미지를 함께 수집
+             document.querySelectorAll('a').forEach(link => {
+               if (link.href && 
+                   link.href.includes('soompi.com') && 
+                   link.href.includes('/article/')) {
+                 const title = link.textContent?.trim() || '';
+                 
+                 if (title.length > 3) {
+                   // 이미지 찾기 - 링크 내부 또는 인근 이미지
+                   let thumbnailUrl = '';
+                   
+                   // 1. 링크 내부 img 태그
+                   const imgInLink = link.querySelector('img');
+                   if (imgInLink && imgInLink.src) {
+                     thumbnailUrl = imgInLink.src;
+                   }
+                   
+                   // 2. 링크의 부모/형제 요소에서 이미지 찾기
+                   if (!thumbnailUrl) {
+                     const parent = link.closest('article, .post, .news-item, div[class*="article"], div[class*="post"]');
+                     if (parent) {
+                       const nearbyImg = parent.querySelector('img');
+                       if (nearbyImg && nearbyImg.src) {
+                         thumbnailUrl = nearbyImg.src;
+                       }
+                     }
+                   }
+                   
+                   // 3. 형제 요소에서 이미지 찾기
+                   if (!thumbnailUrl && link.previousElementSibling) {
+                     const prevImg = link.previousElementSibling.querySelector('img');
+                     if (prevImg && prevImg.src) {
+                       thumbnailUrl = prevImg.src;
+                     }
+                   }
+                   
+                   if (!thumbnailUrl && link.nextElementSibling) {
+                     const nextImg = link.nextElementSibling.querySelector('img');
+                     if (nextImg && nextImg.src) {
+                       thumbnailUrl = nextImg.src;
+                     }
+                   }
+                   
+                   // 카테고리 정보 추출 (/latest 페이지용)
+                   let category = '';
+                   const parentContainer = link.closest('article, .post, .news-item, .media, div[class*="article"], div[class*="post"], div[class*="news"]');
+                   if (parentContainer) {
+                     const categoryElement = parentContainer.querySelector('.badges.tags a, .uppercase.badges.tags a, .tags-container a, .category a, [class*="category"] a, [class*="badge"] a');
+                     if (categoryElement) {
+                       category = categoryElement.textContent.trim();
+                     }
+                   }
+                   
+                   // 제목에서 카테고리 추론
+                   if (!category) {
+                     const lowerTitle = title.toLowerCase();
+                     if (lowerTitle.includes('watch:') && (lowerTitle.includes('teaser') || lowerTitle.includes('trailer'))) {
+                       if (lowerTitle.includes('drama') || lowerTitle.includes('series')) {
+                         category = 'Drama Preview';
+                       } else if (lowerTitle.includes('film') || lowerTitle.includes('movie')) {
+                         category = 'Film';
+                       }
+                     } else if (lowerTitle.includes('mv') || lowerTitle.includes('music video') || lowerTitle.includes('comeback') || lowerTitle.includes('album')) {
+                       category = 'Music';
+                     } else if (lowerTitle.includes('interview') || lowerTitle.includes('opens up') || lowerTitle.includes('talks about')) {
+                       category = 'Celeb';
+                     }
+                   }
+                   
+                   links.push({ 
+                     title, 
+                     url: link.href, 
+                     thumbnailUrl: thumbnailUrl || '',
+                     category: category || ''
+                   });
+                 }
+               }
+             });
+             
+             // 중복 제거
+             const unique = [];
+             links.forEach(article => {
+               if (!unique.some(existing => existing.url === article.url)) {
+                 unique.push(article);
+               }
+             });
+             
+             return unique;
+           });
+          
+          forceLog(`/latest 시도 ${latestAttempt}: ${latestNewsLinks.length}개 뉴스 링크 발견`);
+          
+          // 새로운 뉴스만 추가
+          let addedFromLatest = 0;
+          for (const link of latestNewsLinks) {
+            if (newsItems.length >= maxItemsLimit) break;
+            
+            // 제목 필터링 확인
+            if (shouldSkipNews(link.title)) {
+              forceLog(`/latest에서 뉴스 제외됨: "${link.title}"`);
+              continue;
+            }
+            
+            if (!newsItems.some(item => item.articleUrl === link.url)) {
+              try {
+                // 이미지 URL을 프록시 URL로 변환
+                let proxyThumbnailUrl = '';
+                if (link.thumbnailUrl) {
+                  // 프록시 URL로 변환
+                  proxyThumbnailUrl = `/api/proxy/image?url=${encodeURIComponent(link.thumbnailUrl)}`;
+                  forceLog(`🖼️ 이미지 프록시 변환: ${link.thumbnailUrl} → ${proxyThumbnailUrl}`);
+                }
+                
+                const category = link.category || '';
+                forceLog(`📰 /latest에서 카테고리 추출: "${link.title}" → "${category}"`);
+                
+                const newsItem = await createNewsItem(link.title, link.url, proxyThumbnailUrl, category, 'Recently', newsItems.length);
+                newsItems.push(newsItem);
+                addedFromLatest++;
+                forceLog(`/latest에서 새 뉴스 추가 [총 ${newsItems.length}개]: "${link.title}", 카테고리: "${newsItem.category}"`);
+              } catch (error) {
+                forceLog(`뉴스 아이템 생성 실패: ${link.title} - ${error.message}`);
+              }
+            }
+          }
+          
+          forceLog(`/latest 시도 ${latestAttempt}에서 ${addedFromLatest}개 새 뉴스 추가됨 (총 ${newsItems.length}개)`);
+          
+          // 목표 달성하거나 더 이상 클릭할 수 없으면 중단
+          if (newsItems.length >= maxItemsLimit || latestAttempt >= maxLatestAttempts) {
+            forceLog(`/latest 크롤링 완료: ${newsItems.length}개 (목표: ${maxItemsLimit}개)`);
+            break;
+          }
+          
+          // 페이지 끝까지 스크롤
+          await page.evaluate(() => {
+            window.scrollTo(0, document.body.scrollHeight);
+          });
+          
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Load More 버튼 찾기 및 클릭
+          const loadMoreResult = await page.evaluate(() => {
+            // 텍스트로 Load More 버튼 찾기
+            const allButtons = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
+            for (const btn of allButtons) {
+              const text = btn.textContent?.toLowerCase() || '';
+              if (text.includes('load more') || 
+                  (text.includes('load') && text.includes('more'))) {
+                
+                if (btn.offsetParent !== null && btn.style.display !== 'none') {
+                  btn.click();
+                  return `Load More 클릭 성공: "${btn.textContent.trim()}"`;
+                }
+              }
+            }
+            
+            return false;
+          });
+          
+          if (loadMoreResult) {
+            forceLog(`🎯 /latest ${loadMoreResult}`);
+            
+            // 로딩 대기
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            
+            // 새로운 콘텐츠 로딩 대기
+            try {
+              await page.waitForFunction((previousCount) => {
+                const current = document.querySelectorAll('a[href*="/article/"]').length;
+                return current > previousCount;
+              }, { timeout: 10000 }, latestNewsLinks.length);
+              
+              forceLog('✅ /latest 새 콘텐츠 로딩 완료');
+            } catch (e) {
+              forceLog('⏰ /latest 새 콘텐츠 로딩 대기 시간 초과');
+            }
+            
+          } else {
+            forceLog('❌ /latest Load More 버튼을 찾을 수 없음 - 완료');
+            break;
+          }
+        }
+        
+        forceLog(`/latest Load More 크롤링 완료: 총 ${newsItems.length}개 뉴스 수집`);
+        
+      } catch (latestError) {
+        forceLog(`/latest 페이지 크롤링 실패: ${latestError.message}`);
+      }
+    }
+    forceLog(`=== 추가 페이지 크롤링 시작 ===`);
+    
+    // 여러 페이지에서 더 많은 뉴스 수집
+    if (newsItems.length < maxItemsLimit) {
+      forceLog(`추가 페이지 크롤링 시작: 현재 ${newsItems.length}개, 목표 ${maxItemsLimit}개`);
+      
+      const additionalPages = [
+        'https://www.soompi.com/k-pop',
+        'https://www.soompi.com/k-dramas', 
+        'https://www.soompi.com/page/2',
+        'https://www.soompi.com/page/3'
+      ];
+      
+             for (const pageUrl of additionalPages) {
+         if (newsItems.length >= maxItemsLimit) break;
+         
+         forceLog(`=== ${pageUrl} 페이지 크롤링 시작 ===`);
+         
+         try {
+           await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+           forceLog(`${pageUrl} 페이지 로드 완료`);
+           
+           // 해당 페이지의 뉴스 링크 수집
+           const pageNewsLinks = await page.evaluate(() => {
+             const links = [];
+             document.querySelectorAll('a').forEach(link => {
+               if (link.href && 
+                   link.href.includes('soompi.com') && 
+                   link.href.includes('/article/')) {
+                 const title = link.textContent?.trim() || '';
+                 const url = link.href;
+                 
+                 if (title.length > 3) {
+                   links.push({ title, url });
+                 }
+               }
+             });
+             
+             // 중복 제거
+             const unique = [];
+             links.forEach(article => {
+               if (!unique.some(existing => existing.url === article.url)) {
+                 unique.push(article);
+               }
+             });
+             
+             return unique;
+           });
+           
+           forceLog(`${pageUrl}에서 ${pageNewsLinks.length}개 뉴스 링크 발견`);
+           
+           // 새로운 뉴스만 추가
+           let addedFromPage = 0;
+           for (const link of pageNewsLinks) {
+             if (newsItems.length >= maxItemsLimit) break;
+             
+             // 제목 필터링 확인
+             if (shouldSkipNews(link.title)) {
+               forceLog(`${pageUrl}에서 뉴스 제외됨: "${link.title}"`);
+               continue;
+             }
+             
+             if (!newsItems.some(item => item.articleUrl === link.url)) {
+               try {
+                                       const newsItem = await createNewsItem(link.title, link.url, '', '', 'Recently', newsItems.length);
+                                newsItems.push(newsItem);
+                addedFromPage++;
+                forceLog(`${pageUrl}에서 새 뉴스 추가 [총 ${newsItems.length}개]: "${link.title}"`);
+              } catch (error) {
+                forceLog(`뉴스 아이템 생성 실패: ${link.title} - ${error.message}`);
+              }
+            }
+          }
+          
+          forceLog(`${pageUrl}에서 ${addedFromPage}개 새 뉴스 추가됨 (총 ${newsItems.length}개)`);
+          
+        } catch (pageError) {
+          forceLog(`${pageUrl} 크롤링 실패: ${pageError.message}`);
+        }
+      }
+      
+      forceLog(`추가 페이지 크롤링 완료: 최종 ${newsItems.length}개 뉴스 수집`);
+    } else {
+      forceLog(`목표 달성: ${newsItems.length}개 >= ${maxItemsLimit}개`);
+    }
+    
+    // 브라우저 종료
+    if (browser) {
+      try {
+        await browser.close();
+        logDebug('Puppeteer 브라우저 종료');
+        forceLog('Puppeteer 브라우저 종료');
+      } catch (closeError) {
+        logDebug('브라우저 종료 중 오류:', closeError);
+        forceLog(`브라우저 종료 중 오류: ${closeError.message}`);
+      }
+    }
+    
+    return newsItems;
+    
+  } catch (error) {
+    logDebug('Puppeteer 크롤링 중 오류:', error);
+    forceLog(`Puppeteer 크롤링 중 오류: ${error.message}`);
+    console.error('Puppeteer 오류 상세:', error);
+    console.error('Puppeteer 오류 스택:', error.stack);
+    
+    // 에러 발생 시에도 브라우저 종료
+    if (browser) {
+      try {
+        await browser.close();
+        logDebug('에러 발생 시 Puppeteer 브라우저 종료');
+        forceLog('에러 발생 시 Puppeteer 브라우저 종료');
+      } catch (closeError) {
+        logDebug('에러 시 브라우저 종료 중 오류:', closeError);
+        forceLog(`에러 시 브라우저 종료 중 오류: ${closeError.message}`);
+      }
+    }
+    
+    return [];
+  }
+}
+
+// 기존 정적 크롤링 함수 (백업용)
+async function scrapeSoompiNewsStatic(maxItemsLimit = 50) {
+  try {
+    logDebug('정적 크롤링 시작...');
+    forceLog('=== 정적 크롤링 시작 ===');
+    
+    // 웹사이트 HTML 가져오기 - 올바른 URL 사용
+    logDebug('https://www.soompi.com/latest 접속 시도...');
+    forceLog('https://www.soompi.com/latest 접속 시도...');
+    
+    try {
+      const response = await axios.get('https://www.soompi.com/latest', {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+        },
+        timeout: 10000 // 10초 타임아웃
+      });
+      
+      forceLog('axios 요청 성공');
+      
+      const html = response.data;
+      
+      logDebug(`HTML 데이터 가져옴, 길이: ${html?.length}`);
+      forceLog(`HTML 데이터 가져옴, 길이: ${html?.length}`);
+      
+      if (!html || html.length < 1000) {
+        logDebug('HTML 데이터가 너무 짧습니다. 차단되었을 수 있습니다.');
+        forceLog('HTML 데이터가 너무 짧습니다. 차단되었을 수 있습니다.');
+        return [];
+      }
+      
+      // cheerio로 HTML 파싱
+      forceLog('cheerio 로드 시작...');
+      const $ = cheerio.load(html);
+      forceLog('cheerio 로드 완료');
+      
+      // HTML 구조 디버깅
+      logDebug('페이지 제목: ' + $('title').text());
+      forceLog('페이지 제목: ' + $('title').text());
+      
+      // 결과를 저장할 배열
+      const newsItems = [];
+      
+      // 올바른 셀렉터로 뉴스 링크 찾기
+      forceLog('뉴스 링크 검색 시작...');
+      const newsLinks = $('.col-sm-12.col-md-4 .media-heading a');
+      logDebug(`뉴스 링크 수: ${newsLinks.length}`);
+      forceLog(`뉴스 링크 수: ${newsLinks.length}`);
+      
+      // 개별 뉴스 링크 처리
+      if (newsLinks.length > 0) {
+        logDebug('=== 개별 뉴스 링크 처리 시작 ===');
+        forceLog('=== 개별 뉴스 링크 처리 시작 ===');
+        
+        const linkElements = newsLinks.toArray();
+        for (let i = 0; i < linkElements.length; i++) {
+          try {
+            const link = linkElements[i];
+            const $link = $(link);
+            
+            // 제목과 URL 추출
+            const title = $link.text().trim();
+            const url = $link.attr('href');
+            
+            logDebug(`링크 ${i+1}: title="${title}", url="${url}"`);
+            
+            // 제목 필터링 확인
+            if (shouldSkipNews(title)) {
+              forceLog(`정적 크롤링에서 뉴스 제외됨: "${title}"`);
+              continue;
+            }
+            
+            // 이미 수집된 URL인지 확인
+            if (url && title && !newsItems.some(item => item.articleUrl === url)) {
+              // 시간 정보 추출
+              const $parent = $link.closest('.col-sm-12.col-md-4');
+              const timeText = $parent.find('.date-time').text().trim() || 'Recently';
+              
+              // 썸네일 이미지 추출
+              const thumbnailUrl = $parent.find('.thumbnail-wrapper img').attr('src') || '';
+              
+              // 카테고리 추출 (URL에서)
+              let category = '';
+              if (url && url.includes('/category/')) {
+                const categoryMatch = url.match(/\/category\/([^\/]+)/);
+                if (categoryMatch && categoryMatch[1]) {
+                  category = categoryMatch[1];
+                }
+              }
+              
+              const newsItem = await createNewsItem(title, url, thumbnailUrl, category, timeText, i);
+              newsItems.push(newsItem);
+              logDebug(`뉴스 링크 추가 (항목 ${i+1}): title="${title}", slug="${newsItem.slug}"`);
+              forceLog(`뉴스 링크 추가 (항목 ${i+1}): title="${title}", slug="${newsItem.slug}"`);
+            } else {
+              logDebug(`링크 ${i+1} 스킵: ${url && title ? '중복 URL' : '제목 또는 URL 없음'}`);
+            }
+            
+            // 최대 아이템 수 제한 도달 시 루프 중단
+            if (newsItems.length >= maxItemsLimit) {
+              logDebug(`최대 아이템 수(${maxItemsLimit}) 도달, 루프 중단`);
+              forceLog(`최대 아이템 수(${maxItemsLimit}) 도달, 루프 중단`);
+              break;
+            }
+          } catch (itemError) {
+            logDebug('뉴스 링크 파싱 중 오류:', itemError);
+            forceLog('뉴스 링크 파싱 중 오류: ' + itemError.message);
+          }
+        }
+        logDebug('=== 개별 뉴스 링크 처리 완료 ===');
+        forceLog('=== 개별 뉴스 링크 처리 완료 ===');
+      } else {
+        logDebug('.col-sm-12.col-md-4 .media-heading a 셀렉터로 뉴스 링크를 찾을 수 없음');
+        forceLog('.col-sm-12.col-md-4 .media-heading a 셀렉터로 뉴스 링크를 찾을 수 없음');
+        
+        // 백업 셀렉터 시도
+        const backupLinks = $('h4.media-heading a');
+        logDebug(`백업 셀렉터로 찾은 뉴스 링크 수: ${backupLinks.length}`);
+        forceLog(`백업 셀렉터로 찾은 뉴스 링크 수: ${backupLinks.length}`);
+        
+        if (backupLinks.length > 0) {
+          const backupElements = backupLinks.toArray();
+          for (let i = 0; i < backupElements.length; i++) {
+            try {
+              const link = backupElements[i];
+              const $link = $(link);
+              const title = $link.text().trim();
+              const url = $link.attr('href');
+              
+              // 제목 필터링 확인
+              if (shouldSkipNews(title)) {
+                forceLog(`백업 셀렉터에서 뉴스 제외됨: "${title}"`);
+                continue;
+              }
+              
+              if (url && title && !newsItems.some(item => item.articleUrl === url)) {
+                const timeText = 'Recently';
+                const thumbnailUrl = '';
+                let category = '';
+                
+                if (url && url.includes('/category/')) {
+                  const categoryMatch = url.match(/\/category\/([^\/]+)/);
+                  if (categoryMatch && categoryMatch[1]) {
+                    category = categoryMatch[1];
+                  }
+                }
+                
+                const newsItem = await createNewsItem(title, url, thumbnailUrl, category, timeText, i);
+                newsItems.push(newsItem);
+                forceLog(`백업 셀렉터로 뉴스 링크 추가 (항목 ${i+1}): title="${title}"`);
+              }
+              
+              if (newsItems.length >= maxItemsLimit) {
+                break;
+              }
+            } catch (itemError) {
+              forceLog('백업 셀렉터 파싱 중 오류: ' + itemError.message);
+            }
+          }
+        }
+      }
+      
+      // 결과 로깅
+      logDebug(`총 ${newsItems.length}개의 뉴스 항목을 찾았습니다.`);
+      forceLog(`총 ${newsItems.length}개의 뉴스 항목을 찾았습니다.`);
+      
+      return newsItems;
+      
+    } catch (axiosError) {
+      forceLog('axios 요청 실패: ' + axiosError.message);
+      throw axiosError;
+    }
+    
+  } catch (error) {
+    logDebug('정적 뉴스 크롤링 중 오류:', error);
+    forceLog('정적 뉴스 크롤링 중 오류: ' + error.message);
+    forceLog('오류 스택: ' + error.stack);
+    return [];
+  }
+}
+
+// 기사 상세 페이지에서 내용과 태그 가져오기
+async function fetchArticleDetail(articleUrl) {
+  try {
+    logDebug(`기사 상세 페이지 가져오기: ${articleUrl}`);
+    
+    const response = await axios.get(articleUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+      },
+      timeout: 10000 // 10초 타임아웃
+    });
+    
+    const html = response.data;
+    
+    if (!html || html.length < 1000) {
+      logDebug('상세 페이지 HTML 데이터가 너무 짧습니다.');
+      return {
+        content: '<p>상세 기사를 가져올 수 없습니다. 원본 페이지를 방문해 주세요.</p>',
+        tags: [],
+        author: '',
+        coverImage: '',
+        title: ''
+      };
+    }
+    
+    const $ = cheerio.load(html);
+    
+    // 실제 기사 제목 추출
+    let articleTitle = '';
+    
+    // 방법 1: 기사 정보 영역의 h1 태그
+    const h1Title = $('.article-info h1, .article-wrapper h1, .article-section h1').first();
+    if (h1Title.length) {
+      articleTitle = h1Title.text().trim();
+      logDebug(`h1 태그에서 추출한 기사 제목: ${articleTitle}`);
+    }
+    
+    // 방법 2: 페이지 타이틀에서 추출
+    if (!articleTitle) {
+      const pageTitle = $('title').text().trim();
+      // "- Soompi" 부분 제거
+      const titleParts = pageTitle.split(' - ');
+      if (titleParts.length > 0) {
+        articleTitle = titleParts[0].trim();
+        logDebug(`페이지 title에서 추출한 기사 제목: ${articleTitle}`);
+      }
+    }
+    
+    // 방법 3: meta 태그에서 추출
+    if (!articleTitle || articleTitle === 'Trending Now') {
+      const metaTitle = $('meta[property="og:title"]').attr('content');
+      if (metaTitle) {
+        articleTitle = metaTitle.trim();
+        logDebug(`meta 태그에서 추출한 기사 제목: ${articleTitle}`);
+      }
+    }
+    
+    // "Trending Now"와 같은 섹션 제목이면 무시
+    if (articleTitle === 'Trending Now' || articleTitle === 'Latest Articles' || articleTitle === 'Popular Articles') {
+      articleTitle = '';
+      logDebug('섹션 제목 감지: 제목을 재설정합니다');
+    }
+    
+    // 태그 추출 개선 (.article-tags 클래스 내부의 태그 항목 추출)
+    const tags = [];
+    $('.article-tags .tag-item a').each((i, el) => {
+      const tag = $(el).text().trim();
+      if (tag) tags.push(tag);
+    });
+    
+    // 태그 컨테이너에서도 태그 추출 (백업)
+    if (tags.length === 0) {
+      $('.tags-container a').each((i, el) => {
+        const tag = $(el).text().trim();
+        if (tag && !tag.includes('category')) tags.push(tag);
+      });
+    }
+    
+    // 원본 URL에서 태그 검색 (백업)
+    if (tags.length === 0 && articleUrl.includes('/tag/')) {
+      const tagMatch = articleUrl.match(/\/tag\/([^\/]+)/);
+      if (tagMatch && tagMatch[1]) {
+        tags.push(tagMatch[1].replace(/-/g, ' '));
+      }
+    }
+    
+    logDebug(`추출된 태그: ${tags.join(', ')}`);
+    
+    // 작성자 추출
+    let author = '';
+    const authorEl = $('.info-emphasis.right a, .author-date a[href*="/author/"]').first();
+    if (authorEl.length) {
+      author = authorEl.text().trim();
+    }
+    
+    // 대표 이미지 추출
+    let coverImage = '';
+    const mainImg = $('.article-section .image-wrapper img, .article-wrapper img').first();
+    if (mainImg.length) {
+      const originalImageUrl = mainImg.attr('src') || mainImg.attr('data-src') || '';
+      coverImage = await convertSoompiImageToProxy(originalImageUrl);
+    }
+    
+    // 기사 내용 추출을 위한 다양한 시도
+    logDebug('기사 내용 추출 시도...');
+    
+    // 시도 1: article-wrapper 내부의 div에서 추출
+    let contentHtml = '';
+    const articleWrapper = $('.article-wrapper');
+    
+    if (articleWrapper.length) {
+      logDebug('article-wrapper 요소 발견: ' + articleWrapper.length);
+      
+      // 첫 번째 div 찾기
+      const contentDiv = articleWrapper.find('> div').first();
+      if (contentDiv.length) {
+        logDebug('article-wrapper > div 요소 발견');
+        
+        // 불필요한 요소 미리 제거
+        const clonedDiv = contentDiv.clone();
+        
+        // iframe 중에서 YouTube가 아닌 것만 제거 (YouTube iframe은 유지)
+        clonedDiv.find('iframe').each((i, el) => {
+          const src = $(el).attr('src') || '';
+          // YouTube iframe이 아닌 경우에만 제거
+          if (!src.includes('youtube.com/embed/') && !src.includes('youtu.be/')) {
+            $(el).remove();
+          }
+        });
+        
+        // 하단 배너 이미지 제거 (SoompiRecommendedWatch 배너 및 유사한 이미지)
+        clonedDiv.find('p > a[target="_blank"][rel="noopener noreferrer"] > img[class*="wp-image-"], hr + p > a > img').each((i, el) => {
+          logDebug('하단 배너 이미지 제거');
+          $(el).parent().parent().remove();
+        });
+        
+        // 하단 회색 줄(HR 태그) 제거
+        clonedDiv.find('hr').each((i, el) => {
+          logDebug('하단 회색 줄(HR 태그) 제거');
+          $(el).remove();
+        });
+        
+        // "원본 기사: Soompi" 관련 요소 제거
+        clonedDiv.find('p:contains("원본 기사:")').remove();
+        
+        // hr 태그 다음에 오는 배너 제거 (일반적인 배너 패턴)
+        clonedDiv.find('hr').next('p').each((i, el) => {
+          const $el = $(el);
+          if ($el.find('img, a[target="_blank"]').length > 0) {
+            logDebug('hr 태그 다음 배너 제거');
+            $el.remove();
+          }
+        });
+        
+        // "Watch Now" 버튼 영역 제거
+        // 방법 1: text-align:center 스타일을 가진 p 태그와 btn-watch-now 클래스를 가진 링크
+        clonedDiv.find('p[style*="text-align: center"]').each((i, el) => {
+          const $el = $(el);
+          if ($el.find('a.btn-watch-now').length > 0 || $el.text().includes('Watch Now') || $el.text().includes('watch now')) {
+            logDebug('Watch Now 버튼 영역 제거');
+            $el.remove();
+          }
+        });
+        
+        // 방법 2: "Watch ... on Viki" 또는 "Watch ... below" 텍스트를 포함한 p 태그
+        clonedDiv.find('p').each((i, el) => {
+          const $el = $(el);
+          const text = $el.text().toLowerCase();
+          if (text.includes('watch') && (text.includes('viki') || text.includes('below'))) {
+            logDebug('Watch on Viki 텍스트 영역 제거');
+            $el.remove();
+            
+            // 다음 p 태그가 Watch Now 버튼을 포함하고 있을 수 있으므로 함께 확인
+            const nextP = $el.next('p');
+            if (nextP.length && (nextP.find('a.btn-watch-now').length > 0 || nextP.text().includes('Watch Now'))) {
+              nextP.remove();
+            }
+          }
+        });
+        
+        contentHtml = clonedDiv.html();
+        logDebug('추출된 HTML 내용 (처음 100자): ' + contentHtml?.substring(0, 100));
+      }
+    }
+    
+    // 시도 2: article-paragraph에서 추출
+    if (!contentHtml) {
+      logDebug('시도 2: article-paragraph에서 추출');
+      const articleParagraph = $('.article-paragraph');
+      if (articleParagraph.length) {
+        // 복제본 생성
+        const clonedParagraph = articleParagraph.clone();
+        
+        // 불필요한 요소 제거
+        clonedParagraph.find('.social-share-container, .article-reactions, .article-footer, script, .ad, .disqus_thread, .comment-container').remove();
+        
+        // iframe 중에서 YouTube가 아닌 것만 제거 (YouTube iframe은 유지)
+        clonedParagraph.find('iframe').each((i, el) => {
+          const src = $(el).attr('src') || '';
+          // YouTube iframe이 아닌 경우에만 제거
+          if (!src.includes('youtube.com/embed/') && !src.includes('youtu.be/')) {
+            $(el).remove();
+          }
+        });
+        
+        // 하단 배너 이미지 제거
+        clonedParagraph.find('p > a[target="_blank"][rel="noopener noreferrer"] > img[class*="wp-image-"], hr + p > a > img').each((i, el) => {
+          logDebug('하단 배너 이미지 제거');
+          $(el).parent().parent().remove();
+        });
+        
+        // 하단 회색 줄(HR 태그) 제거
+        clonedParagraph.find('hr').each((i, el) => {
+          logDebug('하단 회색 줄(HR 태그) 제거');
+          $(el).remove();
+        });
+        
+        // "원본 기사: Soompi" 관련 요소 제거
+        clonedParagraph.find('p:contains("원본 기사:")').remove();
+        
+        // hr 태그 다음에 오는 배너 제거
+        clonedParagraph.find('hr').next('p').each((i, el) => {
+          const $el = $(el);
+          if ($el.find('img, a[target="_blank"]').length > 0) {
+            logDebug('hr 태그 다음 배너 제거');
+            $el.remove();
+          }
+        });
+        
+        // "Watch Now" 버튼 영역 제거
+        // 방법 1: text-align:center 스타일을 가진 p 태그와 btn-watch-now 클래스를 가진 링크
+        clonedParagraph.find('p[style*="text-align: center"]').each((i, el) => {
+          const $el = $(el);
+          if ($el.find('a.btn-watch-now').length > 0 || $el.text().includes('Watch Now') || $el.text().includes('watch now')) {
+            logDebug('Watch Now 버튼 영역 제거');
+            $el.remove();
+          }
+        });
+        
+        // 방법 2: "Watch ... on Viki" 또는 "Watch ... below" 텍스트를 포함한 p 태그
+        clonedParagraph.find('p').each((i, el) => {
+          const $el = $(el);
+          const text = $el.text().toLowerCase();
+          if (text.includes('watch') && (text.includes('viki') || text.includes('below'))) {
+            logDebug('Watch on Viki 텍스트 영역 제거');
+            $el.remove();
+            
+            // 다음 p 태그가 Watch Now 버튼을 포함하고 있을 수 있으므로 함께 확인
+            const nextP = $el.next('p');
+            if (nextP.length && (nextP.find('a.btn-watch-now').length > 0 || nextP.text().includes('Watch Now'))) {
+              nextP.remove();
+            }
+          }
+        });
+        
+        contentHtml = clonedParagraph.html();
+        logDebug('article-paragraph에서 HTML 추출됨');
+      }
+    }
+    
+    // 시도 3: article-section에서 추출
+    if (!contentHtml) {
+      logDebug('시도 3: article-section에서 추출');
+      const articleSection = $('.article-section');
+      if (articleSection.length) {
+        // 복제본 생성
+        const clonedSection = articleSection.clone();
+        
+        // 불필요한 요소 제거 (YouTube iframe 제외)
+        clonedSection.find('.social-share-container, .article-reactions, .article-footer, script, .ad, .disqus_thread, .comment-container').remove();
+        
+        // iframe 중에서 YouTube가 아닌 것만 제거 (YouTube iframe은 유지)
+        clonedSection.find('iframe').each((i, el) => {
+          const src = $(el).attr('src') || '';
+          // YouTube iframe이 아닌 경우에만 제거
+          if (!src.includes('youtube.com/embed/') && !src.includes('youtu.be/')) {
+            $(el).remove();
+          }
+        });
+        
+        // 하단 배너 이미지 제거
+        clonedSection.find('p > a[target="_blank"][rel="noopener noreferrer"] > img[class*="wp-image-"], hr + p > a > img').each((i, el) => {
+          logDebug('하단 배너 이미지 제거');
+          $(el).parent().parent().remove();
+        });
+        
+        // 하단 회색 줄(HR 태그) 제거
+        clonedSection.find('hr').each((i, el) => {
+          logDebug('하단 회색 줄(HR 태그) 제거');
+          $(el).remove();
+        });
+        
+        // "원본 기사: Soompi" 관련 요소 제거
+        clonedSection.find('p:contains("원본 기사:")').remove();
+        
+        // hr 태그 다음에 오는 배너 제거
+        clonedSection.find('hr').next('p').each((i, el) => {
+          const $el = $(el);
+          if ($el.find('img, a[target="_blank"]').length > 0) {
+            logDebug('hr 태그 다음 배너 제거');
+            $el.remove();
+          }
+        });
+        
+        // "Watch Now" 버튼 영역 제거
+        // 방법 1: text-align:center 스타일을 가진 p 태그와 btn-watch-now 클래스를 가진 링크
+        clonedSection.find('p[style*="text-align: center"]').each((i, el) => {
+          const $el = $(el);
+          if ($el.find('a.btn-watch-now').length > 0 || $el.text().includes('Watch Now') || $el.text().includes('watch now')) {
+            logDebug('Watch Now 버튼 영역 제거');
+            $el.remove();
+          }
+        });
+        
+        // 방법 2: "Watch ... on Viki" 또는 "Watch ... below" 텍스트를 포함한 p 태그
+        clonedSection.find('p').each((i, el) => {
+          const $el = $(el);
+          const text = $el.text().toLowerCase();
+          if (text.includes('watch') && (text.includes('viki') || text.includes('below'))) {
+            logDebug('Watch on Viki 텍스트 영역 제거');
+            $el.remove();
+            
+            // 다음 p 태그가 Watch Now 버튼을 포함하고 있을 수 있으므로 함께 확인
+            const nextP = $el.next('p');
+            if (nextP.length && (nextP.find('a.btn-watch-now').length > 0 || nextP.text().includes('Watch Now'))) {
+              nextP.remove();
+            }
+          }
+        });
+        
+        contentHtml = clonedSection.html();
+        logDebug('article-section에서 HTML 추출됨');
+      }
+    }
+    
+    // 내용이 없으면 간단한 메시지 제공
+    if (!contentHtml) {
+      logDebug('HTML 내용 추출 실패');
+      contentHtml = '<p>상세 내용을 가져올 수 없습니다. 원본 페이지를 방문해 주세요.</p>';
+    }
+    
+    // 이미지 경로를 절대 경로로 변환
+    contentHtml = contentHtml.replace(/src="\/wp-content/g, 'src="https://www.soompi.com/wp-content');
+    
+    // 추가적인 원본 기사 링크 제거 (이미 위에서 대부분 제거되지만 확실히 하기 위함)
+    contentHtml = contentHtml.replace(/<p>.*?원본 기사.*?<\/p>/g, '');
+    
+    // 링크는 남기고 원본 기사 텍스트만 제거
+    contentHtml = contentHtml.replace(/원본 기사: Soompi/g, '');
+    
+    // "Watch Now" 관련 텍스트 및 버튼 최종 정리 (정규식으로)
+    contentHtml = contentHtml.replace(/<p[^>]*>.*?Watch.*?(on Viki|below).*?<\/p>/gi, '');
+    contentHtml = contentHtml.replace(/<p[^>]*>.*?<a[^>]*class="btn-watch-now"[^>]*>.*?<\/a>.*?<\/p>/gi, '');
+    
+    // Viki URL 완전히 제거 - 링크만 제거하고 텍스트는 유지
+    contentHtml = contentHtml.replace(/<a[^>]*href="https?:\/\/(?:www\.)?viki\.com[^"]*"[^>]*>(.*?)<\/a>/gi, '$1');
+    
+    // "Watch" 텍스트를 포함하는 문장 제거 - 명확한 Viki 관련 문장만 제거
+    contentHtml = contentHtml.replace(/<p[^>]*>.*?[Ww]atch.*?on\s+[Vv]iki.*?<\/p>/gi, '');
+    
+    // Source 형식 조정 (기사 내용과 Source 사이에 한 줄 띄우기, Source 뒤에는 빈줄 없음)
+    contentHtml = contentHtml.replace(/(.*?)(<p[^>]*>Source(?:\s*\(\d+\))?:?.*?<\/p>)/is, '$1<p>&nbsp;</p>$2');
+    
+    // 마침표(.) 뒤에 줄바꿈(<br>) 추가
+    contentHtml = addLineBreakAfterPeriods(contentHtml);
+    
+    // 내용이 없으면 간단한 메시지 제공
+    if (!contentHtml) {
+      logDebug('HTML 내용 추출 실패');
+      contentHtml = '<p>상세 내용을 가져올 수 없습니다. 원본 페이지를 방문해 주세요.</p>';
+    }
+    
+    // 이미지 경로를 절대 경로로 변환
+    contentHtml = contentHtml.replace(/src="\/wp-content/g, 'src="https://www.soompi.com/wp-content');
+    
+    // 모든 Soompi 이미지 URL을 프록시 URL로 변환
+    const cheerioContent = cheerio.load(contentHtml);
+    const imgElements = cheerioContent('img').toArray();
+    
+    for (const img of imgElements) {
+      const originalSrc = cheerioContent(img).attr('src');
+      if (originalSrc && originalSrc.startsWith('http')) {
+        const proxySrc = await convertSoompiImageToProxy(originalSrc);
+        cheerioContent(img).attr('src', proxySrc);
+        logDebug(`이미지 URL 변환: ${originalSrc} → ${proxySrc}`);
+      }
+    }
+    
+    contentHtml = cheerioContent.html();
+    
+    // 카테고리 정보 추출
+    let detailCategory = '';
+    
+    // 강제 로그 추가
+    forceLog(`=== 카테고리 추출 시작: ${articleUrl} ===`);
+    
+    // 방법 1: 메타 태그에서 카테고리 정보 추출
+    const metaCategory = $('meta[property="article:section"]').attr('content');
+    if (metaCategory) {
+      detailCategory = metaCategory.trim();
+      logDebug(`메타 태그에서 추출한 카테고리: ${detailCategory}`);
+      forceLog(`✅ 메타 태그에서 카테고리 추출 성공: ${detailCategory}`);
+    } else {
+      forceLog(`❌ 메타 태그에서 카테고리 추출 실패`);
+    }
+    
+    // 방법 1-2: JSON-LD 스크립트에서 articleSection 추출
+    if (!detailCategory) {
+      forceLog(`JSON-LD 스크립트 검색 시작...`);
+      $('script[type="application/ld+json"]').each((i, el) => {
+        try {
+          const jsonText = $(el).text();
+          forceLog(`JSON-LD 스크립트 ${i+1} 발견, 길이: ${jsonText.length}`);
+          if (jsonText.includes('articleSection')) {
+            forceLog(`JSON-LD 스크립트에서 articleSection 키워드 발견`);
+            const jsonData = JSON.parse(jsonText);
+            if (jsonData.articleSection) {
+              detailCategory = jsonData.articleSection.trim();
+              logDebug(`JSON-LD에서 추출한 카테고리: ${detailCategory}`);
+              forceLog(`✅ JSON-LD에서 카테고리 추출 성공: ${detailCategory}`);
+              return false; // 루프 종료
+            }
+          }
+        } catch (error) {
+          logDebug('JSON-LD 파싱 오류:', error);
+          forceLog(`JSON-LD 파싱 오류: ${error.message}`);
+        }
+      });
+      
+      if (!detailCategory) {
+        forceLog(`❌ JSON-LD에서 카테고리 추출 실패`);
+      }
+    }
+    
+    // 방법 2: Soompi 카테고리 태그에서 추출 (.badges.tags a)
+    if (!detailCategory) {
+      forceLog(`카테고리 태그 검색 시작...`);
+      // 다양한 방법으로 카테고리 태그 찾기
+      const categoryTags = $('div.uppercase.badges.tags a, .badges.tags a, .tags-container a, div[class*="badges"] a[href*="/category/"]');
+      forceLog(`카테고리 태그 ${categoryTags.length}개 발견`);
+      
+      categoryTags.each((i, el) => {
+        const href = $(el).attr('href') || '';
+        const categoryText = $(el).text().trim();
+        logDebug(`카테고리 태그 확인: href="${href}", text="${categoryText}"`);
+        forceLog(`카테고리 태그 ${i+1}: href="${href}", text="${categoryText}"`);
+        
+        if (href.includes('/category/') && categoryText) {
+          detailCategory = categoryText.toLowerCase();
+          logDebug(`카테고리 태그에서 추출한 카테고리: ${detailCategory}`);
+          forceLog(`✅ 카테고리 태그에서 카테고리 추출 성공: ${detailCategory}`);
+          return false; // 루프 종료
+        }
+      });
+      
+      if (!detailCategory) {
+        forceLog(`❌ 카테고리 태그에서 카테고리 추출 실패`);
+      }
+    }
+    
+    // 방법 3: 브레드크럼에서 카테고리 추출
+    if (!detailCategory) {
+      forceLog(`브레드크럼 검색 시작...`);
+      const breadcrumbs = $('.breadcrumbs a, .breadcrumb a, .nav-breadcrumb a');
+      forceLog(`브레드크럼 ${breadcrumbs.length}개 발견`);
+      
+      breadcrumbs.each((i, el) => {
+        const href = $(el).attr('href') || '';
+        if (href.includes('/category/')) {
+          const categoryMatch = href.match(/\/category\/([^\/]+)/);
+          if (categoryMatch && categoryMatch[1]) {
+            detailCategory = categoryMatch[1].replace('-', ' ');
+            logDebug(`브레드크럼에서 추출한 카테고리: ${detailCategory}`);
+            forceLog(`✅ 브레드크럼에서 카테고리 추출 성공: ${detailCategory}`);
+            return false; // 루프 종료
+          }
+        }
+      });
+      
+      if (!detailCategory) {
+        forceLog(`❌ 브레드크럼에서 카테고리 추출 실패`);
+      }
+    }
+    
+    // 방법 4: URL에서 카테고리 추출
+    if (!detailCategory && articleUrl) {
+      forceLog(`URL에서 카테고리 검색: ${articleUrl}`);
+      if (articleUrl.includes('/category/')) {
+        const categoryMatch = articleUrl.match(/\/category\/([^\/]+)/);
+        if (categoryMatch && categoryMatch[1]) {
+          detailCategory = categoryMatch[1].replace('-', ' ');
+          logDebug(`URL에서 추출한 카테고리: ${detailCategory}`);
+          forceLog(`✅ URL에서 카테고리 추출 성공: ${detailCategory}`);
+        }
+      } else {
+        forceLog(`❌ URL에 /category/ 패턴 없음`);
+      }
+    }
+    
+    // 방법 5: 태그에서 카테고리 추론
+    if (!detailCategory && tags.length > 0) {
+      forceLog(`태그에서 카테고리 추론 시작... 태그 수: ${tags.length}`);
+      forceLog(`태그 목록: ${tags.join(', ')}`);
+      
+      // 카테고리 관련 키워드
+      const categoryKeywords = {
+        'K-Drama': 'drama',
+        'Drama': 'drama',
+        'K-Pop': 'kpop',
+        'Music': 'kpop',
+        'Movie': 'movie',
+        'Film': 'movie',
+        'Variety': 'variety',
+        'Celebrity': 'celeb'
+      };
+      
+      // 태그에서 카테고리 키워드 찾기
+      for (const tag of tags) {
+        const normalizedTag = tag.trim();
+        if (categoryKeywords[normalizedTag]) {
+          detailCategory = normalizedTag;
+          logDebug(`태그에서 추론한 카테고리: ${detailCategory}`);
+          forceLog(`✅ 태그에서 카테고리 추론 성공: ${detailCategory}`);
+          break;
+        }
+      }
+      
+      if (!detailCategory) {
+        forceLog(`❌ 태그에서 카테고리 추론 실패`);
+      }
+    }
+    
+    // 추출된 카테고리가 있으면 로컬 카테고리로 매핑
+    let mappedCategory = '';
+    if (detailCategory) {
+      mappedCategory = mapSoompiCategoryToLocal(detailCategory);
+      logDebug(`카테고리 매핑: '${detailCategory}' → '${mappedCategory}'`);
+      forceLog(`🔄 카테고리 매핑: '${detailCategory}' → '${mappedCategory}'`);
+    } else {
+      forceLog(`❌ 모든 방법으로 카테고리 추출 실패`);
+    }
+    
+    forceLog(`=== 카테고리 추출 완료: 원본='${detailCategory}', 매핑='${mappedCategory}' ===`);
+    
+    logDebug(`상세 페이지 파싱 완료: 태그 ${tags.length}개, 카테고리: ${detailCategory || '없음'}, 작성자: ${author || '없음'}`);
+    
+    return {
+      content: contentHtml,
+      tags: tags,
+      author: author,
+      coverImage: coverImage,
+      title: articleTitle,
+      detailCategory: detailCategory,
+      mappedCategory: mappedCategory
+    };
+  } catch (error) {
+    logDebug('기사 상세 페이지 크롤링 중 오류:', error);
+    return {
+      content: '<p>상세 기사를 가져오는 중 오류가 발생했습니다. 원본 페이지를 방문해 주세요.</p>',
+      tags: [],
+      author: '',
+      coverImage: '',
+      title: ''
+    };
+  }
+}
+
+// Soompi 카테고리를 로컬 카테고리로 매핑하는 함수
+function mapSoompiCategoryToLocal(soompiCategory) {
+  if (!soompiCategory) return 'kpop';
+  
+  // 디버깅 로그 추가
+  forceLog(`🔍 카테고리 매핑 시작: 입력값="${soompiCategory}"`);
+  
+  // 소문자로 변환하고 공백 및 특수문자 제거
+  const normalizedCategory = soompiCategory.toLowerCase().trim();
+  forceLog(`🔍 정규화된 카테고리: "${normalizedCategory}"`);
+  
+  // 카테고리 맵핑 테이블 (키: Soompi 카테고리 키워드, 값: 로컬 카테고리)
+  const categoryKeywords = {
+    // K-POP 관련 키워드
+    'music': 'kpop',
+    'k-pop': 'kpop',
+    'kpop': 'kpop',
+    'idol': 'kpop',
+    'comeback': 'kpop',
+    'album': 'kpop',
+    'mv': 'kpop',
+    'song': 'kpop',
+    'concert': 'kpop',
+    'performance': 'kpop',
+    
+    // 드라마 관련 키워드
+    'drama': 'drama',
+    'kdrama': 'drama',
+    'k-drama': 'drama',
+    'preview': 'drama',
+    'preview-drama': 'drama',
+    'drama-preview': 'drama',
+    'drama preview': 'drama',
+    'preview-dramas': 'drama',
+    'drama-previews': 'drama',
+    'tvn': 'drama',
+    'jtbc': 'drama',
+    'sbs': 'drama',
+    'kbs': 'drama',
+    'mbc': 'drama',
+    'netflix': 'drama',
+    'series': 'drama',
+    'tv/film': 'drama',
+    'tv': 'drama',
+    
+    // 영화 관련 키워드
+    'movie': 'movie',
+    'film': 'movie',
+    'cinema': 'movie',
+    
+    // 예능 관련 키워드
+    'variety': 'variety',
+    'show': 'variety',
+    'entertainment': 'variety',
+    'reality': 'variety',
+    
+    // 셀럽 관련 키워드
+    'celeb': 'celeb',
+    'celebrity': 'celeb',
+    'actor': 'celeb',
+    'actress': 'celeb',
+    'star': 'celeb',
+    'style': 'celeb',
+    'fashion': 'celeb',
+    'culture': 'celeb',
+    'features': 'celeb',
+    'interview': 'celeb',
+    'breaking': 'celeb'
+  };
+  
+  // 공식 Soompi 카테고리 맵핑 (대소문자 구분 없이)
+  const officialCategoryMap = {
+    'drama': 'drama',
+    'Drama': 'drama',
+    'k-drama': 'drama',
+    'K-Drama': 'drama',
+    'drama-preview': 'drama',
+    'Drama-Preview': 'drama',
+    'drama preview': 'drama',
+    'Drama Preview': 'drama',
+    'preview-dramas': 'drama',
+    'Preview-Dramas': 'drama',
+    'music': 'kpop',
+    'Music': 'kpop',
+    'k-pop': 'kpop',
+    'K-Pop': 'kpop',
+    'celeb': 'celeb',
+    'Celeb': 'celeb',
+    'celebrity': 'celeb',
+    'Celebrity': 'celeb',
+    'breaking': 'celeb',
+    'Breaking': 'celeb',
+    'film': 'movie',
+    'Film': 'movie',
+    'tv': 'drama',
+    'TV': 'drama',
+    'tv/film': 'drama',
+    'TV/Film': 'drama',
+    'style': 'celeb',
+    'Style': 'celeb',
+    'culture': 'celeb',
+    'Culture': 'celeb',
+    'features': 'celeb',
+    'Features': 'celeb',
+    'variety': 'variety',
+    'Variety': 'variety',
+    'variety-show': 'variety',
+    'Variety-Show': 'variety',
+    'interview': 'celeb',
+    'Interview': 'celeb'
+  };
+  
+  // 1. 우선 공식 카테고리 맵에서 정확히 일치하는 항목 확인 (대소문자 구분 없이)
+  if (officialCategoryMap[soompiCategory]) {
+    const result = officialCategoryMap[soompiCategory];
+    forceLog(`✅ 공식 카테고리 맵에서 직접 매칭: "${soompiCategory}" → "${result}"`);
+    return result;
+  }
+  
+  if (officialCategoryMap[normalizedCategory]) {
+    const result = officialCategoryMap[normalizedCategory];
+    forceLog(`✅ 공식 카테고리 맵에서 정규화 매칭: "${normalizedCategory}" → "${result}"`);
+    return result;
+  }
+  
+  // 2. 키워드 기반 매칭 시도
+  for (const [keyword, category] of Object.entries(categoryKeywords)) {
+    if (normalizedCategory.includes(keyword)) {
+      forceLog(`✅ 키워드 매칭: "${normalizedCategory}"에서 "${keyword}" 발견 → "${category}"`);
+      return category;
+    }
+  }
+  
+  // 3. 기본값은 kpop
+  forceLog(`❌ 매칭 실패, 기본값 사용: "${soompiCategory}" → "kpop"`);
+  return 'kpop';
+}
+
+// 기사 항목을 추가하는 공통 헬퍼 함수
+async function createNewsItem(title, url, thumbnailUrl, category, timeText, order) {
+  // URL 정규화
+  const articleUrl = url.startsWith('http') ? url : `https://www.soompi.com${url.startsWith('/') ? '' : '/'}${url}`;
+  
+  // 카테고리 정보 향상 (URL에서 추가 정보 추출)
+  let enhancedCategory = category;
+  
+  // URL에서 카테고리 정보 추출
+  if (articleUrl) {
+    // 'category' 키워드 검색
+    if (articleUrl.includes('/category/')) {
+      const categoryMatch = articleUrl.match(/\/category\/([^\/]+)/);
+      if (categoryMatch && categoryMatch[1]) {
+        enhancedCategory = categoryMatch[1];
+      }
+    }
+    
+    // 특정 키워드로 카테고리 추론
+    if (!enhancedCategory) {
+      if (articleUrl.includes('drama') || articleUrl.includes('k-drama')) {
+        enhancedCategory = 'drama';
+      } else if (articleUrl.includes('music') || articleUrl.includes('k-pop') || articleUrl.includes('kpop')) {
+        enhancedCategory = 'kpop';
+      } else if (articleUrl.includes('movie') || articleUrl.includes('film')) {
+        enhancedCategory = 'movie';
+      } else if (articleUrl.includes('variety') || articleUrl.includes('show')) {
+        enhancedCategory = 'variety';
+      } else if (articleUrl.includes('celeb') || articleUrl.includes('actor') || articleUrl.includes('style')) {
+        enhancedCategory = 'celeb';
+      }
+    }
+  }
+  
+  // 제목에서 카테고리 힌트 찾기
+  if (!enhancedCategory && title) {
+    const lowerTitle = title.toLowerCase();
+    
+    if (lowerTitle.includes('drama') || lowerTitle.includes('series')) {
+      enhancedCategory = 'drama';
+    } else if (lowerTitle.includes('comeback') || lowerTitle.includes('mv') || lowerTitle.includes('album') || 
+               lowerTitle.includes('music') || lowerTitle.includes('song') || lowerTitle.includes('concert')) {
+      enhancedCategory = 'kpop';
+    } else if (lowerTitle.includes('movie') || lowerTitle.includes('film')) {
+      enhancedCategory = 'movie';
+    } else if (lowerTitle.includes('variety') || lowerTitle.includes('show')) {
+      enhancedCategory = 'variety';
+    }
+  }
+  
+  // 로컬 카테고리로 변환
+  const localCategory = mapSoompiCategoryToLocal(enhancedCategory);
+  
+  // 디버깅
+  if (enhancedCategory !== category) {
+    logDebug(`카테고리 향상: '${category || 'none'}' → '${enhancedCategory}' → '${localCategory}'`);
+  }
+  
+  // slug 생성 (제목이 없는 경우를 대비한 안전장치)
+  let slug = '';
+  if (title) {
+    slug = title
+      .toLowerCase()
+      .replace(/[^a-z0-9ㄱ-ㅎㅏ-ㅣ가-힣\s]+/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/^-|-$/g, '');
+    
+    // slug가 비어있거나 너무 짧은 경우 타임스탬프 추가
+    if (!slug || slug.length < 3) {
+      const timestamp = Date.now().toString().slice(-6);
+      slug = `soompi-news-${timestamp}`;
+    }
+  } else {
+    // 제목이 없는 경우 타임스탬프로 slug 생성
+    const timestamp = Date.now().toString().slice(-6);
+    slug = `soompi-news-${timestamp}`;
+  }
+  
+  // slug 생성 디버깅 로그
+  logDebug(`Slug 생성: 제목="${title}", 생성된 slug="${slug}"`);
+  
+  // 뉴스 아이템 생성
+  const newsItem = {
+    title,
+    slug,
+    thumbnailUrl,
+    articleUrl,
+    timeText: timeText || 'Recently',
+    summary: `${title} - From Soompi ${enhancedCategory ? `(${enhancedCategory})` : ''}${timeText ? ` (${timeText})` : ''}`,
+    category: localCategory,
+    source: 'Soompi',
+    sourceUrl: 'https://www.soompi.com',
+    coverImage: await convertSoompiImageToProxy(thumbnailUrl) || '/images/default-news.jpg',
+    tags: ['K-POP', 'News', 'Soompi'].concat(enhancedCategory ? [enhancedCategory] : []),
+    createdAt: new Date(),
+    publishedAt: new Date(), // 홈페이지 정렬을 위해 publishedAt 필드 추가
+    updatedAt: new Date(),
+    featured: order < 5, // 처음 5개 아이템은 featured로 표시
+    viewCount: 0,
+    content: '',  // 내용은 나중에 fetchArticleDetail 함수에서 채웁니다
+    needsDetailFetch: true  // 상세 페이지에서 내용을 가져와야 함을 표시
+  };
+  
+  // 최종 뉴스 아이템 디버깅 로그
+  logDebug(`뉴스 아이템 생성 완료: slug="${newsItem.slug}", title="${newsItem.title}"`);
+  
+  return newsItem;
+}
+
+export default async function handler(req, res) {
+  // 강제 로그 추가
+  forceLog('=== API ROUTE START ===');
+  forceLog(`요청 메서드: ${req.method}`);
+  forceLog(`요청 바디: ${JSON.stringify(req.body)}`);
+  forceLog(`요청 URL: ${req.url}`);
+  forceLog(`요청 헤더: ${JSON.stringify(req.headers)}`);
+  
+  // API 라우트 진입 로그 추가
+  logDebug('=== API ROUTE START ===');
+  logDebug('요청 메서드:', req.method);
+  logDebug('요청 바디:', req.body);
+  logDebug('요청 URL:', req.url);
+  
+  // POST 요청만 허용
+  if (req.method !== 'POST') {
+    logDebug('잘못된 메서드 요청:', req.method);
+    forceLog(`잘못된 메서드 요청: ${req.method}`);
+    return res.status(405).json({ success: false, message: 'Method not allowed' });
+  }
+
+  try {
+    forceLog('=== 크롤링 시작 ===');
+    
+    // 요청에서 최대 크롤링 아이템 수 가져오기 (기본값: 15)
+    const maxItems = parseInt(req.body.maxItems) || 15;
+    logDebug(`최대 크롤링 아이템 수: ${maxItems}`);
+    forceLog(`최대 크롤링 아이템 수: ${maxItems}`);
+    
+    // 동시에 처리할 상세 페이지 요청 수 (병렬 처리)
+    const concurrentRequests = parseInt(req.body.concurrentRequests) || 3;
+    logDebug(`동시 상세 페이지 요청 수: ${concurrentRequests}`);
+    forceLog(`동시 상세 페이지 요청 수: ${concurrentRequests}`);
+    
+    // Soompi 뉴스 크롤링
+    logDebug('=== SOOMPI 크롤링 시작 ===');
+    forceLog('=== SOOMPI 크롤링 시작 ===');
+    
+    // 크롤링 방식 선택 (기본값: 동적 크롤링)
+    const useDynamicCrawling = req.body.useDynamicCrawling !== false; // 기본값 true
+    logDebug(`크롤링 방식: ${useDynamicCrawling ? '동적(Puppeteer)' : '정적(Cheerio)'}`);
+    forceLog(`크롤링 방식: ${useDynamicCrawling ? '동적(Puppeteer)' : '정적(Cheerio)'}`);
+    
+    let newsItems;
+    try {
+      forceLog('=== 크롤링 함수 호출 시작 ===');
+      
+      if (useDynamicCrawling) {
+        forceLog('=== Puppeteer 크롤링 시작 ===');
+        newsItems = await scrapeSoompiNewsWithPuppeteer(maxItems);
+        forceLog('=== Puppeteer 크롤링 완료 ===');
+      } else {
+        forceLog('=== 정적 크롤링 시작 ===');
+        newsItems = await scrapeSoompiNewsStatic(maxItems);
+        forceLog('=== 정적 크롤링 완료 ===');
+      }
+      
+      forceLog('=== 크롤링 함수 호출 완료 ===');
+      
+    } catch (crawlError) {
+      forceLog('크롤링 중 오류 발생: ' + crawlError.message);
+      forceLog('크롤링 오류 스택: ' + crawlError.stack);
+      return res.status(500).json({ success: false, message: '크롤링 중 오류가 발생했습니다: ' + crawlError.message });
+    }
+    
+    logDebug('=== SOOMPI 크롤링 완료 ===');
+    logDebug('크롤링된 뉴스 아이템 수:', newsItems.length);
+    forceLog(`크롤링된 뉴스 아이템 수: ${newsItems.length}`);
+    logDebug('크롤링된 뉴스 아이템들:', newsItems.map(item => ({ title: item.title, slug: item.slug, articleUrl: item.articleUrl })));
+    
+    if (newsItems.length === 0) {
+      logDebug('크롤링할 뉴스를 찾을 수 없음');
+      forceLog('크롤링할 뉴스를 찾을 수 없음');
+      return res.status(404).json({ success: false, message: '크롤링할 뉴스를 찾을 수 없습니다.' });
+    }
+    
+    forceLog('=== 데이터베이스 연결 시작 ===');
+    
+    try {
+      // 데이터베이스 연결
+      logDebug('MongoDB 연결 시도...');
+      forceLog('MongoDB 연결 시도...');
+      const { db } = await connectToDatabase();
+      forceLog('MongoDB 연결 성공');
+      const collection = db.collection('news');
+      
+      // 중복 URL 확인
+      forceLog('중복 URL 확인 시작...');
+      const existingUrls = await collection.find({
+        articleUrl: { $in: newsItems.map(item => item.articleUrl) }
+      }).project({ articleUrl: 1 }).toArray();
+      
+      const existingUrlSet = new Set(existingUrls.map(item => item.articleUrl));
+      logDebug(`기존 URL ${existingUrlSet.size}개 필터링`);
+      forceLog(`기존 URL ${existingUrlSet.size}개 필터링`);
+      
+      // 새 아이템 필터링 (중복 제외)
+      const newItems = newsItems.filter(item => !existingUrlSet.has(item.articleUrl));
+      logDebug(`새 아이템 수: ${newItems.length}`);
+      forceLog(`새 아이템 수: ${newItems.length}`);
+      
+      if (newItems.length === 0) {
+        forceLog('새로운 뉴스가 없음');
+        return res.status(200).json({
+          success: true,
+          message: '새로운 뉴스가 없습니다.',
+          total: newsItems.length,
+          new: 0
+        });
+      }
+      
+      // 새 아이템에 대해 상세 내용 가져오기 (병렬 처리)
+      logDebug(`${newItems.length}개 항목의 상세 내용 가져오기 시작...`);
+      forceLog(`${newItems.length}개 항목의 상세 내용 가져오기 시작...`);
+      
+      // 병렬 처리 그룹으로 상세 내용 가져오기
+      let processedItems = 0;
+      let detailFetchedItems = [];
+      
+      // 작은 그룹으로 나누어 병렬 처리
+      for (let i = 0; i < newItems.length; i += concurrentRequests) {
+        const itemBatch = newItems.slice(i, i + concurrentRequests);
+        logDebug(`배치 ${Math.floor(i/concurrentRequests) + 1} 처리 중: ${itemBatch.length}개 항목`);
+        forceLog(`배치 ${Math.floor(i/concurrentRequests) + 1} 처리 중: ${itemBatch.length}개 항목`);
+        
+        // 현재 배치의 상세 내용을 병렬로 가져오기
+        const detailFetchPromises = itemBatch.map(async (item) => {
+          try {
+            if (item.needsDetailFetch) {
+              const detailContent = await fetchArticleDetail(item.articleUrl);
+              
+              // 기존 카테고리 정보와 상세 페이지의 카테고리 정보를 비교하고 필요하면 업데이트
+              logDebug(`카테고리 비교: 기존='${item.category}', 상세페이지='${detailContent.detailCategory}', 매핑='${detailContent.mappedCategory}'`);
+              forceLog(`카테고리 비교: 기존='${item.category}', 상세페이지='${detailContent.detailCategory}', 매핑='${detailContent.mappedCategory}'`);
+              
+              if (detailContent.mappedCategory && detailContent.mappedCategory !== item.category) {
+                logDebug(`카테고리 업데이트: '${item.category}' → '${detailContent.mappedCategory}' (상세 페이지: ${detailContent.detailCategory})`);
+                forceLog(`카테고리 업데이트: '${item.category}' → '${detailContent.mappedCategory}' (상세 페이지: ${detailContent.detailCategory})`);
+                item.category = detailContent.mappedCategory;
+                
+                // 태그에도 새 카테고리 추가
+                if (detailContent.detailCategory && !item.tags.includes(detailContent.detailCategory)) {
+                  item.tags.push(detailContent.detailCategory);
+                }
+              } else {
+                logDebug(`카테고리 업데이트 안됨: mappedCategory=${detailContent.mappedCategory}, 기존=${item.category}`);
+                forceLog(`카테고리 업데이트 안됨: mappedCategory=${detailContent.mappedCategory}, 기존=${item.category}`);
+              }
+              
+              return { ...item, ...detailContent, needsDetailFetch: false };
+            }
+            return item;
+          } catch (error) {
+            logDebug(`상세 내용 가져오기 실패: ${item.articleUrl}`, error);
+            return item; // 오류 발생 시 원본 항목 반환
+          }
+        });
+        
+        // 현재 배치 처리 결과 기다리기
+        const batchResults = await Promise.all(detailFetchPromises);
+        detailFetchedItems = [...detailFetchedItems, ...batchResults];
+        
+        processedItems += itemBatch.length;
+        logDebug(`진행 상황: ${processedItems}/${newItems.length} 항목 처리됨`);
+        forceLog(`진행 상황: ${processedItems}/${newItems.length} 항목 처리됨`);
+        
+        // 서버 부하 방지를 위한 지연
+        if (i + concurrentRequests < newItems.length) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      }
+      
+      logDebug(`${detailFetchedItems.length}개 항목의 상세 내용 가져오기 완료`);
+      forceLog(`${detailFetchedItems.length}개 항목의 상세 내용 가져오기 완료`);
+      
+      // 카테고리 분포 로깅
+      const categoryCount = {};
+      detailFetchedItems.forEach(item => {
+        categoryCount[item.category] = (categoryCount[item.category] || 0) + 1;
+      });
+      logDebug('카테고리 분포:', categoryCount);
+      forceLog(`카테고리 분포: ${JSON.stringify(categoryCount)}`);
+      
+      // 데이터베이스에 삽입
+      if (detailFetchedItems.length > 0) {
+        forceLog('=== 데이터베이스 삽입 시작 ===');
+        
+        // 저장 전 slug 검증 및 강제 설정
+        detailFetchedItems.forEach((item, index) => {
+          logDebug(`=== 아이템 ${index} 검증 시작 ===`);
+          logDebug(`원본 아이템 구조:`, JSON.stringify(item, null, 2));
+          
+          if (!item.slug || item.slug === null || item.slug === undefined) {
+            logDebug(`경고: 인덱스 ${index}의 아이템에 slug가 없습니다. 제목: "${item.title}"`);
+            // slug가 없는 경우 임시 slug 생성
+            const timestamp = Date.now().toString().slice(-6);
+            item.slug = `soompi-news-${timestamp}-${index}`;
+            logDebug(`임시 slug 생성: "${item.slug}"`);
+          }
+          
+          // 최종 검증: slug가 여전히 null이면 강제로 설정
+          if (!item.slug || item.slug === null || item.slug === undefined) {
+            const fallbackSlug = `soompi-fallback-${Date.now()}-${index}`;
+            item.slug = fallbackSlug;
+            logDebug(`강제 fallback slug 설정: "${fallbackSlug}"`);
+          }
+          
+          logDebug(`최종 아이템 ${index}: slug="${item.slug}", title="${item.title}"`);
+          logDebug(`=== 아이템 ${index} 검증 완료 ===`);
+        });
+        
+        logDebug(`데이터베이스 저장 시작: ${detailFetchedItems.length}개 항목`);
+        
+        // 저장 전 최종 검증
+        const itemsWithSlug = detailFetchedItems.filter(item => item.slug && item.slug !== null && item.slug !== undefined);
+        logDebug(`slug가 있는 아이템 수: ${itemsWithSlug.length}/${detailFetchedItems.length}`);
+        
+        if (itemsWithSlug.length !== detailFetchedItems.length) {
+          logDebug('경고: 일부 아이템에 slug가 없습니다!');
+          logDebug('slug가 없는 아이템들:', detailFetchedItems.filter(item => !item.slug || item.slug === null || item.slug === undefined));
+          return res.status(500).json({
+            success: false,
+            message: '일부 뉴스 항목에 slug가 없어 저장할 수 없습니다.',
+            error: 'Slug validation failed'
+          });
+        }
+        
+        logDebug('저장할 아이템들:', itemsWithSlug.map(item => ({ title: item.title, slug: item.slug })));
+        
+        const result = await collection.insertMany(itemsWithSlug);
+        logDebug(`${result.insertedCount}개 항목을 데이터베이스에 추가`);
+        
+        return res.status(200).json({
+          success: true,
+          message: `${result.insertedCount}개의 새 뉴스 항목을 추가했습니다.`,
+          total: newsItems.length,
+          new: result.insertedCount
+        });
+      } else {
+        return res.status(200).json({
+          success: true,
+          message: '크롤링은 완료되었지만 새로운 뉴스가 추가되지 않았습니다.',
+          total: newsItems.length,
+          new: 0
+        });
+      }
+    } catch (dbError) {
+      logDebug('데이터베이스 작업 중 오류:', dbError);
+      return res.status(500).json({
+        success: false,
+        message: '데이터베이스 작업 중 오류가 발생했습니다: ' + dbError.message,
+        error: dbError.toString()
+      });
+    }
+  } catch (error) {
+    logDebug('전체 처리 중 오류:', error);
+    forceLog('전체 처리 중 오류: ' + error.message);
+    forceLog('전체 오류 스택: ' + error.stack);
+    return res.status(500).json({ success: false, message: '서버 오류가 발생했습니다: ' + error.message });
+  }
+} 

@@ -1,0 +1,169 @@
+import mongoose from 'mongoose';
+
+// 환경 변수 로드
+if (typeof window === 'undefined') {
+  const dotenv = require('dotenv');
+  // 개발 환경에서는 .env.local, 프로덕션에서는 .env.production 사용
+  const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
+  dotenv.config({ path: envFile });
+}
+
+// 환경 변수에서 MongoDB URI 가져오기
+let MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error('[Mongoose] MONGODB_URI environment variable is not set!');
+  console.log('[Mongoose] Available env vars:', Object.keys(process.env).filter(key => key.includes('MONGO')));
+  // DocumentDB URI를 직접 설정 (환경변수가 없을 경우)
+  MONGODB_URI = 'mongodb://kstarpick:zpdltmxkvlr0%212@kstarpick-mongodb-production.cluster-cjquemysifmm.ap-northeast-2.docdb.amazonaws.com:27017/kstarpick?authSource=admin';
+}
+
+// 로컬 환경에서는 인증 설정을 추가하지 않음
+if (!MONGODB_URI.includes('localhost')) {
+  // authSource=admin 추가 (인증 문제 해결 - 외부 DB용)
+  if (MONGODB_URI.includes('mongodb://') && !MONGODB_URI.includes('authSource=')) {
+    if (MONGODB_URI.includes('?')) {
+      MONGODB_URI += '&authSource=admin';
+    } else {
+      MONGODB_URI += '?authSource=admin';
+    }
+  }
+
+  // Amazon DocumentDB 호환성을 위해 authMechanism 추가
+  if (MONGODB_URI.includes('docdb.amazonaws.com') && !MONGODB_URI.includes('authMechanism=')) {
+    if (MONGODB_URI.includes('?')) {
+      MONGODB_URI += '&authMechanism=SCRAM-SHA-1';
+    } else {
+      MONGODB_URI += '?authMechanism=SCRAM-SHA-1';
+    }
+  }
+}
+
+// 로컬 MongoDB 여부 확인
+const isLocalMongoDB = MONGODB_URI.includes('localhost') || MONGODB_URI.includes('127.0.0.1');
+
+console.log('[Mongoose] Environment check:');
+console.log('[Mongoose] NODE_ENV:', process.env.NODE_ENV);
+console.log('[Mongoose] MONGODB_URI exists:', !!process.env.MONGODB_URI);
+console.log('[Mongoose] Is Local MongoDB:', isLocalMongoDB);
+console.log('[Mongoose] Final Connection URI:', MONGODB_URI.replace(/:[^:]*@/, ':***@'));
+
+/**
+ * Global is used here to maintain a cached connection across hot reloads
+ * in development. This prevents connections growing exponentially
+ * during API Route usage.
+ */
+let cached = global.mongoose;
+
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
+
+async function dbConnect() {
+  console.log('[Mongoose] dbConnect() called');
+  
+  // 연결 상태 확인
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    console.log('[Mongoose] Using cached connection (connected)');
+    return cached.conn;
+  }
+  
+  // 연결이 끊어진 경우 재설정
+  if (mongoose.connection.readyState === 0 || mongoose.connection.readyState === 3) {
+    console.log('[Mongoose] Connection is disconnected or disconnecting, resetting...');
+    cached.conn = null;
+    cached.promise = null;
+    
+    try {
+      // 기존 연결 cleanup 시도
+      await mongoose.connection.close();
+    } catch (e) {
+      console.log('[Mongoose] No active connection to close');
+    }
+  }
+
+  if (!cached.promise) {
+    const opts = {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 10000, // 서버 선택 타임아웃 증가
+      socketTimeoutMS: 45000, // 소켓 타임아웃 추가
+      connectTimeoutMS: 10000, // 연결 타임아웃 추가
+      family: 4, // IPv4 사용 (IPv6 관련 문제 방지)
+      heartbeatFrequencyMS: 10000, // 하트비트 주기
+    };
+
+    if (isLocalMongoDB) {
+      // 로컬 MongoDB 설정
+      console.log('[Mongoose] 로컬 MongoDB 연결 설정');
+    } else {
+      // DocumentDB 연결인 경우만 TLS 설정 추가
+      if (MONGODB_URI.includes('docdb.amazonaws.com')) {
+        opts.tls = false;
+        opts.tlsAllowInvalidCertificates = true;
+        opts.tlsAllowInvalidHostnames = true;
+      }
+      // 외부 DB 인증 옵션 추가
+      opts.authSource = 'admin'; // 명시적으로 authSource 설정
+    }
+
+    console.log('[Mongoose] Creating new connection to MongoDB with options:', JSON.stringify(opts, null, 2));
+    console.log('[Mongoose] Attempting to connect to:', MONGODB_URI.replace(/:[^:]*@/, ':***@'));
+    
+    cached.promise = mongoose.connect(MONGODB_URI, opts)
+      .then(mongoose => {
+        console.log('[Mongoose] Successfully connected to MongoDB');
+        console.log('[Mongoose] Connection state:', mongoose.connection.readyState);
+        
+        // 연결 오류 이벤트 리스너 추가
+        mongoose.connection.on('error', (err) => {
+          console.error('[Mongoose] Connection error event:', err);
+          cached.conn = null;
+          cached.promise = null;
+          
+          // 오류 발생 시 5초 후 자동 재연결 시도
+          setTimeout(() => {
+            console.log('[Mongoose] Attempting to reconnect after error...');
+            dbConnect().catch(e => console.error('[Mongoose] Reconnection failed:', e));
+          }, 5000);
+        });
+        
+        // 연결 끊김 이벤트 리스너 추가
+        mongoose.connection.on('disconnected', () => {
+          console.log('[Mongoose] Disconnected from MongoDB');
+          cached.conn = null;
+          cached.promise = null;
+          
+          // 연결 끊김 시 3초 후 자동 재연결 시도
+          setTimeout(() => {
+            console.log('[Mongoose] Attempting to reconnect after disconnect...');
+            dbConnect().catch(e => console.error('[Mongoose] Reconnection failed:', e));
+          }, 3000);
+        });
+        
+        return mongoose;
+      })
+      .catch(error => {
+        console.error('[Mongoose] Connection error details:');
+        console.error('[Mongoose] Error name:', error.name);
+        console.error('[Mongoose] Error message:', error.message);
+        console.error('[Mongoose] Error code:', error.code);
+        console.error('[Mongoose] Full error:', error);
+        cached.promise = null;
+        throw error;
+      });
+  } else {
+    console.log('[Mongoose] Using existing connection promise');
+  }
+
+  try {
+    cached.conn = await cached.promise;
+    console.log('[Mongoose] Connection promise resolved successfully');
+    return cached.conn;
+  } catch (error) {
+    console.error('[Mongoose] Error resolving connection promise:', error);
+    cached.promise = null;
+    throw error;
+  }
+}
+
+export default dbConnect; 

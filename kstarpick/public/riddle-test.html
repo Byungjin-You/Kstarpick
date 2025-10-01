@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Riddle 테스트</title>
+</head>
+<body>
+    <h1>Riddle 임베드 테스트</h1>
+    
+    <div style="margin: 20px 0; padding: 20px; border: 1px solid #ccc;">
+        <h2>원본 Riddle 코드:</h2>
+        <div class="riddle2-wrapper" data-rid-id="4fRETmoN" data-auto-scroll="true" data-is-fixed-height-enabled="false" data-bg="#fff" data-fg="#00205b" style="margin:0 auto; max-width:100%; width:640px;">
+            <script src="https://www.riddle.com/embed/build-embedjs/embedV2.js"></script>
+            <iframe title="Movies, music, series and memes" src="https://www.riddle.com/embed/a/4fRETmoN?lazyImages=false&staticHeight=false" allow="autoplay" referrerpolicy="strict-origin"></iframe>
+        </div>
+    </div>
+
+    <div style="margin: 20px 0; padding: 20px; border: 1px solid #ccc;">
+        <h2>직접 iframe 방식:</h2>
+        <iframe 
+            src="https://www.riddle.com/embed/a/4fRETmoN?lazyImages=false&staticHeight=false" 
+            width="640" 
+            height="400" 
+            frameborder="0" 
+            allow="autoplay" 
+            referrerpolicy="strict-origin"
+            style="max-width: 100%;">
+        </iframe>
+    </div>
+
+    <div style="margin: 20px 0; padding: 20px; border: 1px solid #ccc;">
+        <h2>우리의 CSS Transform Scale 방식:</h2>
+        <div style="width: 100%; height: 800px; overflow: hidden; border: 1px solid #e0e0e0; border-radius: 8px; position: relative; background: #fff;">
+            <div style="transform: scale(1.5); transform-origin: top left; width: 67%; height: 67%;">
+                <div class="riddle2-wrapper" data-rid-id="4fRETmoN" data-auto-scroll="true" data-is-fixed-height-enabled="false" data-bg="#fff" data-fg="#00205b" style="margin:0; width:100%; max-width:none; overflow:visible;">
+                    <script src="https://www.riddle.com/embed/build-embedjs/embedV2.js"></script>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin: 20px 0; padding: 20px; border: 1px solid #ccc;">
+        <h2>매우 큰 직접 iframe 방식:</h2>
+        <div style="width: 100%; height: 1200px; border: 1px solid #e0e0e0; border-radius: 8px; overflow: auto; background: #fff;">
+            <iframe 
+                src="https://www.riddle.com/embed/a/4fRETmoN" 
+                width="100%" 
+                height="1500" 
+                frameborder="0" 
+                allow="autoplay" 
+                referrerpolicy="strict-origin"
+                style="width: 100%; height: 1500px; border: none;">
+            </iframe>
+        </div>
+    </div>
+
+    <script>
+        console.log('Riddle 테스트 페이지 로드됨');
+        
+        // 5초 후 Riddle 스크립트 상태 확인
+        setTimeout(() => {
+            console.log('Riddle 스크립트 확인:', !!window.Riddle);
+            console.log('Riddle wrapper 요소:', document.querySelector('.riddle2-wrapper'));
+        }, 5000);
+    </script>
+</body>
+</html>

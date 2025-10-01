@@ -1,0 +1,58 @@
+User-agent: *
+Allow: /
+
+# 사이트맵 위치
+Sitemap: https://kstarpick.com/sitemap.xml
+
+# RSS 피드
+Sitemap: https://kstarpick.com/rss.xml
+
+# 크롤링 제외 디렉토리
+Disallow: /admin/
+Disallow: /api/
+Disallow: /uploads/
+Disallow: /_next/
+Disallow: /debug/
+Disallow: /temp/
+Disallow: /backup/
+Disallow: /logs/
+
+# 검색 결과 페이지 제외 (중복 콘텐츠 방지)
+Disallow: /search?*
+Disallow: /search/*
+
+# 특정 파일 제외
+Disallow: /*.json$
+Disallow: /*.log$
+Disallow: /*.bak$
+Disallow: /*.backup$
+
+# 중요 페이지 명시적 허용
+Allow: /news/
+Allow: /drama/
+Allow: /music/
+Allow: /tvfilm/
+Allow: /celeb/
+Allow: /ranking/
+
+# 검색엔진별 최적화
+User-agent: Googlebot
+Crawl-delay: 1
+
+User-agent: Bingbot
+Crawl-delay: 2
+
+User-agent: NaverBot
+Crawl-delay: 1
+
+User-agent: Yeti
+Crawl-delay: 1
+
+User-agent: DaumBot
+Crawl-delay: 1
+
+# 크롤 딜레이 (서버 부하 방지)
+Crawl-delay: 1
+
+# Daum 웹마스터 도구 인증
+#DaumWebMasterTool:95251d6b938098c4bb3d3713d97f528f78f49f71380ed62e856b34c5850f7c42:595x9hLr9jiB4Ymrktr25A== 

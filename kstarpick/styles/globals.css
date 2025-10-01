@@ -1,0 +1,1031 @@
+/* Google Fonts Import */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Poppins:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 255, 255, 255;
+  --background-end-rgb: 255, 255, 255;
+  --primary-color: #ff3e8e;
+  --primary-gradient: linear-gradient(90deg, #ff3e8e, #ff7461);
+  --secondary-color: #5f27cd;
+  --light-gray: #f5f5f5;
+  --border-color: #e0e0e0;
+}
+
+html, body {
+  background-color: #ffffff;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  font-family: 'Noto Sans', 'Malgun Gothic', sans-serif;
+}
+
+/* 롤링 뉴스 애니메이션 */
+@keyframes slide-in {
+  0% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-out {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+.news-slide-in {
+  animation: slide-in 0.5s ease-out forwards;
+}
+
+.news-slide-out {
+  animation: slide-out 0.5s ease-in forwards;
+}
+
+/* 스크롤바 숨기기 */
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari, Opera */
+}
+
+/* 모바일에서 Latest News 카드 스크롤 컨테이너 스타일 */
+@media (max-width: 768px) {
+  /* 중요: 스크롤 컨테이너의 모든 그라데이션 효과 제거 */
+  .hide-scrollbar, [class*="overflow-x-auto"] {
+    mask-image: none !important;
+    -webkit-mask-image: none !important;
+    background: transparent !important;
+  }
+  
+  /* 스크롤 컨테이너 가장자리 그라데이션 제거 */
+  .hide-scrollbar::after,
+  .hide-scrollbar::before,
+  [class*="overflow-x-auto"]::after,
+  [class*="overflow-x-auto"]::before,
+  .tab-container::after,
+  .tab-container::before, 
+  .flex.overflow-x-auto::after, 
+  .flex.overflow-x-auto::before {
+    display: none !important;
+    content: none !important;
+    background: none !important;
+    background-image: none !important;
+    pointer-events: none !important;
+    opacity: 0 !important;
+    position: relative !important;
+  }
+  
+  /* 충돌 방지를 위해 명시적으로 after 요소 제거 */
+  .hide-scrollbar::after {
+    content: none !important;
+    display: none !important;
+    background: none !important;
+    background-image: none !important;
+    position: relative !important;
+  }
+  
+  .hide-scrollbar > * {
+    scroll-snap-align: start;
+    margin-right: 20px !important;
+    margin-left: 0 !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
+  }
+  
+  .hide-scrollbar > *:first-child {
+    margin-left: 0 !important;
+  }
+  
+  .hide-scrollbar > * > div {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  /* 스크롤 컨테이너 오른쪽 가장자리에 그림자 추가 - 제거함 */
+  /*
+  .hide-scrollbar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 4px;
+    width: 60px;
+    background: none;
+    pointer-events: none;
+    border-top-right-radius: 16px;
+    border-bottom-right-radius: 16px;
+  }
+  */
+  
+  /* 스크롤 진행 상태 indicator */
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* 스와이프 애니메이션 */
+@keyframes swipeHint {
+  0% { transform: translateX(-5px); }
+  50% { transform: translateX(3px); }
+  100% { transform: translateX(-5px); }
+}
+
+@keyframes pulseBorder {
+  0% { opacity: 0.6; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 0.6; transform: scale(0.95); }
+}
+
+@keyframes pulseBorderColor {
+  0% { border-color: rgba(236, 72, 153, 0.7); }
+  50% { border-color: rgba(147, 51, 234, 1); }
+  100% { border-color: rgba(236, 72, 153, 0.7); }
+}
+
+.swipe-hint {
+  animation: swipeHint 1.5s ease-in-out infinite;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.swipe-hint * {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.swipe-hint > div {
+  background-color: white !important;
+}
+
+.swipe-hint .animate-pulse {
+  animation: pulseBorder 2s ease-in-out infinite, pulseBorderColor 3s ease-in-out infinite;
+}
+
+/* 스와이프 힌트 관련 스타일 제거 */
+.swipe-hint .animate-ping {
+  display: none;
+}
+
+/* 모바일에서 스크롤 힌트를 첫 번째 카드에서만 보이도록 */
+.hide-scrollbar.scrolled .swipe-hint,
+.hide-scrollbar.scrolled .swipe-hint .animate-ping {
+  display: none !important;
+}
+
+/* YouTube 비디오 스타일 */
+.prose iframe[src*="youtube.com/embed/"],
+.prose iframe[src*="youtu.be/"],
+.ql-editor iframe[src*="youtube.com/embed/"],
+.ql-editor iframe[src*="youtu.be/"] {
+  width: 100% !important;
+  aspect-ratio: 16/9 !important;
+  height: auto !important;
+  min-height: 360px !important;
+  max-width: 800px !important;
+  margin: 2rem auto !important;
+  display: block !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+/* Twitter 임베드 최적화 스타일 */
+.twitter-embed-container {
+  margin: 1.5rem 0 !important;
+  max-width: 550px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.twitter-tweet {
+  margin: 0 auto !important;
+  max-width: 550px !important;
+}
+
+/* Instagram 임베드 최적화 스타일 */
+.instagram-embed-container {
+  margin: 1.5rem 0 !important;
+  max-width: 540px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.instagram-media {
+  margin: 0 auto !important;
+  max-width: 540px !important;
+}
+
+/* 트위터 임베드 높이 자동 조정 */
+.twitter-embed-container iframe {
+  max-height: 600px !important;
+  height: auto !important;
+}
+
+/* 소셜 미디어 임베드 간격 최적화 */
+.prose .twitter-embed-container,
+.prose .instagram-embed-container,
+.ql-editor .twitter-embed-container,
+.ql-editor .instagram-embed-container {
+  margin: 1.5rem 0 !important;
+}
+
+/* 모바일에서 소셜 미디어 임베드 최적화 */
+@media (max-width: 768px) {
+  .twitter-embed-container,
+  .instagram-embed-container {
+    margin: 1rem 0 !important;
+    max-width: 100% !important;
+  }
+  
+  .twitter-tweet,
+  .instagram-media {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .prose iframe[src*="youtube.com/embed/"],
+  .prose iframe[src*="youtu.be/"],
+  .ql-editor iframe[src*="youtube.com/embed/"],
+  .ql-editor iframe[src*="youtu.be/"] {
+    min-height: 240px !important;
+  }
+}
+
+/* 기사 콘텐츠 내 단락 스타일 */
+.prose p, .article-content p, .ql-editor p {
+  margin: 0 0 1.2em 0 !important;
+  line-height: 1.7 !important;
+  font-size: 16px !important;
+  color: #374151 !important;
+  word-break: keep-all !important;
+  word-wrap: break-word !important;
+}
+
+/* 연속된 p 태그 사이의 간격 추가 */
+.prose p + p, .article-content p + p, .ql-editor p + p {
+  margin-top: 1.2em !important;
+}
+
+/* 첫 번째 p 태그의 상단 마진 제거 */
+.prose p:first-child, .article-content p:first-child, .ql-editor p:first-child {
+  margin-top: 0 !important;
+}
+
+/* 마지막 p 태그의 하단 마진 제거 */
+.prose p:last-child, .article-content p:last-child, .ql-editor p:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* 순서가 있는 리스트(ol) 스타일링 */
+.prose ol, .article-content ol, .ql-editor ol {
+  margin: 1.2em 0 !important;
+  padding-left: 2em !important;
+  list-style-type: decimal !important;
+  color: #374151 !important;
+}
+
+.prose ol li, .article-content ol li, .ql-editor ol li {
+  margin: 0.5em 0 !important;
+  padding-left: 0.5em !important;
+  line-height: 1.7 !important;
+  list-style-type: decimal !important;
+  display: list-item !important;
+}
+
+/* Quill 에디터의 기본 ol 스타일 재정의 */
+.ql-editor ol > li {
+  list-style-type: decimal !important;
+}
+
+.ql-editor ol li:before {
+  display: none !important;
+}
+
+/* 중첩된 ol 태그 스타일링 */
+.prose ol ol, .article-content ol ol, .ql-editor ol ol {
+  margin: 0.5em 0 !important;
+  list-style-type: lower-alpha !important;
+}
+
+.prose ol ol li, .article-content ol ol li, .ql-editor ol ol li {
+  list-style-type: lower-alpha !important;
+}
+
+/* 순서가 없는 리스트(ul) 스타일링 */
+.prose ul, .article-content ul, .ql-editor ul {
+  margin: 1.2em 0 !important;
+  padding-left: 2em !important;
+  list-style-type: disc !important;
+}
+
+.prose ul li, .article-content ul li, .ql-editor ul li {
+  margin: 0.5em 0 !important;
+  padding-left: 0.5em !important;
+  line-height: 1.7 !important;
+  list-style-type: disc !important;
+  display: list-item !important;
+}
+
+/* Quill 에디터의 기본 ul 스타일 재정의 */
+.ql-editor ul > li {
+  list-style-type: disc !important;
+}
+
+.ql-editor ul li::before {
+  display: none !important;
+}
+
+/* blockquote 스타일링 - 보라색-핑크색 그라데이션 따옴표 (소셜 미디어 임베드 제외) */
+.prose blockquote:not(.instagram-media):not(.twitter-tweet), 
+.article-content blockquote:not(.instagram-media):not(.twitter-tweet), 
+.ql-editor blockquote:not(.instagram-media):not(.twitter-tweet) {
+  position: relative;
+  margin: 2em 0 !important;
+  padding: 2em 2.5em 1.5em 2.5em !important;
+  background: linear-gradient(135deg, rgba(147, 51, 234, 0.05), rgba(236, 72, 153, 0.05)) !important;
+  border: none !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 20px rgba(147, 51, 234, 0.1) !important;
+  font-style: italic !important;
+  color: #4b5563 !important;
+  line-height: 1.8 !important;
+  font-size: 1.1em !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+/* 시작 따옴표 (왼쪽 상단) - 소셜 미디어 임베드 제외 */
+.prose blockquote:not(.instagram-media):not(.twitter-tweet)::before, 
+.article-content blockquote:not(.instagram-media):not(.twitter-tweet)::before, 
+.ql-editor blockquote:not(.instagram-media):not(.twitter-tweet)::before {
+  content: '"';
+  position: absolute;
+  top: 0.2em;
+  left: 0.3em;
+  font-size: 4em;
+  font-weight: 700;
+  line-height: 1;
+  background: linear-gradient(135deg, #9333ea, #ec4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  opacity: 0.8;
+  font-family: 'Georgia', serif;
+  z-index: 1;
+}
+
+/* 끝 따옴표 (오른쪽 하단) - 소셜 미디어 임베드 제외 */
+.prose blockquote:not(.instagram-media):not(.twitter-tweet)::after, 
+.article-content blockquote:not(.instagram-media):not(.twitter-tweet)::after, 
+.ql-editor blockquote:not(.instagram-media):not(.twitter-tweet)::after {
+  content: '"';
+  position: absolute;
+  bottom: -0.2em;
+  right: 0.3em;
+  font-size: 4em;
+  font-weight: 700;
+  line-height: 1;
+  background: linear-gradient(135deg, #9333ea, #ec4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  opacity: 0.8;
+  font-family: 'Georgia', serif;
+  transform: rotate(180deg);
+  z-index: 1;
+}
+
+/* blockquote 내부 텍스트 스타일링 - 소셜 미디어 임베드 제외 */
+.prose blockquote:not(.instagram-media):not(.twitter-tweet) p, 
+.article-content blockquote:not(.instagram-media):not(.twitter-tweet) p, 
+.ql-editor blockquote:not(.instagram-media):not(.twitter-tweet) p {
+  margin: 0 !important;
+  font-size: inherit !important;
+  color: inherit !important;
+  line-height: inherit !important;
+  position: relative;
+  z-index: 2;
+}
+
+/* blockquote 내부 링크 스타일링 - 소셜 미디어 임베드 제외 */
+.prose blockquote:not(.instagram-media):not(.twitter-tweet) a, 
+.article-content blockquote:not(.instagram-media):not(.twitter-tweet) a, 
+.ql-editor blockquote:not(.instagram-media):not(.twitter-tweet) a {
+  color: #9333ea !important;
+  text-decoration: none !important;
+  border-bottom: 1px solid rgba(147, 51, 234, 0.3) !important;
+  transition: all 0.3s ease !important;
+}
+
+.prose blockquote:not(.instagram-media):not(.twitter-tweet) a:hover, 
+.article-content blockquote:not(.instagram-media):not(.twitter-tweet) a:hover, 
+.ql-editor blockquote:not(.instagram-media):not(.twitter-tweet) a:hover {
+  color: #ec4899 !important;
+  border-bottom-color: rgba(236, 72, 153, 0.5) !important;
+}
+
+/* 모바일에서 blockquote 반응형 디자인 */
+@media (max-width: 768px) {
+  .prose blockquote:not(.instagram-media):not(.twitter-tweet), 
+  .article-content blockquote:not(.instagram-media):not(.twitter-tweet), 
+  .ql-editor blockquote:not(.instagram-media):not(.twitter-tweet) {
+    margin: 1.5em 0 !important;
+    padding: 1.5em 2em 1.2em 2em !important;
+    font-size: 1em !important;
+  }
+  
+  .prose blockquote:not(.instagram-media):not(.twitter-tweet)::before, 
+  .article-content blockquote:not(.instagram-media):not(.twitter-tweet)::before, 
+  .ql-editor blockquote:not(.instagram-media):not(.twitter-tweet)::before {
+    font-size: 3em;
+    top: 0.1em;
+    left: 0.2em;
+  }
+  
+  .prose blockquote:not(.instagram-media):not(.twitter-tweet)::after, 
+  .article-content blockquote:not(.instagram-media):not(.twitter-tweet)::after, 
+  .ql-editor blockquote:not(.instagram-media):not(.twitter-tweet)::after {
+    font-size: 3em;
+    bottom: -0.1em;
+    right: 0.2em;
+  }
+}
+
+/* 기사 콘텐츠 내 Heading 스타일 */
+.prose h1, .article-content h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 1.5em 0 0.5em 0;
+  color: #1f2937;
+  line-height: 1.2;
+}
+
+.prose h2, .article-content h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 1.2em 0 0.4em 0;
+  color: #374151;
+  line-height: 1.3;
+}
+
+.prose h3, .article-content h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 1em 0 0.3em 0;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
+.prose h4, .article-content h4 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0.8em 0 0.2em 0;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+/* Riddle 임베드 스타일링 - 개선된 버전 */
+.riddle2-wrapper {
+  margin: 20px auto !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  min-height: 400px !important;
+  overflow: visible !important;
+  display: block !important;
+}
+
+.riddle2-wrapper iframe {
+  width: 100% !important;
+  min-height: 400px !important;
+  border: none !important;
+  display: block !important;
+  overflow: visible !important;
+}
+
+/* Riddle 로딩 상태 스타일 */
+.riddle-embed-container {
+  position: relative;
+  margin: 20px 0;
+  min-height: 400px;
+}
+
+.riddle-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+/* Soompi-inspired styles */
+.soompi-gradient-bg {
+  background-image: var(--primary-gradient);
+}
+
+.soompi-gradient-text {
+  background-image: var(--primary-gradient);
+  background-clip: text;
+  color: transparent;
+}
+
+.soompi-primary-color {
+  color: var(--primary-color);
+}
+
+.soompi-btn {
+  display: inline-block;
+  background-image: var(--primary-gradient);
+  color: white;
+  font-weight: 600;
+  padding: 0.5rem 1.5rem;
+  border-radius: 4px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.soompi-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
+}
+
+.soompi-section-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  position: relative;
+  display: inline-block;
+}
+
+.soompi-section-title::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: 100%;
+  height: 3px;
+  background-image: var(--primary-gradient);
+}
+
+.news-card {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.news-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+}
+
+.featured-news-card {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: var(--light-gray);
+}
+
+.featured-news-card .gradient-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+  z-index: 1;
+}
+
+.featured-news-card .content {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 1.5rem;
+  z-index: 2;
+  color: white;
+}
+
+/* File upload styles */
+.file-upload-container {
+  border: 2px dashed var(--border-color);
+  border-radius: 8px;
+  padding: 2rem;
+  text-align: center;
+  background-color: var(--light-gray);
+  transition: all 0.3s ease;
+}
+
+.file-upload-container:hover {
+  border-color: var(--primary-color);
+}
+
+.file-upload-container.active {
+  border-color: var(--primary-color);
+  background-color: rgba(255, 62, 142, 0.05);
+}
+
+.file-upload-container .preview-image {
+  max-width: 100%;
+  max-height: 200px;
+  margin-top: 1rem;
+  border-radius: 4px;
+}
+
+/* Header styles */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background-color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.search-container {
+  position: relative;
+}
+
+.search-input {
+  padding: 0.5rem 2.5rem 0.5rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  width: 100%;
+}
+
+.search-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--secondary-color);
+}
+
+/* Category styles */
+.category-dropdown {
+  position: relative;
+}
+
+.category-dropdown .dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 200px;
+  background-color: white;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.category-dropdown:hover .dropdown-menu {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Mobile menu styles */
+.mobile-menu {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 80%;
+  max-width: 300px;
+  background-color: white;
+  z-index: 100;
+  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+}
+
+.mobile-menu.open {
+  transform: translateX(0);
+}
+
+.mobile-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 99;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.mobile-menu-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+@layer utilities {
+  /* 페이드인 애니메이션 */
+  .animate-fadeIn {
+    animation: fadeIn 0.8s ease-in-out;
+  }
+  
+  /* 슬라이드 업 애니메이션 */
+  .animate-slideUp {
+    animation: slideUp 0.6s ease-out;
+  }
+  
+  /* 펄스 애니메이션 */
+  .animate-pulse-subtle {
+    animation: pulseSlight 2s infinite;
+  }
+  
+  /* 스케일 애니메이션 */
+  .hover-scale {
+    transition: transform 0.3s ease;
+  }
+  
+  .hover-scale:hover {
+    transform: scale(1.03);
+  }
+  
+  /* 글래스모피즘 효과 */
+  .glass-effect {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+  }
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  0% {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulseSlight {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* 로딩 스켈레톤 애니메이션 */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes wave {
+  0% { transform: translateX(-100%); }
+  50%, 100% { transform: translateX(100%); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 향상된 스켈레톤 애니메이션 */
+@keyframes shimmer-sync {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes wave-sync {
+  0% { transform: translateX(-100%); }
+  50%, 100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite linear;
+}
+
+.animate-shimmer-sync {
+  background-size: 200% 100%;
+  animation: shimmer-sync 1.8s infinite linear;
+}
+
+.animate-wave {
+  animation: wave 1.5s infinite ease-in-out;
+}
+
+.animate-wave-sync {
+  animation: wave-sync 2s infinite ease-in-out;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out;
+}
+
+/* 모바일에서 섹션 제목 일관성 유지 */
+@media (max-width: 768px) {
+  section h2 {
+    font-size: 1.5rem !important; /* text-2xl */
+    line-height: 2rem !important;
+  }
+  
+  section h2 span.inline-block {
+    font-size: inherit !important;
+    line-height: inherit !important;
+  }
+}
+
+/* 모바일에서 핑크색 배경 및 투명요소 완전히 제거 */
+@media (max-width: 768px) {
+  .latest-news-section {
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  
+  /* 스크롤 컨테이너의 모든 그라데이션 효과 제거 */
+  .hide-scrollbar {
+    mask-image: none !important;
+    -webkit-mask-image: none !important;
+    background: transparent !important;
+  }
+  
+  .hide-scrollbar::after {
+    display: none !important;
+  }
+  
+  .hide-scrollbar > * {
+    background: white !important;
+  }
+}
+
+/* 데스크톱에서만 Latest News 섹션 배경 그라데이션 적용 */
+@media (min-width: 768px) {
+  .latest-news-section {
+    background-image: linear-gradient(to right, #f9f7ff, #fdf4f9, #f9f7ff) !important;
+  }
+}
+
+/* 모바일 환경에서 캐스트 영역과 비디오 영역 그림자 제거 및 간격 조정 */
+@media (max-width: 767px) {
+  /* cast 영역 설정 */
+  #cast * {
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+  }
+
+  #cast .hide-scrollbar > * {
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+    margin-right: 8px !important;
+  }
+
+  #cast .hide-scrollbar > * > div {
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+  }
+
+  #cast .w-\[90px\] {
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+  }
+  
+  /* 내비게이션 버튼 그림자 제거 */
+  #cast button {
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+  }
+  
+  /* 간격 줄이기 */
+  #cast .hide-scrollbar {
+    gap: 0.5rem !important;
+  }
+  
+  /* 스크롤 성능 최적화 */
+  #cast .hide-scrollbar {
+    -webkit-overflow-scrolling: touch !important;
+    will-change: scroll-position !important;
+    transform: translateZ(0) !important;
+    backface-visibility: hidden !important;
+  }
+  
+  /* 이미지 렌더링 최적화 */
+  #cast img {
+    will-change: transform !important;
+    transform: translateZ(0) !important;
+    backface-visibility: hidden !important;
+  }
+  
+  /* trailers 영역 간격 조정 - 드라마 페이지 */
+  #trailers .hide-scrollbar {
+    gap: 0.5rem !important;
+  }
+  
+  #trailers .hide-scrollbar > * {
+    margin-right: 0 !important;
+  }
+  
+  /* trailers 영역 간격 조정 - 영화 페이지 */
+  #tvfilm-trailers .hide-scrollbar {
+    gap: 0.5rem !important;
+  }
+  
+  #tvfilm-trailers .hide-scrollbar > * {
+    margin-right: 0 !important;
+  }
+  
+  /* reviews 영역 최적화 - 드라마 & 영화 페이지 공통 */
+  #reviews .hide-scrollbar {
+    -webkit-overflow-scrolling: touch !important;
+    will-change: scroll-position !important;
+    transform: translateZ(0) !important;
+    backface-visibility: hidden !important;
+    padding-bottom: 0.5rem !important;
+    gap: 0.5rem !important;
+    overflow-x: auto !important;
+    scroll-snap-type: x mandatory !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+  
+  #reviews .hide-scrollbar > * {
+    scroll-snap-align: start !important;
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+    width: calc(100vw - 56px) !important;
+    max-width: 260px !important;
+    flex-shrink: 0 !important;
+  }
+  
+  #reviews button {
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+  }
+} 
