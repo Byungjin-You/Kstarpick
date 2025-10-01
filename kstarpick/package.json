@@ -4,9 +4,20 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 -H 0.0.0.0",
+    "dev:local": "NODE_ENV=development next dev -p 3000",
+    "dev:docker": "docker-compose up -d && NODE_ENV=development next dev -p 3000",
     "build": "next build",
+    "build:prod": "NODE_ENV=production next build",
     "start": "next start -p 13001 -H 0.0.0.0",
-    "lint": "next lint"
+    "start:local": "NODE_ENV=production next start -p 3001",
+    "lint": "next lint",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:reset": "docker-compose down -v && docker-compose up -d",
+    "deploy:test": "node scripts/deploy.js --env=test",
+    "deploy:prod": "node scripts/deploy.js --env=production",
+    "db:backup": "node scripts/backup-db.js",
+    "db:sync": "node scripts/sync-db.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

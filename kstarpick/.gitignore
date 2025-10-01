@@ -1,0 +1,84 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Next.js
+/.next/
+/out/
+
+# Production
+/build
+
+# Misc
+.DS_Store
+*.pem
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files (실제 환경변수 파일은 제외)
+.env*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.test
+.env.development
+
+# 프로덕션 환경변수는 보안상 포함하지 않음
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs
+*.log
+/logs/
+
+# Docker
+mongodb_data/
+
+# Backup files
+*.backup
+*.bak
+*.old
+*~
+
+# Temporary files
+/temp/
+/tmp/
+*.tmp
+
+# Mac
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# PM2
+.pm2/
+pm2.json
+pm2.config.js
+
+# Crawled data
+/crawled-reviews/
+/downloads/
+
+# Tar files
+*.tar.gz
+*.zip
+
+# Test output
+/test-results/
+/playwright-report/
+/playwright/.cache/

@@ -10,8 +10,13 @@ import jwt from 'jsonwebtoken';
 import { authOptions } from '../auth/[...nextauth]';
 
 // MongoDB 연결 설정
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://kstarpick:zpdltmxkvlr0%212@kstarpick-mongodb-production.cluster-cjquemysifmm.ap-northeast-2.docdb.amazonaws.com:27017/kstarpick?retryWrites=false&authSource=admin&authMechanism=SCRAM-SHA-1';
+const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB = process.env.MONGODB_DB || 'kstarpick';
+
+if (!MONGODB_URI) {
+  console.error('[News API] MONGODB_URI environment variable is not defined');
+  throw new Error('MONGODB_URI environment variable is not defined');
+}
 
 // Configure formidable options
 export const config = {
@@ -108,19 +113,23 @@ async function getNews(req, res) {
     console.log('[News API] === 네이티브 MongoDB 연결 시작 ===');
     console.log('[News API] NODE_ENV:', process.env.NODE_ENV);
     
-    // MongoDB 클라이언트 연결
-    client = new MongoClient(MONGODB_URI, {
+    // MongoDB 클라이언트 연결 - 로컬/프로덕션 환경 구분
+    const isLocal = process.env.NODE_ENV === 'development' && MONGODB_URI.includes('localhost');
+    const options = isLocal ? {
+      // 로컬 MongoDB 옵션
+      connectTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 5000,
+    } : {
+      // 프로덕션 DocumentDB 옵션
       retryWrites: false,
       connectTimeoutMS: 30000,
       socketTimeoutMS: 45000,
       serverSelectionTimeoutMS: 30000,
       authSource: 'admin',
       authMechanism: 'SCRAM-SHA-1',
-      // SSL 비활성화 (DocumentDB 호환성)
-      // tls: true,
-      // tlsAllowInvalidCertificates: true,
-      // tlsAllowInvalidHostnames: true,
-    });
+    };
+
+    client = new MongoClient(MONGODB_URI, options);
     
     await client.connect();
     console.log('[News API] MongoDB 연결 성공');
@@ -313,19 +322,23 @@ async function createNews(req, res, session) {
   try {
     console.log('[createNews] === 네이티브 MongoDB 연결 시작 ===');
     
-    // MongoDB 클라이언트 연결
-    client = new MongoClient(MONGODB_URI, {
+    // MongoDB 클라이언트 연결 - 로컬/프로덕션 환경 구분
+    const isLocal = process.env.NODE_ENV === 'development' && MONGODB_URI.includes('localhost');
+    const options = isLocal ? {
+      // 로컬 MongoDB 옵션
+      connectTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 5000,
+    } : {
+      // 프로덕션 DocumentDB 옵션
       retryWrites: false,
       connectTimeoutMS: 30000,
       socketTimeoutMS: 45000,
       serverSelectionTimeoutMS: 30000,
       authSource: 'admin',
       authMechanism: 'SCRAM-SHA-1',
-      // SSL 비활성화 (DocumentDB 호환성)
-      // tls: true,
-      // tlsAllowInvalidCertificates: true,
-      // tlsAllowInvalidHostnames: true,
-    });
+    };
+
+    client = new MongoClient(MONGODB_URI, options);
     
     await client.connect();
     console.log('[createNews] MongoDB 연결 성공');

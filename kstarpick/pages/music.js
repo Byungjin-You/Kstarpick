@@ -86,17 +86,6 @@ export default function Music({ musicNews = [], topSongs = [], newsPagination })
     }
   }, [topSongs, visibleSongs]);
   
-  // 화면 크기 감지
-  useEffect(() => {
-    function handleResize() {
-      setIsMobile(window.innerWidth < 768);
-    }
-    
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-  
   // 더 많은 음악 로드
   const loadMoreSongs = async () => {
     setIsLoadingMoreSongs(true);
