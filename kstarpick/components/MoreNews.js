@@ -21,6 +21,23 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
   const initialDataAppliedRef = useRef(false); // initialNews가 이미 적용되었는지 추적
   const categoryRef = useRef(category); // 카테고리 값을 ref로 유지
 
+  // 뉴스 카드 클릭 시 홈 스크롤 위치 저장
+  const handleNewsClick = (e) => {
+    if (typeof window !== 'undefined' && router.pathname === '/') {
+      // 클릭 시점의 정확한 스크롤 위치를 즉시 캡처
+      const currentScroll = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+
+      // 이미 저장된 값이 있고 0이 아니면 유지 (routeChangeStart에서 이미 저장했을 수 있음)
+      const existingScroll = sessionStorage.getItem('homeScrollPosition');
+      if (!existingScroll || existingScroll === '0' || parseInt(existingScroll) === 0) {
+        sessionStorage.setItem('homeScrollPosition', currentScroll.toString());
+        console.log('📍 MoreNews - 홈 스크롤 위치 저장:', currentScroll);
+      } else {
+        console.log('📍 MoreNews - 이미 저장된 스크롤 위치 유지:', existingScroll);
+      }
+    }
+  };
+
   // 카테고리 ref 업데이트
   useEffect(() => {
     categoryRef.current = category;
@@ -970,7 +987,7 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
   // 스켈레톤 작은 카드 컴포넌트 (재사용 가능)
   const SkeletonSmallCard = () => (
     <div className="flex gap-2 bg-white py-3">
-      <div className="w-40 h-32 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-xl relative overflow-hidden">
+      <div className="w-40 h-32 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-lg relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
       </div>
       <div className="flex-1 pt-0 pr-3 pb-0 pl-3 flex flex-col justify-between">
@@ -998,12 +1015,19 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
   );
 
   return (
-    <div className="mb-16">
+    <div className="mb-8 md:mb-16">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center">
-          <div className="w-2 h-16 bg-gradient-to-b from-purple-600 to-pink-500 rounded-full mr-5"></div>
+          {/* New Icon */}
+          <div className="mr-4 flex-shrink-0">
+            <img
+              src="/images/icons8-new-50.png"
+              alt="New Icon"
+              className="h-12 w-12 object-contain"
+            />
+          </div>
           <div className="flex-1">
-            <span className="text-pink-600 text-sm font-semibold tracking-wider uppercase mb-1 block">Continue Reading</span>
+            <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#233CFA' }}>Continue Reading</span>
             <h2 className="text-2xl font-bold text-gray-800">Latest K-Pop Updates</h2>
           </div>
         </div>
@@ -1056,18 +1080,19 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
               {/* 모바일에서는 기존 레이아웃 유지 */}
               <div className="block lg:hidden space-y-4">
                 {/* 첫 번째 뉴스는 큰 카드로 표시 */}
-                <Link 
+                <Link
                   href={`/news/${set[0]._id || set[0].id}`}
                   key={set[0]._id || set[0].id}
+                  onClick={handleNewsClick}
                 >
                   <div className="block cursor-pointer">
-                    <div className="bg-white rounded-xl overflow-hidden transition-all duration-300 group relative">
-                      <div className="h-56 overflow-hidden relative">
+                    <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">
+                      <div className="h-64 overflow-hidden relative">
                         {set[0].coverImage ? (
-                          <img 
-                            src={set[0].coverImage} 
-                            alt={set[0].title} 
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-xl"
+                          <img
+                            src={set[0].coverImage}
+                            alt={set[0].title}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-md"
                             onError={(e) => {
                               e.target.onerror = null;
                               e.target.src = "/images/placeholder.jpg";
@@ -1078,21 +1103,10 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
                             <span>Image Placeholder</span>
                           </div>
                         )}
-                        
-                        {/* 상단 장식 요소 */}
-                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#8e44ad] via-[#9b59b6] to-[#d35400] opacity-80 group-hover:opacity-100 transition-opacity duration-300"></div>
-                        
-                        {/* 카테고리 배지 */}
-                        <div className="absolute top-2 left-2 z-20">
-                          <span className="px-2 py-1 text-white text-xs font-medium rounded-full backdrop-blur-sm shadow-md" 
-                                style={{ background: 'linear-gradient(to right, #9333ea, #ec4899)' }}>
-                            {set[0].category || 'News'}
-                          </span>
-                        </div>
                       </div>
                       
                       <div className="p-4">
-                        <h3 className="font-bold text-gray-800 text-lg mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#8e44ad] transition-colors">
+                        <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#006fff] transition-colors">
                           {set[0].title}
                         </h3>
                         
@@ -1107,13 +1121,13 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
                         <div className="flex justify-between items-end">
                           {/* 시간 배지 */}
                           <div className="flex items-center text-gray-500 text-xs">
-                            <Clock size={12} className="mr-1 text-[#9b59b6]" />
+                            <Clock size={12} className="mr-1 text-gray-500" />
                             <span>{new Date(set[0].createdAt || set[0].date).toLocaleDateString()}</span>
                           </div>
                           
                           {/* Read more 버튼 */}
-                          <span className="inline-flex items-center text-transparent bg-clip-text bg-gradient-to-r from-purple-600 via-pink-500 to-rose-500 text-xs font-medium hover:underline cursor-pointer group">
-                            Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" />
+                          <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#233CFA' }}>
+                            Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" style={{ color: '#233CFA' }} />
                           </span>
                         </div>
                       </div>
@@ -1132,20 +1146,21 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
                         allNews.length === setIndex * NEWS_PER_SET + idx + 2));
                     
                     return (
-                      <Link 
+                      <Link
                         key={news._id || news.id}
                         href={`/news/${news._id || news.id}`}
+                        onClick={handleNewsClick}
                       >
                         <div 
                           className="block bg-white overflow-hidden py-3 cursor-pointer"
                         >
                           <div className="flex gap-1">
                             {/* 썸네일 */}
-                            <div className="w-40 h-32 flex-shrink-0 relative rounded-xl overflow-hidden">
+                            <div className="w-40 h-32 flex-shrink-0 relative rounded-md overflow-hidden">
                               <img
                                 src={news.coverImage || '/images/placeholder.jpg'}
                                 alt={news.title}
-                                className="w-full h-full object-cover rounded-xl"
+                                className="w-full h-full object-cover rounded-md"
                                 onError={(e) => {
                                   e.target.onerror = null;
                                   e.target.src = "/images/placeholder.jpg";
@@ -1157,13 +1172,7 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
                             {/* 콘텐츠 */}
                             <div className="flex-1 pt-0 pr-3 pb-0 pl-3 flex flex-col justify-between h-32">
                               <div>
-                                <div className="flex items-center gap-2 items-start mb-2">
-                                  <span className="px-2 py-0.5 text-xs font-medium rounded-full text-white"
-                                       style={{ background: 'linear-gradient(to right, #9333ea, #ec4899)' }}>
-                                    {news.category || 'News'}
-                                  </span>
-                                </div>
-                                <h3 className="text-sm font-semibold line-clamp-3 text-gray-800">
+                                <h3 className="text-base md:text-lg font-semibold line-clamp-3 text-gray-800 mt-2">
                                   {news.title}
                                 </h3>
                               </div>
@@ -1172,7 +1181,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
                                   <Clock size={12} className="mr-1" />
                                   {new Date(news.createdAt || news.date).toLocaleDateString()}
                                 </div>
-                                <ChevronRight size={16} className="text-pink-500" />
                               </div>
                             </div>
                           </div>
@@ -1189,39 +1197,29 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
                   const isLastItem = setIndex === newsSets.length - 1 && idx === set.length - 1;
                   
                   return (
-                    <Link 
+                    <Link
                       key={news._id || news.id}
                       href={`/news/${news._id || news.id}`}
+                      onClick={handleNewsClick}
                     >
-                      <div 
-                        className="block bg-white rounded-xl overflow-hidden transition-all duration-300 group relative cursor-pointer"
+                      <div
+                        className="block bg-white rounded-lg overflow-hidden transition-all duration-300 group relative cursor-pointer"
                       >
                         <div className="h-56 overflow-hidden relative">
                           {/* 이미지 */}
-                          <img 
+                          <img
                             src={news.coverImage || '/images/placeholder.jpg'}
                             alt={news.title}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-xl"
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-md"
                             onError={(e) => {
                               e.target.onerror = null;
                               e.target.src = "/images/placeholder.jpg";
                             }}
                           />
-                          
-                          {/* Add top decorative element */}
-                          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#8e44ad] via-[#9b59b6] to-[#d35400] opacity-80 group-hover:opacity-100 transition-opacity duration-300"></div>
-                          
-                          {/* 카테고리 배지 */}
-                          <div className="absolute top-2 left-2 md:top-3 md:left-3 z-20">
-                            <span className="px-2 py-1 md:px-3 md:py-1.5 text-white text-xs font-medium rounded-full backdrop-blur-sm shadow-md" 
-                                  style={{ background: 'linear-gradient(to right, #9333ea, #ec4899)' }}>
-                              {news.category || 'News'}
-                            </span>
-                          </div>
                         </div>
                         
                         <div className="p-4">
-                          <h3 className="font-bold text-gray-800 text-lg mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#8e44ad] transition-colors">
+                          <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#006fff] transition-colors">
                             {news.title}
                           </h3>
                           
@@ -1236,13 +1234,13 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
                           <div className="flex justify-between items-end">
                             {/* 시간 배지 */}
                             <div className="flex items-center text-gray-500 text-xs">
-                              <Clock size={12} className="mr-1 text-[#9b59b6]" />
+                              <Clock size={12} className="mr-1 text-gray-500" />
                               <span>{new Date(news.createdAt || news.date).toLocaleDateString()}</span>
                             </div>
                             
                             {/* Read more 버튼 */}
-                            <span className="inline-flex items-center text-transparent bg-clip-text bg-gradient-to-r from-purple-600 via-pink-500 to-rose-500 text-xs font-medium hover:underline cursor-pointer group">
-                              Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" />
+                            <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#233CFA' }}>
+                              Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" style={{ color: '#233CFA' }} />
                             </span>
                           </div>
                         </div>
@@ -1262,8 +1260,8 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
           {/* 모바일용 스켈레톤 UI (2개 카드 표시) */}
           <div className="block lg:hidden">
             {/* 큰 카드 스켈레톤 (첫 번째 카드) */}
-            <div className="bg-white rounded-xl overflow-hidden relative mb-4">
-              <div className="h-56 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync relative rounded-xl overflow-hidden">
+            <div className="bg-white rounded-lg overflow-hidden relative mb-4">
+              <div className="h-56 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync relative rounded-lg overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
               </div>
               <div className="p-4">
@@ -1297,8 +1295,8 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
           {/* 데스크탑용 스켈레톤 UI (그리드 레이아웃) */}
           <div className="hidden lg:grid grid-cols-3 gap-6">
             {Array.from({ length: 6 }).map((_, idx) => (
-              <div key={`skeleton-desktop-${idx}`} className="bg-white rounded-xl overflow-hidden relative">
-                <div className="h-56 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync relative rounded-xl overflow-hidden">
+              <div key={`skeleton-desktop-${idx}`} className="bg-white rounded-lg overflow-hidden relative">
+                <div className="h-56 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync relative rounded-lg overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
                 </div>
                 <div className="p-4">
@@ -1327,22 +1325,13 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         </div>
       )}
       
-      {/* 무한스크롤 감지를 위한 요소 (디버깅용으로 일시적으로 보이게 함) */}
+      {/* 무한스크롤 감지를 위한 요소 (사용자에게 보이지 않음) */}
       {hasMore && !loading && allNews.length > 0 && (
-        <div 
+        <div
           ref={lastNewsElementRef}
-          className="w-full h-20 flex items-center justify-center text-gray-400 text-sm border-2 border-dashed border-gray-300 rounded-lg my-8"
-          style={{ 
-            background: 'linear-gradient(45deg, #f3f4f6 25%, transparent 25%, transparent 75%, #f3f4f6 75%), linear-gradient(45deg, #f3f4f6 25%, transparent 25%, transparent 75%, #f3f4f6 75%)',
-            backgroundSize: '20px 20px',
-            backgroundPosition: '0 0, 10px 10px'
-          }}
-        >
-          <div className="text-center">
-            <div>🔄 무한스크롤 감지 영역</div>
-            <div className="text-xs mt-1">이 영역이 화면에 나타나면 추가 뉴스가 로드됩니다</div>
-          </div>
-        </div>
+          className="w-full h-1"
+          style={{ visibility: 'hidden' }}
+        />
       )}
 
       {/* 더 이상 로드할 뉴스가 없음을 알리는 메시지 */}

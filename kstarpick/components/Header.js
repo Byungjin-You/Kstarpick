@@ -78,22 +78,12 @@ const Header = () => {
     };
   }, [isMenuOpen, isSearchOpen]); // Include dependencies for the cleanup functions
 
-  // 페이지 변경 시 스크롤 위치를 최상단으로 설정
+  // 페이지 변경 시 메뉴 닫기 (스크롤 관리는 _app.js에서 처리)
   useEffect(() => {
     const handleRouteChange = (url) => {
-      // 브라우저 네비게이션 유형 확인
-      const navigation = window.performance?.getEntriesByType('navigation')?.[0];
-      const isBackForwardNavigation = navigation && navigation.type === 'back_forward';
-      
-      // 브라우저 뒤로가기/앞으로가기가 아닌 경우에만 스크롤 초기화
-      if (!isBackForwardNavigation) {
-        // 스크롤 위치를 최상단으로 이동
-        window.scrollTo(0, 0);
-        console.log('[Header] 새로운.으로 이동 시 스크롤 초기화:', url);
-      } else {
-        console.log('[Header] 뒤로가기 감지, 스크롤 초기화 건너뜀:', url);
-      }
-      
+      console.log('[Header] 라우트 변경 감지:', url);
+
+      // 메뉴가 열려있으면 닫기
       if (isMenuOpen) {
         setIsMenuOpen(false);
       }
@@ -226,9 +216,9 @@ const Header = () => {
   if (!isMounted) {
     return (
       <header className="fixed top-0 z-50 bg-white w-full">
-        <div 
+        <div
           className="w-full border-t-[5px] border-solid border-x-0 border-b-0 shadow-[0px_2px_3px_rgba(0,0,0,0.15)]"
-          style={{ borderImage: 'linear-gradient(to right, #ff3e8e, #ffb67b) 1' }}
+          style={{ borderImage: 'linear-gradient(to right, #233CFA, #1d31cb) 1' }}
         >
           <div className="max-w-[1200px] mx-auto px-4">
             <div className="flex justify-between items-center h-16">
@@ -266,11 +256,11 @@ const Header = () => {
   return (
     <header className="fixed top-0 z-50 bg-white w-full">
       {/* Top navigation bar */}
-      <div 
+      <div
         className={`w-full border-t-[5px] border-solid border-x-0 border-b-0 transition-shadow duration-300 ${
           isScrolled ? 'shadow-[0px_4px_6px_rgba(0,0,0,0.2)]' : 'shadow-[0px_2px_3px_rgba(0,0,0,0.15)]'
         }`}
-        style={{ borderImage: 'linear-gradient(to right, #ff3e8e, #ffb67b) 1' }}
+        style={{ borderImage: 'linear-gradient(to right, #233CFA, #1d31cb) 1' }}
       >
         <div className="max-w-[1200px] mx-auto px-4">
           {/* Desktop and Tablet Layout */}
@@ -288,33 +278,33 @@ const Header = () => {
               
               {/* Primary Navigation - Hidden on Mobile */}
               <nav className="hidden lg:flex items-center h-full">
-                <Link href="/" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#ff3e8e] transition-colors duration-200 cursor-pointer ${
-                  router.pathname === '/' ? 'text-[#ff3e8e] font-semibold' : 'text-[#333]'
+                <Link href="/" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#233cfa] transition-colors duration-200 cursor-pointer ${
+                  router.pathname === '/' ? 'text-[#233cfa] font-semibold' : 'text-[#333]'
                 }`} onClick={router.pathname === '/' ? handleSameMenuClick : undefined}>
                   HOME
                 </Link>
-                <Link href="/drama" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#ff3e8e] transition-colors duration-200 cursor-pointer ${
-                  router.pathname === '/drama' ? 'text-[#ff3e8e] font-semibold' : 'text-[#333]'
+                <Link href="/drama" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#233cfa] transition-colors duration-200 cursor-pointer ${
+                  router.pathname === '/drama' ? 'text-[#233cfa] font-semibold' : 'text-[#333]'
                 }`} onClick={router.pathname === '/drama' ? handleSameMenuClick : undefined}>
                   DRAMA
                 </Link>
-                <Link href="/tvfilm" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#ff3e8e] transition-colors duration-200 cursor-pointer ${
-                  router.pathname === '/tvfilm' ? 'text-[#ff3e8e] font-semibold' : 'text-[#333]'
+                <Link href="/tvfilm" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#233cfa] transition-colors duration-200 cursor-pointer ${
+                  router.pathname === '/tvfilm' ? 'text-[#233cfa] font-semibold' : 'text-[#333]'
                 }`} onClick={router.pathname === '/tvfilm' ? handleSameMenuClick : undefined}>
                   TV/FILM
                 </Link>
-                <Link href="/music" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#ff3e8e] transition-colors duration-200 cursor-pointer ${
-                  router.pathname === '/music' ? 'text-[#ff3e8e] font-semibold' : 'text-[#333]'
+                <Link href="/music" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#233cfa] transition-colors duration-200 cursor-pointer ${
+                  router.pathname === '/music' ? 'text-[#233cfa] font-semibold' : 'text-[#333]'
                 }`} onClick={router.pathname === '/music' ? handleSameMenuClick : undefined}>
                   MUSIC
                 </Link>
-                <Link href="/celeb" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#ff3e8e] transition-colors duration-200 cursor-pointer ${
-                  router.pathname === '/celeb' ? 'text-[#ff3e8e] font-semibold' : 'text-[#333]'
+                <Link href="/celeb" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#233cfa] transition-colors duration-200 cursor-pointer ${
+                  router.pathname === '/celeb' ? 'text-[#233cfa] font-semibold' : 'text-[#333]'
                 }`} onClick={router.pathname === '/celeb' ? handleSameMenuClick : undefined}>
                   CELEB
                 </Link>
-                <Link href="/ranking" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#ff3e8e] transition-colors duration-200 cursor-pointer ${
-                  router.pathname === '/ranking' ? 'text-[#ff3e8e] font-semibold' : 'text-[#333]'
+                <Link href="/ranking" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#233cfa] transition-colors duration-200 cursor-pointer ${
+                  router.pathname === '/ranking' ? 'text-[#233cfa] font-semibold' : 'text-[#333]'
                 }`} onClick={router.pathname === '/ranking' ? handleSameMenuClick : undefined}>
                   RANKING
                 </Link>
@@ -324,21 +314,21 @@ const Header = () => {
             {/* Right Section - Actions */}
             <div className="flex items-center h-full">
               {/* Search Button - Visible on all screens, icon only */}
-              <button 
-                onClick={toggleSearch} 
+              <button
+                onClick={toggleSearch}
                 className={`p-2 flex items-center justify-center transition-colors duration-200 ${
-                  isSearchOpen ? 'text-[#ff3e8e]' : 'text-[#666] hover:text-[#ff3e8e]'
+                  isSearchOpen ? 'text-[#233cfa]' : 'text-[#666] hover:text-[#233cfa]'
                 }`}
                 aria-label="Search"
               >
                 <Search size={20} strokeWidth={2.5} />
               </button>
-              
+
               {/* Mobile Menu Toggle - Visible only on Mobile/Tablet */}
-              <button 
-                onClick={toggleMenu} 
+              <button
+                onClick={toggleMenu}
                 className={`ml-2 p-2 lg:hidden flex items-center justify-center transition-colors duration-200 ${
-                  isMenuOpen ? 'text-[#ff3e8e]' : 'text-[#666] hover:text-[#ff3e8e]'
+                  isMenuOpen ? 'text-[#233cfa]' : 'text-[#666] hover:text-[#233cfa]'
                 }`}
                 aria-label="Toggle menu"
               >
@@ -376,7 +366,8 @@ const Header = () => {
               <button
                 type="submit"
                 disabled={isSearching}
-                className="ml-2 px-3 md:px-6 py-2 md:py-3 bg-gradient-to-r from-[#ff3e8e] to-[#ffb67b] text-white font-medium rounded-lg text-sm md:text-base"
+                className="ml-2 px-3 md:px-6 py-2 md:py-3 text-white font-medium rounded-lg text-sm md:text-base"
+                style={{ backgroundColor: '#233cfa' }}
               >
                 {isSearching ? (
                   <Loader2 size={isMobile ? 16 : 20} strokeWidth={2.5} className="animate-spin" />
@@ -401,49 +392,49 @@ const Header = () => {
         <div className="lg:hidden fixed top-16 left-0 w-full h-[calc(100vh-4rem)] bg-white z-50 animate-slide-in-top">
           <div className="container mx-auto px-5 py-6">
             <nav className="flex flex-col space-y-4">
-              <button 
+              <button
                 className={`text-lg font-medium flex items-center py-2 text-left ${
-                  router.pathname === '/' ? 'text-[#ff3e8e]' : 'text-gray-800'
+                  router.pathname === '/' ? 'text-[#233cfa]' : 'text-gray-800'
                 }`}
                 onClick={() => handleMobileMenuClick('/')}
               >
                 HOME
               </button>
-              <button 
+              <button
                 className={`text-lg font-medium flex items-center py-2 text-left ${
-                  router.pathname === '/drama' ? 'text-[#ff3e8e]' : 'text-gray-800'
+                  router.pathname === '/drama' ? 'text-[#233cfa]' : 'text-gray-800'
                 }`}
                 onClick={() => handleMobileMenuClick('/drama')}
               >
                 DRAMA
               </button>
-              <button 
+              <button
                 className={`text-lg font-medium flex items-center py-2 text-left ${
-                  router.pathname === '/tvfilm' ? 'text-[#ff3e8e]' : 'text-gray-800'
+                  router.pathname === '/tvfilm' ? 'text-[#233cfa]' : 'text-gray-800'
                 }`}
                 onClick={() => handleMobileMenuClick('/tvfilm')}
               >
                 TV/FILM
               </button>
-              <button 
+              <button
                 className={`text-lg font-medium flex items-center py-2 text-left ${
-                  router.pathname === '/music' ? 'text-[#ff3e8e]' : 'text-gray-800'
+                  router.pathname === '/music' ? 'text-[#233cfa]' : 'text-gray-800'
                 }`}
                 onClick={() => handleMobileMenuClick('/music')}
               >
                 MUSIC
               </button>
-              <button 
+              <button
                 className={`text-lg font-medium flex items-center py-2 text-left ${
-                  router.pathname === '/celeb' ? 'text-[#ff3e8e]' : 'text-gray-800'
+                  router.pathname === '/celeb' ? 'text-[#233cfa]' : 'text-gray-800'
                 }`}
                 onClick={() => handleMobileMenuClick('/celeb')}
               >
                 CELEB
               </button>
-              <button 
+              <button
                 className={`text-lg font-medium flex items-center py-2 text-left ${
-                  router.pathname === '/ranking' ? 'text-[#ff3e8e]' : 'text-gray-800'
+                  router.pathname === '/ranking' ? 'text-[#233cfa]' : 'text-gray-800'
                 }`}
                 onClick={() => handleMobileMenuClick('/ranking')}
               >

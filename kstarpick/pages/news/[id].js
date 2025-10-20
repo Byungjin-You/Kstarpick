@@ -18,13 +18,85 @@ import DirectRiddleContent from '../../components/DirectRiddleContent';
 
 // Riddle 임베드 지원을 위한 뉴스 페이지
 
+// TagsSection 컴포넌트 - 태그가 많을 때 "Show more" 버튼으로 관리
+const TagsSection = ({ tags }) => {
+  const [showAllTags, setShowAllTags] = useState(false);
+  const MAX_VISIBLE_TAGS = 10; // 처음에 보여줄 태그 개수
+
+  const visibleTags = showAllTags ? tags : tags.slice(0, MAX_VISIBLE_TAGS);
+  const hasMoreTags = tags.length > MAX_VISIBLE_TAGS;
+
+  return (
+    <div className="mt-10 pt-6 border-t border-gray-100">
+      <div className="flex flex-wrap gap-2">
+        {visibleTags.map((tag, index) => (
+          <Link
+            key={index}
+            href={`/search?q=${encodeURIComponent(tag)}`}
+            className="bg-gray-100 text-gray-800 text-sm px-4 py-2 rounded-full transition-all duration-300 cursor-pointer hover:text-white active:text-white"
+            style={{
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#009efc';
+              e.currentTarget.style.color = 'white';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#f3f4f6';
+              e.currentTarget.style.color = '#1f2937';
+            }}
+            onTouchStart={(e) => {
+              e.currentTarget.style.backgroundColor = '#009efc';
+              e.currentTarget.style.color = 'white';
+            }}
+            onTouchEnd={(e) => {
+              const target = e.currentTarget;
+              setTimeout(() => {
+                if (target) {
+                  target.style.backgroundColor = '#f3f4f6';
+                  target.style.color = '#1f2937';
+                }
+              }, 200);
+            }}
+          >
+            #{tag}
+          </Link>
+        ))}
+      </div>
+
+      {hasMoreTags && (
+        <button
+          onClick={() => setShowAllTags(!showAllTags)}
+          className="mt-4 text-sm text-gray-600 hover:text-pink-500 transition-colors duration-300 flex items-center gap-1 font-medium"
+        >
+          {showAllTags ? (
+            <>
+              <ChevronRight size={16} className="-rotate-90 transition-transform" />
+              Show less tags
+            </>
+          ) : (
+            <>
+              <ChevronRight size={16} className="rotate-90 transition-transform" />
+              Show {tags.length - MAX_VISIBLE_TAGS} more tags
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+};
+
 // InstagramEmbed 컴포넌트 - 초기 로딩 개선
 const InstagramEmbed = ({ url, className = "" }) => {
   const [isClient, setIsClient] = useState(false);
+  const blockquoteRef = useRef(null);
   const postId = extractInstagramPostId(url);
-  
+
+  console.log('[InstagramEmbed] 컴포넌트 렌더링:', { url, postId, isClient, hasRef: !!blockquoteRef.current });
+
   // 클라이언트 사이드 확인
   useEffect(() => {
+    console.log('[InstagramEmbed] isClient useEffect 실행');
     setIsClient(true);
   }, []);
   
@@ -42,78 +114,85 @@ const InstagramEmbed = ({ url, className = "" }) => {
   }
 
   useEffect(() => {
-    if (!isClient) return;
-    
-    console.log('[InstagramEmbed] useEffect 시작 - isClient:', isClient);
+    if (!isClient || !blockquoteRef.current) {
+      console.log('[InstagramEmbed] 조건 불충족 - isClient:', isClient, 'blockquoteRef:', !!blockquoteRef.current);
+      return;
+    }
+
+    console.log('[InstagramEmbed] 초기화 시작 - blockquote 렌더링 확인됨');
     console.log('[InstagramEmbed] window.instgrm 상태:', !!window.instgrm);
-    
+
     // 스크립트가 없으면 로드
     if (!window.instgrm && window.loadInstagramScript) {
       console.log('[InstagramEmbed] Instagram 스크립트 로드 요청');
       window.loadInstagramScript();
     }
-    
+
     let processTimer = null;
     let eventListener = null;
-    
+
     const processInstagramEmbed = () => {
-      console.log('[InstagramEmbed] 처리 실행 - instgrm:', !!window.instgrm, 'Embeds:', !!window.instgrm?.Embeds);
-      
+      // blockquote가 실제로 DOM에 있는지 확인
+      if (!blockquoteRef.current || !document.body.contains(blockquoteRef.current)) {
+        console.log('[InstagramEmbed] blockquote가 DOM에 없음');
+        return false;
+      }
+
+      console.log('[InstagramEmbed] 처리 시도 - instgrm:', !!window.instgrm, 'Embeds:', !!window.instgrm?.Embeds);
+
       if (window.instgrm?.Embeds) {
         try {
-          // DOM이 완전히 준비되었는지 확인
-          const instagramElements = document.querySelectorAll('.instagram-media');
-          console.log('[InstagramEmbed] 발견된 Instagram 요소 수:', instagramElements.length);
-          
-          if (instagramElements.length > 0) {
-            window.instgrm.Embeds.process();
-            console.log('[InstagramEmbed] process() 성공적으로 실행됨');
-            return true; // 성공
-          } else {
-            console.log('[InstagramEmbed] Instagram 요소가 아직 DOM에 없음');
-          }
+          console.log('[InstagramEmbed] process() 실행 중...');
+          window.instgrm.Embeds.process();
+          console.log('[InstagramEmbed] process() 성공');
+          return true;
         } catch (error) {
           console.error('[InstagramEmbed] process() 실행 오류:', error);
         }
       }
-      return false; // 실패 또는 대기 필요
+      return false;
     };
-    
+
     // 즉시 처리 시도
     if (processInstagramEmbed()) {
-      return; // 성공하면 종료
+      console.log('[InstagramEmbed] 즉시 처리 성공');
+      return;
     }
-    
+
     // 스크립트 로드 완료 이벤트 리스너
     eventListener = () => {
-      console.log('[InstagramEmbed] Instagram 스크립트 로드 이벤트 수신');
+      console.log('[InstagramEmbed] Instagram 스크립트 로드 완료 이벤트 수신');
       setTimeout(() => {
         processInstagramEmbed();
-      }, 100);
+      }, 50);
     };
-    
+
     window.addEventListener('instagramScriptLoaded', eventListener);
-    
-    // 주기적 재시도 (최대 20초)
+
+    // 재시도 로직 - 더 빠르고 자주
     let retryCount = 0;
-    const maxRetries = 40;
-    
+    const maxRetries = 30;
+
     const retryProcess = () => {
       if (retryCount >= maxRetries) {
-        console.warn('[InstagramEmbed] Instagram 처리 타임아웃');
+        console.warn('[InstagramEmbed] 최대 재시도 횟수 도달');
         return;
       }
-      
+
       if (!processInstagramEmbed()) {
         retryCount++;
         console.log(`[InstagramEmbed] 재시도 #${retryCount}/${maxRetries}`);
-        processTimer = setTimeout(retryProcess, 500);
+        // 처음 10번은 빠르게 (100ms), 이후는 느리게 (500ms)
+        const delay = retryCount <= 10 ? 100 : 500;
+        processTimer = setTimeout(retryProcess, delay);
+      } else {
+        console.log('[InstagramEmbed] 재시도 성공!');
       }
     };
-    
-    // 2초 후 재시도 시작
-    processTimer = setTimeout(retryProcess, 2000);
-    
+
+    // 즉시 시작
+    processTimer = setTimeout(retryProcess, 0);
+
     return () => {
       if (processTimer) clearTimeout(processTimer);
       if (eventListener) window.removeEventListener('instagramScriptLoaded', eventListener);
@@ -145,8 +224,9 @@ const InstagramEmbed = ({ url, className = "" }) => {
 
   return (
     <div className={`instagram-embed-container ${className}`} style={{ margin: '20px 0' }}>
-      <blockquote 
-        className="instagram-media" 
+      <blockquote
+        ref={blockquoteRef}
+        className="instagram-media"
         data-instgrm-permalink={url}
         data-instgrm-version="14"
         style={{
@@ -216,75 +296,80 @@ const TwitterEmbed = ({ url, className = "" }) => {
   }, []);
 
   useEffect(() => {
-    if (!isClient) return;
-    
-    console.log('[TwitterEmbed] useEffect 시작 - isClient:', isClient);
+    if (!isClient || !embedRef.current) {
+      console.log('[TwitterEmbed] 조건 불충족 - isClient:', isClient, 'embedRef:', !!embedRef.current);
+      return;
+    }
+
+    console.log('[TwitterEmbed] 초기화 시작 - embedRef 렌더링 확인됨');
     console.log('[TwitterEmbed] window.twttr 상태:', !!window.twttr);
-    
+
     // 스크립트가 없으면 로드
     if (!window.twttr && window.loadTwitterScript) {
       console.log('[TwitterEmbed] Twitter 스크립트 로드 요청');
       window.loadTwitterScript();
     }
-    
-    // Twitter 임베드 처리 - 이벤트 기반 개선된 방식
+
     let processTimer = null;
     let eventListener = null;
-    
+
     const processTwitterEmbed = () => {
-      console.log('[TwitterEmbed] 처리 실행 - twttr:', !!window.twttr, 'widgets:', !!window.twttr?.widgets);
-      
+      // embedRef가 실제로 DOM에 있는지 확인
+      if (!embedRef.current || !document.body.contains(embedRef.current)) {
+        console.log('[TwitterEmbed] embedRef가 DOM에 없음');
+        return false;
+      }
+
+      console.log('[TwitterEmbed] 처리 시도 - twttr:', !!window.twttr, 'widgets:', !!window.twttr?.widgets);
+
       if (window.twttr?.widgets) {
         try {
           const container = embedRef.current;
-          if (container) {
-            // 컨테이너 초기화
-            container.innerHTML = '';
-            
-            // 트윗 ID 추출 - 더 안전한 방식
-            const tweetIdMatch = url.match(/\/status(?:es)?\/(\d+)/);
-            if (tweetIdMatch) {
-              const tweetId = tweetIdMatch[1];
-              console.log('[TwitterEmbed] 트윗 ID 추출:', tweetId);
-              
-              // 새로운 트위터 위젯 생성
-              window.twttr.widgets.createTweet(
-                tweetId,
-                container,
-                {
-                  theme: 'light',
-                  lang: 'ko',
-                  dnt: true,
-                  conversation: 'none',
-                  cards: 'hidden'
-                }
-              ).then((element) => {
-                if (element) {
-                  console.log('[TwitterEmbed] 트위터 위젯 생성 성공');
-                  // 높이 자동 조정
-                  setTimeout(() => {
-                    const iframe = element.querySelector('iframe');
-                    if (iframe) {
-                      const height = iframe.offsetHeight || iframe.scrollHeight;
-                      console.log('[TwitterEmbed] 감지된 높이:', height);
-                      setEmbedHeight(Math.min(height + 20, 600)); // 최대 600px로 제한
-                    }
-                  }, 1000);
-                  return true; // 성공
-                } else {
-                  console.warn('[TwitterEmbed] 트위터 위젯 생성 결과가 null');
-                  return false;
-                }
-              }).catch((error) => {
-                console.error('[TwitterEmbed] 트위터 위젯 생성 실패:', error);
+
+          // 컨테이너 초기화
+          container.innerHTML = '';
+
+          // 트윗 ID 추출
+          const tweetIdMatch = url.match(/\/status(?:es)?\/(\d+)/);
+          if (tweetIdMatch) {
+            const tweetId = tweetIdMatch[1];
+            console.log('[TwitterEmbed] 트윗 ID 추출:', tweetId);
+
+            // 트위터 위젯 생성
+            window.twttr.widgets.createTweet(
+              tweetId,
+              container,
+              {
+                theme: 'light',
+                lang: 'ko',
+                dnt: true,
+                conversation: 'none',
+                cards: 'hidden'
+              }
+            ).then((element) => {
+              if (element) {
+                console.log('[TwitterEmbed] 트위터 위젯 생성 성공');
+                // 높이 자동 조정
+                setTimeout(() => {
+                  const iframe = element.querySelector('iframe');
+                  if (iframe) {
+                    const height = iframe.offsetHeight || iframe.scrollHeight;
+                    console.log('[TwitterEmbed] 감지된 높이:', height);
+                    setEmbedHeight(Math.min(height + 20, 600));
+                  }
+                }, 1000);
+                return true;
+              } else {
+                console.warn('[TwitterEmbed] 트위터 위젯 생성 결과가 null');
                 return false;
-              });
-            } else {
-              console.error('[TwitterEmbed] 유효하지 않은 트윗 URL:', url);
+              }
+            }).catch((error) => {
+              console.error('[TwitterEmbed] 트위터 위젯 생성 실패:', error);
               return false;
-            }
+            });
+            return true; // Promise 반환으로 성공으로 간주
           } else {
-            console.log('[TwitterEmbed] 컨테이너가 아직 준비되지 않음');
+            console.error('[TwitterEmbed] 유효하지 않은 트윗 URL:', url);
             return false;
           }
         } catch (error) {
@@ -292,44 +377,49 @@ const TwitterEmbed = ({ url, className = "" }) => {
           return false;
         }
       }
-      return false; // 실패 또는 대기 필요
+      return false;
     };
-    
+
     // 즉시 처리 시도
     if (processTwitterEmbed()) {
-      return; // 성공하면 종료
+      console.log('[TwitterEmbed] 즉시 처리 시작됨');
+      return;
     }
-    
+
     // 스크립트 로드 완료 이벤트 리스너
     eventListener = () => {
-      console.log('[TwitterEmbed] Twitter 스크립트 로드 이벤트 수신');
+      console.log('[TwitterEmbed] Twitter 스크립트 로드 완료 이벤트 수신');
       setTimeout(() => {
         processTwitterEmbed();
-      }, 100);
+      }, 50);
     };
-    
+
     window.addEventListener('twitterScriptLoaded', eventListener);
-    
-    // 주기적 재시도 (최대 20초)
+
+    // 재시도 로직 - 더 빠르고 자주
     let retryCount = 0;
-    const maxRetries = 40;
-    
+    const maxRetries = 30;
+
     const retryProcess = () => {
       if (retryCount >= maxRetries) {
-        console.warn('[TwitterEmbed] Twitter 처리 타임아웃');
+        console.warn('[TwitterEmbed] 최대 재시도 횟수 도달');
         return;
       }
-      
+
       if (!processTwitterEmbed()) {
         retryCount++;
         console.log(`[TwitterEmbed] 재시도 #${retryCount}/${maxRetries}`);
-        processTimer = setTimeout(retryProcess, 500);
+        // 처음 10번은 빠르게 (100ms), 이후는 느리게 (500ms)
+        const delay = retryCount <= 10 ? 100 : 500;
+        processTimer = setTimeout(retryProcess, delay);
+      } else {
+        console.log('[TwitterEmbed] 재시도 성공!');
       }
     };
-    
-    // 3초 후 재시도 시작 (Twitter는 더 오래 걸릴 수 있음)
-    processTimer = setTimeout(retryProcess, 3000);
-    
+
+    // 즉시 시작
+    processTimer = setTimeout(retryProcess, 0);
+
     return () => {
       if (processTimer) clearTimeout(processTimer);
       if (eventListener) window.removeEventListener('twitterScriptLoaded', eventListener);
@@ -594,9 +684,6 @@ const processRiddleEmbeds = (content) => {
 
 // ArticleContent 컴포넌트
 const ArticleContent = ({ content }) => {
-  console.log('[ArticleContent] 컴포넌트 렌더링 시작');
-  console.log('[ArticleContent] content prop 받음:', content ? content.substring(0, 100) + '...' : 'null');
-  
   const [processedContent, setProcessedContent] = useState('');
   const [instagramUrls, setInstagramUrls] = useState([]);
   const [twitterUrls, setTwitterUrls] = useState([]);
@@ -605,14 +692,29 @@ const ArticleContent = ({ content }) => {
 
   // 클라이언트 사이드 확인
   useEffect(() => {
+    console.log('[ArticleContent] 클라이언트 마운트됨');
+    console.log('[ArticleContent] content prop 받음:', content ? content.substring(0, 100) + '...' : 'null');
     setIsClient(true);
   }, []);
 
+  // processedContent 상태 변경 추적
   useEffect(() => {
-    if (!content || !isClient) return;
+    console.log('[ArticleContent] processedContent 상태 변경됨:', {
+      hasProcessedContent: !!processedContent,
+      length: processedContent?.length || 0,
+      includesInstagram: processedContent?.includes('instagram-media') || false,
+      includesTwitter: processedContent?.includes('twitter-tweet') || false
+    });
+  }, [processedContent]);
 
-    console.log('Original content:', content);
-    
+  useEffect(() => {
+    if (!content || !isClient) {
+      console.log('[ArticleContent] content 처리 건너뜀:', { hasContent: !!content, isClient });
+      return;
+    }
+
+    console.log('[ArticleContent] content 처리 시작, 원본 길이:', content.length);
+
     // HTML 엔티티 디코딩 함수 - 강화된 버전
     const decodeHtmlEntities = (str) => {
       if (!str) return str;
@@ -659,11 +761,17 @@ const ArticleContent = ({ content }) => {
 
     // 2. Instagram 임베드 코드가 이미 있는지 확인
     const hasInstagramEmbed = processed.includes('instagram-media');
-    
+
     if (hasInstagramEmbed) {
-      console.log('Instagram 임베드 코드가 이미 존재');
-      // Instagram 임베드 코드가 이미 있으면 그대로 사용
+      console.log('[ArticleContent] Instagram blockquote가 이미 존재 - 그대로 사용');
+      console.log('[ArticleContent] processed content 길이:', processed.length);
+      console.log('[ArticleContent] processed content includes instagram-media:', processed.includes('instagram-media'));
+      // Instagram 임베드 콘텐츠 감지를 위해 즉시 스크립트 로드
+      if (typeof window !== 'undefined' && window.loadInstagramScript) {
+        window.loadInstagramScript();
+      }
       setProcessedContent(processed);
+      console.log('[ArticleContent] setProcessedContent 호출됨');
       setInstagramUrls([]);
     } else {
       // Instagram 링크 찾기 및 추출 (기존 방식)
@@ -784,95 +892,128 @@ const ArticleContent = ({ content }) => {
     setProcessedContent(processed);
   }, [content, isClient]);
 
-  // Instagram 스크립트 로딩을 위한 별도 useEffect - 하이드레이션 안전
+  // Instagram 스크립트 로딩 및 처리
   useEffect(() => {
-    if (!isClient || !processedContent || !processedContent.includes('instagram-media')) return;
-      console.log('[ArticleContent] Instagram 임베드 콘텐츠 감지');
-      
-      let retryCount = 0;
-      const maxRetries = 15; // 최대 7.5초 대기
-      
-      const loadInstagramScript = () => {
-        if (window.instgrm && window.instgrm.Embeds) {
-          console.log('[ArticleContent] Instagram 스크립트 사용 가능 - process() 실행');
+    console.log('[ArticleContent] Instagram useEffect 진입:', {
+      isClient,
+      hasProcessedContent: !!processedContent,
+      processedContentLength: processedContent?.length || 0,
+      includesInstagram: processedContent?.includes('instagram-media') || false
+    });
+
+    if (!isClient || !processedContent || !processedContent.includes('instagram-media')) {
+      console.log('[ArticleContent] Instagram useEffect 건너뜀 - 조건 미충족');
+      return;
+    }
+    console.log('[ArticleContent] Instagram blockquote 감지 - 처리 시작');
+
+    let retryCount = 0;
+    const maxRetries = 30;
+    let timer = null;
+
+    const processInstagram = () => {
+      console.log(`[ArticleContent] Instagram 처리 시도 #${retryCount + 1}`);
+
+      // 스크립트가 로드되었는지 확인
+      if (window.instgrm && window.instgrm.Embeds) {
+        const blockquotes = document.querySelectorAll('blockquote.instagram-media');
+        console.log(`[ArticleContent] Instagram blockquote 요소 발견: ${blockquotes.length}개`);
+
+        if (blockquotes.length > 0) {
           try {
+            console.log('[ArticleContent] instgrm.Embeds.process() 실행');
             window.instgrm.Embeds.process();
+            console.log('[ArticleContent] Instagram 처리 완료');
+            return true;
           } catch (error) {
-            console.error('[ArticleContent] Instagram process() 오류:', error);
+            console.error('[ArticleContent] Instagram 처리 오류:', error);
           }
-        } else if (retryCount < maxRetries) {
-          retryCount++;
-          console.log(`[ArticleContent] Instagram 스크립트 대기 중... (${retryCount}/${maxRetries})`);
-          setTimeout(loadInstagramScript, 500);
         } else {
-          console.warn('[ArticleContent] Instagram 스크립트 로드 최종 실패 - 수동 로드 시도');
-          // 최후의 수단으로 스크립트 수동 로드
-          const existingScript = document.querySelector('script[src*="instagram.com/embed.js"]');
-          if (!existingScript) {
-            const script = document.createElement('script');
-            script.async = true;
-            script.src = 'https://www.instagram.com/embed.js';
-            script.onload = () => {
-              setTimeout(() => {
-                if (window.instgrm && window.instgrm.Embeds) {
-                  window.instgrm.Embeds.process();
-                }
-              }, 1000);
-            };
-            document.head.appendChild(script);
-          }
+          console.log('[ArticleContent] Instagram blockquote가 DOM에 없음');
         }
-      };
-      
-      // 하이드레이션 완료를 보장하기 위해 더 긴 지연
-      const timer = setTimeout(loadInstagramScript, 1500);
-      return () => clearTimeout(timer);
+      } else {
+        console.log('[ArticleContent] Instagram 스크립트 대기 중...');
+        // 스크립트 로드 요청
+        if (window.loadInstagramScript) {
+          window.loadInstagramScript();
+        }
+      }
+
+      // 재시도
+      if (retryCount < maxRetries) {
+        retryCount++;
+        const delay = retryCount <= 10 ? 100 : 500;
+        timer = setTimeout(processInstagram, delay);
+      } else {
+        console.warn('[ArticleContent] Instagram 처리 최대 재시도 도달');
+      }
+
+      return false;
+    };
+
+    // 즉시 시작
+    timer = setTimeout(processInstagram, 0);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [isClient, processedContent]);
 
-  // Twitter 위젯 스크립트 로딩을 위한 별도 useEffect - 하이드레이션 안전
+  // Twitter 스크립트 로딩 및 처리
   useEffect(() => {
     if (!isClient || !processedContent || !processedContent.includes('twitter-tweet')) return;
-      console.log('[ArticleContent] Twitter 임베드 콘텐츠 감지');
-      
-      let retryCount = 0;
-      const maxRetries = 15; // 최대 7.5초 대기
-      
-      const loadTwitterScript = () => {
-        if (window.twttr && window.twttr.widgets) {
-          console.log('[ArticleContent] Twitter 스크립트 사용 가능 - widgets.load() 실행');
+    console.log('[ArticleContent] Twitter blockquote 감지 - 처리 시작');
+
+    let retryCount = 0;
+    const maxRetries = 30;
+    let timer = null;
+
+    const processTwitter = () => {
+      console.log(`[ArticleContent] Twitter 처리 시도 #${retryCount + 1}`);
+
+      // 스크립트가 로드되었는지 확인
+      if (window.twttr && window.twttr.widgets) {
+        const blockquotes = document.querySelectorAll('blockquote.twitter-tweet');
+        console.log(`[ArticleContent] Twitter blockquote 요소 발견: ${blockquotes.length}개`);
+
+        if (blockquotes.length > 0) {
           try {
+            console.log('[ArticleContent] twttr.widgets.load() 실행');
             window.twttr.widgets.load();
+            console.log('[ArticleContent] Twitter 처리 완료');
+            return true;
           } catch (error) {
-            console.error('[ArticleContent] Twitter widgets.load() 오류:', error);
+            console.error('[ArticleContent] Twitter 처리 오류:', error);
           }
-        } else if (retryCount < maxRetries) {
-          retryCount++;
-          console.log(`[ArticleContent] Twitter 스크립트 대기 중... (${retryCount}/${maxRetries})`);
-          setTimeout(loadTwitterScript, 500);
         } else {
-          console.warn('[ArticleContent] Twitter 스크립트 로드 최종 실패 - 수동 로드 시도');
-          // 최후의 수단으로 스크립트 수동 로드
-          const existingScript = document.querySelector('script[src*="platform.twitter.com/widgets.js"]');
-          if (!existingScript) {
-            const script = document.createElement('script');
-            script.async = true;
-            script.src = 'https://platform.twitter.com/widgets.js';
-            script.charset = 'utf-8';
-            script.onload = () => {
-              setTimeout(() => {
-                if (window.twttr && window.twttr.widgets) {
-                  window.twttr.widgets.load();
-                }
-              }, 1000);
-            };
-            document.head.appendChild(script);
-          }
+          console.log('[ArticleContent] Twitter blockquote가 DOM에 없음');
         }
-      };
-      
-      // 하이드레이션 완료를 보장하기 위해 더 긴 지연
-      const timer = setTimeout(loadTwitterScript, 1500);
-      return () => clearTimeout(timer);
+      } else {
+        console.log('[ArticleContent] Twitter 스크립트 대기 중...');
+        // 스크립트 로드 요청
+        if (window.loadTwitterScript) {
+          window.loadTwitterScript();
+        }
+      }
+
+      // 재시도
+      if (retryCount < maxRetries) {
+        retryCount++;
+        const delay = retryCount <= 10 ? 100 : 500;
+        timer = setTimeout(processTwitter, delay);
+      } else {
+        console.warn('[ArticleContent] Twitter 처리 최대 재시도 도달');
+      }
+
+      return false;
+    };
+
+    // 즉시 시작
+    timer = setTimeout(processTwitter, 0);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [isClient, processedContent]);
 
   // 콘텐츠를 파싱하여 Instagram 임베드와 HTML을 분리
@@ -996,14 +1137,7 @@ const ArticleContent = ({ content }) => {
   );
 };
 
-// ReactQuill 스타일 로드
-
-const QuillStyles = () => {
-  useEffect(() => {
-    import('react-quill/dist/quill.snow.css');
-  }, []);
-  return null;
-};
+// ReactQuill 스타일은 _app.js 또는 globals.css에서 로드됨
 
 // 랜덤 영어 닉네임 생성 함수
 const generateRandomNickname = () => {
@@ -1142,6 +1276,25 @@ const comments = [
   }
 ];
 
+// 사용자별 고정 아바타 선택 함수
+const getAvatarByUser = (userId, userName) => {
+  const avatars = [
+    '/images/icons8-butterfly-50.png',
+    '/images/icons8-frog-head-50.png'
+  ];
+
+  // userId 또는 userName을 기반으로 해시값 생성
+  const identifier = userId || userName || 'guest';
+  let hash = 0;
+  for (let i = 0; i < identifier.length; i++) {
+    hash = ((hash << 5) - hash) + identifier.charCodeAt(i);
+    hash = hash & hash; // Convert to 32bit integer
+  }
+
+  // 항상 같은 인덱스 반환
+  return avatars[Math.abs(hash) % avatars.length];
+};
+
 export default function NewsDetail({ newsArticle, relatedArticles }) {
   const router = useRouter();
   // All hooks must be called unconditionally at the top level
@@ -1161,6 +1314,8 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
   const [headerHeight, setHeaderHeight] = useState(60); // Initial height 60vh
   const [textareaFocused, setTextareaFocused] = useState(false);
   const [relatedNewsIds, setRelatedNewsIds] = useState([]); // 상단 관련 뉴스 ID 저장용 상태
+  const [currentRelatedIndex, setCurrentRelatedIndex] = useState(0); // Related News 썸네일 인덱스
+  const [showRelatedThumbnail, setShowRelatedThumbnail] = useState(true); // Related News 썸네일 표시 상태
   const { data: session } = useSession();
   
   // For optimized scroll handling and position saving
@@ -1168,19 +1323,10 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
   const ticking = useRef(false);
   const previousPathRef = useRef(null);
   
-  // 스크롤 위치 저장 관련 효과
+  // 컴포넌트 마운트 상태 설정
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
-    // 컴포넌트 마운트 상태 설정
     setIsMounted(true);
-    
-    // 페이지 로드 시 스크롤 맨 위로
-    window.scrollTo(0, 0);
-    
-    return () => {
-      // 클린업 함수 - 필요 시 여기에 추가
-    };
   }, []);
 
   // For handling loading state during SSR - use conditional rendering, not early return
@@ -1218,46 +1364,91 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
 
   // 최적화된 스크롤 이벤트 핸들러 - requestAnimationFrame 사용
   const handleScroll = useCallback(() => {
-    lastScrollY.current = window.scrollY;
-    
+    if (typeof window === 'undefined') return;
+
+    // window.scrollY와 document.documentElement.scrollTop 모두 확인
+    const scrollY = window.pageYOffset || document.documentElement.scrollTop || window.scrollY || 0;
+    lastScrollY.current = scrollY;
+
+    console.log('Scroll detected, position:', scrollY);
+
     if (!ticking.current) {
       window.requestAnimationFrame(() => {
+        const currentScrollY = lastScrollY.current;
+
         // 백투탑 버튼 표시 여부
-        if (lastScrollY.current > 300) {
+        if (currentScrollY > 300) {
+          console.log('Showing back to top button, scroll:', currentScrollY);
           setShowBackToTop(true);
         } else {
+          console.log('Hiding back to top button, scroll:', currentScrollY);
           setShowBackToTop(false);
         }
-        
+
         // 헤더 높이 계산 - 계산 간소화
-        const scrollY = lastScrollY.current;
         const windowHeight = window.innerHeight;
         const maxScroll = windowHeight * 0.4; // 조금 더 빠르게 축소되도록 조정
-        
+
         // 스크롤에 따라 헤더 높이 조절 (60vh에서 최소 25vh까지)
-        if (scrollY <= maxScroll) {
+        if (currentScrollY <= maxScroll) {
           // 값을 직접 계산하여 상태 설정 횟수 최소화
-          const newHeight = Math.max(25, 60 - (scrollY / maxScroll) * 35);
+          const newHeight = Math.max(25, 60 - (currentScrollY / maxScroll) * 35);
           // 소수점 첫째 자리까지만 사용하여 상태 업데이트 최소화
           setHeaderHeight(Math.round(newHeight * 10) / 10);
         } else {
           setHeaderHeight(25); // 최소 높이
         }
-        
+
         ticking.current = false;
       });
-      
+
       ticking.current = true;
     }
   }, []);
 
   // 스크롤 이벤트 등록 - 패시브 이벤트로 성능 향상
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.addEventListener('scroll', handleScroll, { passive: true });
-      return () => window.removeEventListener('scroll', handleScroll);
-    }
-  }, [handleScroll]);
+    if (typeof window === 'undefined') return;
+
+    const scrollHandler = () => {
+      // document.body.scrollTop을 우선순위로 확인
+      const scrollY = document.body.scrollTop || window.pageYOffset || document.documentElement.scrollTop || window.scrollY || 0;
+
+      // 백투탑 버튼 표시 여부
+      if (scrollY > 300) {
+        setShowBackToTop(true);
+      } else {
+        setShowBackToTop(false);
+      }
+
+      // 헤더 높이 계산
+      const windowHeight = window.innerHeight;
+      const maxScroll = windowHeight * 0.4;
+
+      if (scrollY <= maxScroll) {
+        const newHeight = Math.max(25, 60 - (scrollY / maxScroll) * 35);
+        setHeaderHeight(Math.round(newHeight * 10) / 10);
+      } else {
+        setHeaderHeight(25);
+      }
+    };
+
+    // 여러 방법으로 스크롤 이벤트 등록
+    window.addEventListener('scroll', scrollHandler, { passive: true });
+    document.addEventListener('scroll', scrollHandler, { passive: true });
+    document.body.addEventListener('scroll', scrollHandler, { passive: true });
+
+    // 초기 상태 체크
+    setTimeout(() => {
+      scrollHandler();
+    }, 100);
+
+    return () => {
+      window.removeEventListener('scroll', scrollHandler);
+      document.removeEventListener('scroll', scrollHandler);
+      document.body.removeEventListener('scroll', scrollHandler);
+    };
+  }, []);
 
   // Track viewed news for recommendations
   useEffect(() => {
@@ -1354,11 +1545,13 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
         // API에서 받은 댓글 형식으로 변환
         const formattedComments = data.comments.map(comment => {
           console.log('Processing comment:', comment);
+          const userId = comment.author?._id || comment._id;
+          const userName = comment.author?.name || comment.guestName || 'Guest';
           return {
             id: comment._id,
-            author: comment.author?.name || comment.guestName || 'Guest',
+            author: userName,
             authorId: comment.author?._id || '',
-            avatar: comment.author?.image || '/images/default-avatar.png',
+            avatar: comment.author?.image || getAvatarByUser(userId, userName),
             text: comment.content,
             timestamp: comment.createdAt,
             likes: 0,
@@ -1383,9 +1576,9 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
     // 기존 댓글에 아바타 추가
     const commentsWithAvatars = comments.map(comment => ({
       ...comment,
-      avatar: `/images/avatars/avatar-1.png` // 기본 이미지 경로 수정
+      avatar: getAvatarByUser(comment.id, comment.author) // 사용자별 고정 아바타 적용
     }));
-    
+
     setLocalComments(commentsWithAvatars);
   };
   
@@ -1696,7 +1889,6 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
           }
         `}</style>
       </Head>
-      <QuillStyles />
       <Seo 
         {...metaTags}
         jsonLd={jsonLd}
@@ -1780,12 +1972,12 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                     <div className={`bg-black/30 backdrop-blur-md p-3 rounded-xl border border-white/10 mt-auto transition-all duration-300 ${headerHeight < 40 ? 'opacity-70 scale-95' : 'opacity-100 scale-100'}`} style={{ transformOrigin: 'left bottom' }}>
                       <div className="flex flex-wrap justify-between items-center text-white text-sm">
                         <div className="flex items-center flex-wrap gap-3 w-full md:w-auto justify-between md:justify-start">
-                          <div className="flex items-center bg-gradient-to-r from-[#ff3e8e] to-[#ff8360] px-3 py-1 rounded-full">
-                            <span className="font-medium">{newsArticle.category || 'K-POP'}</span>
+                          <div className="flex items-center px-3 py-1 rounded-full" style={{ backgroundColor: '#233CFA' }}>
+                            <span className="font-medium capitalize">{newsArticle.category || 'K-pop'}</span>
                           </div>
                           
                           <div className="flex items-center">
-                            <Calendar size={16} className="mr-2 text-[#ff3e8e]" />
+                            <Calendar size={16} className="mr-2 text-[#009efc]" />
                             <span className="font-medium">{
                               (() => {
                                 const date = new Date(newsArticle.createdAt);
@@ -1796,25 +1988,25 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                               })()
                             }</span>
                           </div>
-                          
+
                           <div className="flex items-center bg-white/20 px-3 py-1 rounded-full md:hidden">
-                            <User size={16} className="mr-2 text-[#ff3e8e]" />
+                            <User size={16} className="mr-2 text-[#009efc]" />
                             <span className="font-medium">By {newsArticle.author?.name || 'Admin'}</span>
                           </div>
                         </div>
-                        
+
                         <div className="hidden md:flex items-center gap-4">
                           <div className="flex items-center">
-                            <Clock size={16} className="mr-2 text-[#ff3e8e]" />
+                            <Clock size={16} className="mr-2 text-[#009efc]" />
                             <span className="font-medium">{estimatedReadTime} min read</span>
                           </div>
                           <div className="flex items-center">
-                            <Eye size={16} className="mr-2 text-[#ff3e8e]" />
+                            <Eye size={16} className="mr-2 text-[#009efc]" />
                             <span className="font-medium">{newsArticle.viewCount?.toLocaleString() || '0'} views</span>
                           </div>
-                          
+
                           <div className="flex items-center bg-white/20 px-3 py-1 rounded-full">
-                            <User size={16} className="mr-2 text-[#ff3e8e]" />
+                            <User size={16} className="mr-2 text-[#009efc]" />
                             <span className="font-medium">By {newsArticle.author?.name || 'Admin'}</span>
                           </div>
                         </div>
@@ -1895,33 +2087,54 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                         min-height: 1000px !important;
                         max-height: none !important;
                       }
+
+                      /* Twitter 임베드 여백 제거 */
+                      .article-content .twitter-tweet,
+                      .prose .twitter-tweet {
+                        margin-top: 1rem !important;
+                        margin-bottom: 1rem !important;
+                      }
+
+                      .article-content .twitter-tweet-rendered,
+                      .prose .twitter-tweet-rendered {
+                        margin-top: 1rem !important;
+                        margin-bottom: 1rem !important;
+                      }
+
+                      /* Twitter iframe 여백 제거 */
+                      .article-content iframe[id^="twitter-widget-"],
+                      .prose iframe[id^="twitter-widget-"] {
+                        margin-top: 1rem !important;
+                        margin-bottom: 1rem !important;
+                        max-width: 550px !important;
+                      }
+
+                      /* Instagram 임베드 여백 조정 */
+                      .article-content .instagram-media,
+                      .prose .instagram-media {
+                        margin-top: 1rem !important;
+                        margin-bottom: 1rem !important;
+                      }
+
+                      .article-content .instagram-media-rendered,
+                      .prose .instagram-media-rendered {
+                        margin-top: 1rem !important;
+                        margin-bottom: 1rem !important;
+                      }
                     `}</style>
                     
                     {/* Tags */}
                     {newsArticle.tags && newsArticle.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-10 pt-6 border-t border-gray-100">
-                        {newsArticle.tags.map((tag, index) => (
-                          <Link 
-                            key={index}
-                            href={`/search?q=${encodeURIComponent(tag)}`} 
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm px-4 py-2 rounded-full transition-colors cursor-pointer"
-                          >
-                            #{tag}
-                          </Link>
-                        ))}
-                      </div>
+                      <TagsSection tags={newsArticle.tags} />
                     )}
                   </div>
                   
                   {/* Comments Section */}
-                  <div className="rounded-xl p-3 sm:p-6 md:p-10 mb-24 bg-gradient-to-br from-purple-50 via-pink-50 to-white border border-purple-100/50 shadow-sm relative overflow-hidden">
-                    {/* 배경 장식 요소 */}
-                    <div className="absolute -top-20 -right-20 w-40 h-40 bg-purple-200/20 rounded-full blur-3xl"></div>
-                    <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-pink-200/20 rounded-full blur-3xl"></div>
-                    
-                    <h3 className="text-xl md:text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                      <MessageSquare size={20} className="mr-2 text-[#ff3e8e]" />
-                      <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-500">
+                  <div className="rounded-xl p-3 sm:p-6 md:p-10 mb-8 bg-white border border-gray-200 shadow-sm relative overflow-hidden">
+
+                    <h3 className="text-xl md:text-2xl font-bold text-black mb-6 flex items-center">
+                      <img src="/images/icons8-messaging-48.png" alt="Comments" className="mr-2 w-5 h-5" />
+                      <span className="text-black">
                         Comments ({localComments.length})
                       </span>
                     </h3>
@@ -1967,14 +2180,15 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                               )}
                             </div>
                             
-                            <button 
+                            <button
                               type="submit"
                               disabled={!newComment.trim() || submittingComment}
                               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
                                 !newComment.trim() || submittingComment
                                   ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                  : 'bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:shadow-md'
+                                  : 'text-white hover:shadow-md'
                               }`}
+                              style={!newComment.trim() || submittingComment ? {} : { backgroundColor: '#233CFA' }}
                             >
                               {submittingComment ? 'Posting...' : 'Post Comment'}
                               <Send size={16} className={submittingComment ? 'animate-pulse' : ''} />
@@ -1982,16 +2196,6 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                           </div>
                         )}
                       </div>
-                      
-                      {/* 모바일에서는 로그인 안내 메시지 제거, PC에서만 표시 */}
-                      {!session && (
-                        <div className="mt-2 text-xs text-gray-500 hidden md:flex items-center">
-                          <span>로그인 후 댓글을 작성할 수 있습니다. </span>
-                          <Link href={`/auth/signin?callbackUrl=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}`} className="ml-1 text-[#ff3e8e] hover:underline">
-                            로그인하기
-                          </Link>
-                        </div>
-                      )}
                     </form>
                     
                     {/* Comments List */}
@@ -1999,52 +2203,42 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                       {localComments.length > 0 ? (
                         localComments.map((comment, index) => {
                           console.log('Rendering comment:', comment);
+                          console.log('Avatar path:', comment.avatar);
                           const colors = getColorFromNickname(comment.author);
                           return (
                           <div key={comment.id || index} className="flex gap-3 pb-6 border-b border-purple-100/40 last:border-0">
                             {/* Avatar */}
                             <div className="shrink-0">
-                              <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center text-white">
-                                {comment.avatar.startsWith('/images/default-avatar') ? (
-                                  <div 
-                                    className="w-full h-full flex items-center justify-center text-white font-bold"
-                                    style={{
-                                      background: `linear-gradient(135deg, ${colors.main} 0%, ${colors.secondary} 100%)`
-                                    }}
-                                  >
-                                    {comment.author.charAt(0).toUpperCase()}
-                                  </div>
-                                ) : (
-                                  <img 
-                                    src={comment.avatar} 
-                                    alt={comment.author}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                      e.target.onerror = null;
-                                      e.target.style.display = 'none';
-                                      // Add gradient background and initial
-                                      const parentNode = e.target.parentNode;
-                                      parentNode.classList.add('overflow-hidden');
-                                      const gradientDiv = document.createElement('div');
-                                      gradientDiv.className = "w-full h-full flex items-center justify-center";
-                                      gradientDiv.style.background = `linear-gradient(135deg, ${colors.main} 0%, ${colors.secondary} 100%)`;
-                                      
-                                      const initial = document.createElement('span');
-                                      initial.textContent = comment.author.charAt(0).toUpperCase();
-                                      initial.className = 'text-white font-bold text-lg';
-                                      
-                                      gradientDiv.appendChild(initial);
-                                      parentNode.appendChild(gradientDiv);
-                                    }}
-                                  />
-                                )}
+                              <div className="w-7 h-7 rounded-full bg-white overflow-hidden flex items-center justify-center">
+                                <img
+                                  src={comment.avatar}
+                                  alt={comment.author}
+                                  className="w-full h-full object-contain"
+                                  onError={(e) => {
+                                    e.target.onerror = null;
+                                    e.target.style.display = 'none';
+                                    // Add gradient background and initial
+                                    const parentNode = e.target.parentNode;
+                                    parentNode.classList.add('overflow-hidden');
+                                    const gradientDiv = document.createElement('div');
+                                    gradientDiv.className = "w-full h-full flex items-center justify-center";
+                                    gradientDiv.style.background = `linear-gradient(135deg, ${colors.main} 0%, ${colors.secondary} 100%)`;
+
+                                    const initial = document.createElement('span');
+                                    initial.textContent = comment.author.charAt(0).toUpperCase();
+                                    initial.className = 'text-white font-bold text-xs';
+
+                                    gradientDiv.appendChild(initial);
+                                    parentNode.appendChild(gradientDiv);
+                                  }}
+                                />
                               </div>
                             </div>
-                            
+
                             {/* Comment Content */}
                             <div className="flex-1">
                               <div className="flex items-center justify-between mb-1">
-                                <span className="font-semibold text-gray-800" style={{ color: colors.main }}>{comment.author}</span>
+                                <span className="font-semibold text-black">{comment.author}</span>
                                 <div className="flex items-center gap-2">
                                   <span className="text-gray-400 text-xs">
                                     {comment.timestamp 
@@ -2096,59 +2290,51 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                 <div className="lg:w-1/3">
                   {/* Related News */}
                   <div className="bg-white rounded-xl px-0 py-3 mb-8 mt-0 md:mt-12">
-                    <h3 className="text-xl md:text-2xl font-bold text-gray-800 mb-4 flex items-center">
-                      <TrendingUp size={18} className="mr-2 text-[#ff3e8e]" />
-                      Related News
-                    </h3>
-                        
-                    <div className="space-y-5">
+                    <div className="flex items-center mb-4">
+                      <div className="flex items-center">
+                        <img src="/images/icons8-link-48.png" alt="Related News" className="mr-2 w-5 h-5" />
+                        <h3 className="text-xl md:text-2xl font-bold text-gray-800">Related News</h3>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
                       {relatedArticles && relatedArticles.length > 0 ? (
-                        // 간단하게 6개까지만 표시
-                        relatedArticles.slice(0, 6).map((news, index) => (
-                          <Link key={index} href={`/news/${news._id}`} className="group block bg-white overflow-hidden cursor-pointer py-1">
-                            <div className="flex gap-3">
-                              {/* Thumbnail - 양쪽 모두 둥글게 */}
-                              <div className="w-40 h-32 flex-shrink-0 relative overflow-hidden rounded-lg">
-                                <img 
-                                  src={news.coverImage || '/images/placeholder.jpg'} 
-                                  alt={news.title}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    e.target.src = "/images/placeholder.jpg";
-                                  }}
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-                              </div>
-                              
-                              {/* Content - 높이 키우고 제목 3줄까지 */}
-                              <div className="flex-1 flex flex-col justify-between h-32 pr-3 pl-0 ml-0">
-                                <div>
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="px-2 py-0.5 text-xs font-medium rounded-full text-white"
-                                        style={{ background: 'linear-gradient(to right, #ff3e8e, #ff8360)' }}>
-                                      {news.category || 'K-POP'}
-                                    </span>
-                                  </div>
-                                  <h4 className="text-sm font-semibold line-clamp-3 text-gray-800 group-hover:text-[#ff3e8e] transition-colors pl-0 ml-0">
-                                    {news.title}
-                                  </h4>
+                        relatedArticles.slice(0, 6).map((news, idx) => (
+                          <Link href={`/news/${news._id || news.id}`} key={news._id || news.id || `related-${idx}`} passHref>
+                            <div className="block bg-white overflow-hidden py-3 cursor-pointer">
+                              <div className="flex gap-1">
+                                {/* Thumbnail */}
+                                <div className="w-40 h-32 flex-shrink-0 relative rounded-md overflow-hidden">
+                                  <img
+                                    src={news.coverImage || '/images/placeholder.jpg'}
+                                    alt={news.title}
+                                    className="w-full h-full object-cover rounded-md"
+                                    onError={(e) => {
+                                      e.target.onerror = null;
+                                      e.target.src = "/images/placeholder.jpg";
+                                    }}
+                                  />
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
                                 </div>
-                                <div className="flex items-center justify-between mt-auto">
-                                  <div className="flex items-center text-gray-500 text-xs">
+
+                                {/* Content */}
+                                <div className="flex-1 pt-0 pr-3 pb-0 pl-3 flex flex-col justify-between h-32">
+                                  <div>
+                                    <h3 className="text-base md:text-lg font-semibold line-clamp-3 text-gray-800 mt-2">
+                                      {news.title}
+                                    </h3>
+                                  </div>
+                                  <div className="flex items-center text-gray-500 text-xs mt-2">
                                     <Clock size={12} className="mr-1" />
                                     {new Date(news.createdAt).toLocaleDateString()}
                                   </div>
-                                  <ChevronRight size={16} className="text-[#ff3e8e]" />
                                 </div>
                               </div>
                             </div>
                           </Link>
                         ))
                       ) : (
-                        <div className="text-center p-8 bg-gray-50 rounded-lg mx-3">
-                          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                            <TrendingUp size={20} className="text-gray-400" />
-                          </div>
+                        <div className="text-center p-8 bg-gray-50 rounded-lg">
                           <p className="text-gray-500">No related articles found</p>
                         </div>
                       )}
@@ -2161,11 +2347,11 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
               <div className="mb-24">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center">
-                    <TrendingUp size={18} className="mr-2 text-[#ff3e8e]" />
+                    <img src="/images/icons8-copy-48.png" alt="More News" className="mr-2 w-5 h-5" />
                     More K-POP News
                   </h3>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {relatedArticles && relatedArticles.length > 0 ? (
                     // 이미 Related News 섹션에 표시된 뉴스 ID 기반으로 필터링
@@ -2174,50 +2360,43 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                       .slice(0, 6)
                       .map((news, index) => (
                       <Link key={index} href={`/news/${news.slug || news._id}`} className="group">
-                        <div className="bg-white rounded-xl overflow-hidden transition-all duration-300 group relative">
-                          <div className="h-56 overflow-hidden relative">
-                            <img 
-                              src={news.coverImage || `/images/placeholder.jpg`} 
+                        <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative cursor-pointer">
+                          <div className="h-64 overflow-hidden relative rounded-md">
+                            <img
+                              src={news.coverImage || '/images/placeholder.jpg'}
                               alt={news.title}
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-md"
                               onError={(e) => {
+                                e.target.onerror = null;
                                 e.target.src = "/images/placeholder.jpg";
                               }}
                             />
-                            
-                            {/* 상단 데코레이션 요소 */}
-                            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#8e44ad] via-[#9b59b6] to-[#d35400] opacity-80 group-hover:opacity-100 transition-opacity duration-300"></div>
-                            
-                            {/* 카테고리 배지 */}
-                            <div className="absolute top-2 left-2 md:top-3 md:left-3 z-20">
-                              <span className="px-2 py-1 md:px-3 md:py-1.5 text-white text-xs font-medium rounded-full backdrop-blur-sm shadow-md" 
-                                    style={{ background: 'linear-gradient(to right, #9333ea, #ec4899)' }}>
-                                {news.category || 'K-POP'}
-                              </span>
-                            </div>
+
+                            {/* 반투명 그라디언트 오버레이 */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
                           </div>
-                          
+
                           <div className="p-4">
-                            <h3 className="font-bold text-gray-800 text-lg mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#8e44ad] transition-colors">
+                            <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#233CFA] transition-colors">
                               {news.title}
                             </h3>
-                            
+
                             <p className="text-gray-600 text-xs line-clamp-2 mb-3">
-                              {news.content 
-                                ? news.content.replace(/<[^>]*>/g, '') 
+                              {news.content
+                                ? news.content.replace(/<[^>]*>/g, '')
                                 : news.summary || ''}
                             </p>
-                            
+
                             <div className="flex justify-between items-end">
                               {/* 시간 배지 */}
                               <div className="flex items-center text-gray-500 text-xs">
-                                <Clock size={12} className="mr-1 text-[#9b59b6]" />
-                                <span>{new Date(news.createdAt).toLocaleDateString()}</span>
+                                <Clock size={12} className="mr-1 text-gray-500" />
+                                <span>{new Date(news.createdAt || news.date).toLocaleDateString()}</span>
                               </div>
-                              
+
                               {/* Read more 버튼 */}
-                              <span className="inline-flex items-center text-transparent bg-clip-text bg-gradient-to-r from-purple-600 via-pink-500 to-rose-500 text-xs font-medium hover:underline">
-                                Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" />
+                              <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#233CFA' }}>
+                                Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" style={{ color: '#233CFA' }} />
                               </span>
                             </div>
                           </div>
@@ -2237,39 +2416,41 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
       </main>
 
       {/* Back to Top Button */}
-      {showBackToTop && (
+      {isMounted && showBackToTop && (
         <button
-          onClick={scrollToTop}
-          className="fixed bottom-6 right-6 p-3 bg-[#ff3e8e] text-white rounded-full shadow-lg hover:bg-[#e02e7c] transition-colors hover:animate-none animate-bounce-custom transform hover:scale-110"
-          aria-label="Back to top"
-          style={{
-            animation: 'bounce-button 2s infinite',
-          }}
-        >
-          <style jsx>{`
-            @keyframes bounce-button {
-              0%, 100% {
-                transform: translateY(0);
-              }
-              50% {
-                transform: translateY(-10px);
-              }
-              70% {
-                transform: translateY(-5px);
-              }
-            }
-            button {
-              animation: bounce-button 2s ease-in-out infinite;
-              transition: all 0.3s;
-            }
-            button:hover {
-              animation: none;
-              transform: scale(1.15);
-              box-shadow: 0 10px 25px -5px rgba(255, 62, 142, 0.4);
-            }
-          `}</style>
-          <ArrowUp size={20} />
-        </button>
+              onClick={scrollToTop}
+              className="fixed bottom-6 right-6 p-3 text-white rounded-full shadow-lg transition-colors hover:animate-none animate-bounce-custom transform hover:scale-110"
+              aria-label="Back to top"
+              style={{
+                backgroundColor: '#233CFA',
+                animation: 'bounce-button 2s infinite',
+                zIndex: 9999,
+              }}
+            >
+              <style jsx>{`
+                @keyframes bounce-button {
+                  0%, 100% {
+                    transform: translateY(0);
+                  }
+                  50% {
+                    transform: translateY(-10px);
+                  }
+                  70% {
+                    transform: translateY(-5px);
+                  }
+                }
+                button {
+                  animation: bounce-button 2s ease-in-out infinite;
+                  transition: all 0.3s;
+                }
+                button:hover {
+                  animation: none;
+                  transform: scale(1.15);
+                  box-shadow: 0 10px 25px -5px rgba(35, 60, 250, 0.4);
+                }
+              `}</style>
+              <ArrowUp size={20} />
+            </button>
       )}
 
       <Footer />
