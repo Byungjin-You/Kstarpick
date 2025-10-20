@@ -10,22 +10,35 @@ const MainLayout = ({ children }) => {
 
   // 스크롤 위치에 따라 버튼 표시 여부 결정
   useEffect(() => {
-    const handleScroll = () => {
-      if (window && window.scrollY > 300) {
-        setShowBackToTop(true);
-      } else {
-        setShowBackToTop(false);
-      }
+    const checkScroll = () => {
+      // body.scrollTop을 우선 확인 (이 사이트에서는 body가 스크롤됨)
+      const scrollY = document.body.scrollTop || window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
+      setShowBackToTop(scrollY > 300);
     };
 
-    if (typeof window !== 'undefined') {
-      window.addEventListener('scroll', handleScroll);
-      return () => window.removeEventListener('scroll', handleScroll);
-    }
+    // 초기 체크
+    checkScroll();
+
+    // body, window, document 모두에 이벤트 리스너 등록
+    document.body.addEventListener('scroll', checkScroll, { passive: true });
+    window.addEventListener('scroll', checkScroll, { passive: true });
+    document.addEventListener('scroll', checkScroll, { passive: true });
+
+    // 주기적으로도 체크 (fallback)
+    const interval = setInterval(checkScroll, 500);
+
+    return () => {
+      document.body.removeEventListener('scroll', checkScroll);
+      window.removeEventListener('scroll', checkScroll);
+      document.removeEventListener('scroll', checkScroll);
+      clearInterval(interval);
+    };
   }, []);
 
   // 맨 위로 스크롤 함수
   const scrollToTop = () => {
+    // body가 스크롤되므로 body.scrollTop을 0으로 설정
+    document.body.scrollTo({ top: 0, behavior: 'smooth' });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -49,14 +62,21 @@ const MainLayout = ({ children }) => {
   // 페이지 로드 시 스크롤 위치 복원
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
+    // 현재 페이지 경로
+    const currentPath = window.location.pathname;
+
+    // 홈페이지에서는 스크롤 복원하지 않음
+    if (currentPath === '/') {
+      console.log('[MainLayout] 홈페이지 - 스크롤 복원 건너뜀');
+      return;
+    }
+
     // 브라우저 네비게이션 유형 확인
     const navigation = window.performance?.getEntriesByType('navigation')?.[0];
     const isBackForwardNavigation = navigation && navigation.type === 'back_forward';
-    
+
     if (isBackForwardNavigation) {
-      // 현재 페이지 경로
-      const currentPath = window.location.pathname;
       console.log('[MainLayout] 뒤로가기/앞으로가기 감지:', currentPath);
       
       // 저장된 스크롤 위치 복원 (여러 저장소에서 시도)
@@ -106,7 +126,7 @@ const MainLayout = ({ children }) => {
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      <main className="flex-grow pt-20">
+      <main className="flex-grow pt-14">
         {children}
       </main>
       <Footer />
@@ -115,32 +135,23 @@ const MainLayout = ({ children }) => {
       {showBackToTop && (
         <button
           onClick={scrollToTop}
-          className="fixed bottom-6 right-6 p-3 bg-[#ff3e8e] text-white rounded-full shadow-lg hover:bg-[#e02e7c] transition-colors hover:animate-none transform hover:scale-110 z-40"
+          className="fixed bottom-6 right-6 p-3 text-white rounded-full shadow-lg transition-all hover:scale-110 z-[9999]"
           aria-label="맨 위로 이동"
           style={{
-            animation: 'bounce-button 2s infinite',
+            backgroundColor: '#233CFA',
+            animation: 'bounce 2s infinite',
           }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1a2db8'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#233CFA'}
         >
           <style jsx>{`
-            @keyframes bounce-button {
+            @keyframes bounce {
               0%, 100% {
                 transform: translateY(0);
               }
               50% {
                 transform: translateY(-10px);
               }
-              70% {
-                transform: translateY(-5px);
-              }
-            }
-            button {
-              animation: bounce-button 2s ease-in-out infinite;
-              transition: all 0.3s;
-            }
-            button:hover {
-              animation: none;
-              transform: scale(1.15);
-              box-shadow: 0 10px 25px -5px rgba(255, 62, 142, 0.4);
             }
           `}</style>
           <ArrowUp size={20} />

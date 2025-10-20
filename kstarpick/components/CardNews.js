@@ -4,33 +4,53 @@ import Image from 'next/image';
 import { TrendingUp, Clock, ChevronRight, Star, AlertCircle, Eye, MessageCircle, ArrowLeft, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/router';
 
-const CardNews = ({ cards, featured }) => {
+const CardNews = React.memo(({ cards, featured }) => {
   const router = useRouter();
-  
-  // Set up featured cards - either use the provided featured prop or filter from cards
-  // 최대 6개의 피처드 카드만 사용하도록 제한
-  const featuredCards = featured ? featured.slice(0, 6) : cards.filter(card => card.featured).slice(0, 6);
-  
-  // 디버깅 로그 추가
-  console.log('[CardNews] Featured prop:', featured ? featured.length : 'null', '개');
-  console.log('[CardNews] Featured cards:', featuredCards.length, '개');
-  if (featured && featured.length > 0) {
-    console.log('[CardNews] Featured 뉴스 제목들:', featured.map(news => news.title));
-  }
-  
-  // If we don't have enough featured cards, add some from regular cards
-  if (featuredCards.length < 6) {
-    const remainingNeeded = 6 - featuredCards.length;
-    const nonFeaturedCards = cards.filter(card => !card.featured && !featuredCards.includes(card));
-    featuredCards.push(...nonFeaturedCards.slice(0, remainingNeeded));
-  }
-  
-  // 피처드 카드가 6개를 초과하지 않도록 확실히 제한
-  const limitedFeaturedCards = featuredCards.slice(0, 6);
-  
-  // Get remaining cards (excluding featured ones)
-  const featuredIds = limitedFeaturedCards.map(card => card.id || card._id);
-  const remainingCards = cards.filter(card => !featuredIds.includes(card.id || card._id));
+
+  // 뉴스 카드 클릭 시 홈 스크롤 위치 저장 - useCallback으로 메모이제이션
+  const handleNewsClick = React.useCallback((e) => {
+    if (typeof window !== 'undefined' && router.pathname === '/') {
+      // 클릭 시점의 정확한 스크롤 위치를 즉시 캡처
+      const currentScroll = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+
+      // 이미 저장된 값이 있고 0이 아니면 유지 (routeChangeStart에서 이미 저장했을 수 있음)
+      const existingScroll = sessionStorage.getItem('homeScrollPosition');
+      if (!existingScroll || existingScroll === '0' || parseInt(existingScroll) === 0) {
+        sessionStorage.setItem('homeScrollPosition', currentScroll.toString());
+        console.log('📍 CardNews - 홈 스크롤 위치 저장:', currentScroll);
+      } else {
+        console.log('📍 CardNews - 이미 저장된 스크롤 위치 유지:', existingScroll);
+      }
+    }
+  }, [router.pathname]);
+
+  // Set up featured cards - memoize to prevent re-computation on every render
+  const limitedFeaturedCards = React.useMemo(() => {
+    // 최대 6개의 피처드 카드만 사용하도록 제한
+    let featuredCards = featured ? featured.slice(0, 6) : cards.filter(card => card.featured).slice(0, 6);
+
+    // 디버깅 로그 (개발 환경에서만)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[CardNews] Featured prop:', featured ? featured.length : 'null', '개');
+      console.log('[CardNews] Featured cards:', featuredCards.length, '개');
+    }
+
+    // If we don't have enough featured cards, add some from regular cards
+    if (featuredCards.length < 6) {
+      const remainingNeeded = 6 - featuredCards.length;
+      const nonFeaturedCards = cards.filter(card => !card.featured && !featuredCards.includes(card));
+      featuredCards = [...featuredCards, ...nonFeaturedCards.slice(0, remainingNeeded)];
+    }
+
+    // 피처드 카드가 6개를 초과하지 않도록 확실히 제한
+    return featuredCards.slice(0, 6);
+  }, [featured, cards]);
+
+  // Get remaining cards (excluding featured ones) - memoize to prevent re-computation
+  const remainingCards = React.useMemo(() => {
+    const featuredIds = limitedFeaturedCards.map(card => card.id || card._id);
+    return cards.filter(card => !featuredIds.includes(card.id || card._id));
+  }, [cards, limitedFeaturedCards]);
   
   // 가로 스크롤을 위한 참조와 상태
   const scrollContainerRef = useRef(null);
@@ -165,7 +185,7 @@ const CardNews = ({ cards, featured }) => {
   // If we have no cards at all, show a placeholder
   if (!cards || cards.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 bg-white rounded-2xl shadow-md p-8">
+      <div className="flex flex-col items-center justify-center h-64 bg-white rounded-md shadow-md p-8">
         <AlertCircle size={48} className="mb-4 text-pink-300 animate-pulse" />
         <p className="text-lg font-medium text-gray-700">No news articles available</p>
         <p className="text-sm text-gray-500 mt-2">Check back later for updates</p>
@@ -177,14 +197,21 @@ const CardNews = ({ cards, featured }) => {
   const heroCard = limitedFeaturedCards.length > 0 ? limitedFeaturedCards[0] : cards[0];
 
   return (
-    <div className="mt-4 space-y-8">
+    <div className="space-y-8">
       {/* Featured Cards */}
-      <section>
+      <section className="mb-8 md:mb-16">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center">
-            <div className="w-2 h-16 bg-gradient-to-b from-purple-600 to-pink-500 rounded-full mr-5"></div>
+            {/* Guarantee Icon */}
+            <div className="mr-4 flex-shrink-0">
+              <img
+                src="/images/icons8-guarantee-50.png"
+                alt="Guarantee Icon"
+                className="h-12 w-12 object-contain"
+              />
+            </div>
             <div>
-              <span className="text-pink-600 text-sm font-semibold tracking-wider uppercase mb-1 block">Editor's Picks</span>
+              <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#233CFA' }}>Editor's Picks</span>
               <h2 className="text-2xl md:text-3xl font-bold text-gray-800">Featured News</h2>
             </div>
           </div>
@@ -192,21 +219,21 @@ const CardNews = ({ cards, featured }) => {
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {limitedFeaturedCards.map((card, index) => (
-            <Link 
+            <Link
               key={card._id || card.id}
               href={`/news/${card.slug || card._id || card.id}`}
               passHref
+              onClick={handleNewsClick}
             >
-              <div 
-                className="bg-white rounded-xl overflow-hidden transition-all duration-300 group relative cursor-pointer"
-              >
-                <div className="h-56 overflow-hidden relative">
-                  {/* 이미지 */}
-                  {card.coverImage ? (
-                    <img 
-                      src={card.coverImage} 
-                      alt={card.title} 
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-xl"
+              <div className="block cursor-pointer">
+                <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">
+                  <div className="h-64 overflow-hidden relative">
+                    {/* 이미지 */}
+                    {card.coverImage ? (
+                      <img
+                        src={card.coverImage}
+                        alt={card.title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-md"
                       onError={(e) => {
                         e.target.onerror = null;
                         e.target.src = "/images/placeholder.jpg";
@@ -217,45 +244,35 @@ const CardNews = ({ cards, featured }) => {
                       <span>Image Placeholder</span>
                     </div>
                   )}
-                  
-                  {/* Add top decorative element */}
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#8e44ad] via-[#9b59b6] to-[#d35400] opacity-80 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  
-                  {/* 카테고리 배지 */}
-                  <div className="absolute top-2 left-2 md:top-3 md:left-3 z-20">
-                    <span className="px-2 py-1 md:px-3 md:py-1.5 text-white text-xs font-medium rounded-full backdrop-blur-sm shadow-md" 
-                          style={{ background: 'linear-gradient(to right, #9333ea, #ec4899)' }}>
-                      {card.category || 'K-POP'}
-                    </span>
-                  </div>
                 </div>
                 
                 <div className="p-4">
-                  <h3 className="font-bold text-gray-800 text-lg mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#8e44ad] transition-colors">
+                  <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#006fff] transition-colors">
                     {card.title}
                   </h3>
-                  
+
                   <p className="text-gray-600 text-xs line-clamp-2 mb-3">
                     {card.content && card.content.trim()
                       ? card.content.replace(/<[^>]*>/g, '').slice(0, 120) + '...'
-                      : card.summary 
+                      : card.summary
                         ? card.summary.slice(0, 120) + '...'
                         : 'No content available'}
                   </p>
-                  
+
                   <div className="flex justify-between items-end">
                     {/* 시간 배지 */}
                     <div className="flex items-center text-gray-500 text-xs">
-                      <Clock size={12} className="mr-1 text-[#9b59b6]" />
+                      <Clock size={12} className="mr-1 text-gray-500" />
                       <span>{new Date(card.createdAt || card.date).toLocaleDateString()}</span>
                     </div>
                     
                     {/* Read more 버튼 */}
-                    <span className="inline-flex items-center text-transparent bg-clip-text bg-gradient-to-r from-purple-600 via-pink-500 to-rose-500 text-xs font-medium hover:underline cursor-pointer group">
-                      Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" />
+                    <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#233CFA' }}>
+                      Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" style={{ color: '#233CFA' }} />
                     </span>
                   </div>
                 </div>
+              </div>
               </div>
             </Link>
           ))}
@@ -263,19 +280,25 @@ const CardNews = ({ cards, featured }) => {
       </section>
 
       {/* Trending Categories */}
-      <section className="mt-8 md:rounded-3xl md:p-8 latest-news-section" style={{ backgroundColor: 'transparent', padding: '1rem 0 1.5rem 0' }}>
-        {/* 제목 영역 - 여백 제거 및 모바일 왼쪽 정렬 */}
-        <div className="px-0 mb-8">
+      <section className="mb-16 md:mb-0 md:rounded-md md:p-8 latest-news-section -mx-4 md:mx-0 md:px-8" style={{ backgroundColor: '#1d1a27', padding: '1rem 0 1.5rem 0' }}>
+        {/* 제목 영역 */}
+        <div className="mb-8 px-4 md:px-0">
           <div className="flex items-center">
-            <div className="w-2 h-16 bg-gradient-to-b from-purple-600 to-pink-500 rounded-full mr-5"></div>
+            {/* Conflict Icon */}
+            <div className="mr-4 flex-shrink-0">
+              <img
+                src="/images/icons8-conflict-50.png"
+                alt="Conflict Icon"
+                className="h-12 w-12 object-contain"
+              />
+            </div>
             <div>
-              <span className="text-pink-600 text-sm font-semibold tracking-wider uppercase mb-1 block">What's New</span>
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center">
-                <TrendingUp size={28} className="text-pink-600 mr-3" />
+              <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#008cff' }}>What's New</span>
+              <h2 className="text-2xl md:text-3xl font-bold text-white flex items-center">
                 <span className="inline-block">Latest News</span>
-                
+
                 {/* 스크롤 안내 추가 */}
-                <span className="ml-3 text-sm font-normal text-gray-500 hidden md:inline-block">
+                <span className="ml-3 text-sm font-normal text-gray-400 hidden md:inline-block">
                   (Scroll for more)
                 </span>
               </h2>
@@ -298,7 +321,7 @@ const CardNews = ({ cards, featured }) => {
           
           <div 
             ref={scrollContainerRef}
-            className="flex overflow-x-auto pb-4 hide-scrollbar snap-x snap-mandatory scroll-smooth pl-0 pr-4 md:px-8"
+            className="flex overflow-x-auto pb-4 hide-scrollbar snap-x snap-mandatory scroll-smooth pl-4 pr-4 md:px-8"
             onScroll={handleScrollUpdate}
             style={{
               scrollbarWidth: 'none', /* Firefox */
@@ -308,12 +331,12 @@ const CardNews = ({ cards, featured }) => {
           >
             {/* 모바일에서 스크롤 힌트 - 원형 버튼만 표시하고 배경 제거 */}
             {activeCardIndex === 0 && (
-              <button 
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 z-20 md:hidden w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center border-2 border-pink-500 animate-pulse pointer-events-none"
-                style={{ background: 'white' }}
+              <button
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 z-20 md:hidden w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center border-2 animate-pulse pointer-events-none"
+                style={{ background: 'white', borderColor: '#233CFA' }}
                 aria-hidden="true"
               >
-                <ChevronRight size={22} className="text-pink-600" strokeWidth={2.5} />
+                <ChevronRight size={22} style={{ color: '#233CFA' }} strokeWidth={2.5} />
               </button>
             )}
             
@@ -322,21 +345,24 @@ const CardNews = ({ cards, featured }) => {
                 key={card._id || card.id}
                 href={`/news/${card._id || card.id}`}
                 passHref
+                onClick={handleNewsClick}
               >
-                <div 
-                  className={`flex-shrink-0 w-[67%] min-w-[230px] md:w-[320px] snap-center transition-all duration-300 cursor-pointer mr-4 md:mr-6 ${
-                    activeCardIndex === index 
-                      ? 'opacity-100 scale-100' 
+                <div
+                  className={`flex-shrink-0 w-[67%] min-w-[230px] md:w-[320px] snap-center transition-all duration-300 cursor-pointer mr-4 md:mr-6 bg-transparent ${
+                    activeCardIndex === index
+                      ? 'opacity-100 scale-100'
                       : 'opacity-90 scale-98 md:opacity-100 md:scale-100'
                   } ${index === 0 ? 'pl-0' : ''}`}
+                  style={{ background: 'transparent' }}
                 >
-                  <div className="bg-white rounded-xl overflow-hidden transition-all duration-300 group relative h-full mx-0">
-                    <div className="h-56 md:h-56 overflow-hidden relative">
-                      {card.coverImage ? (
-                        <img
-                          src={card.coverImage}
-                          alt={card.title}
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-xl"
+                  <div className="block cursor-pointer">
+                    <div className="bg-transparent md:bg-white md:rounded-lg overflow-hidden transition-all duration-300 group relative h-full mx-0">
+                      <div className="h-64 md:h-64 overflow-hidden relative">
+                        {card.coverImage ? (
+                          <img
+                            src={card.coverImage}
+                            alt={card.title}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-md"
                           onError={(e) => {
                             e.target.onerror = null;
                             e.target.src = "/images/placeholder.jpg";
@@ -347,45 +373,27 @@ const CardNews = ({ cards, featured }) => {
                           <span>Image Placeholder</span>
                         </div>
                       )}
-                      
-                      {/* Add top decorative element */}
-                      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#8e44ad] via-[#9b59b6] to-[#d35400] opacity-80 group-hover:opacity-100 transition-opacity duration-300"></div>
-                      
-                      {/* 카테고리 배지 */}
-                      <div className="absolute top-2 left-2 md:top-3 md:left-3 z-20">
-                        <span className="px-2 py-1 md:px-3 md:py-1.5 text-white text-xs font-medium rounded-full backdrop-blur-sm shadow-md"
-                              style={{ background: 'linear-gradient(to right, #9333ea, #ec4899)' }}>
-                          {card.category || 'News'}
-                        </span>
-                      </div>
                     </div>
-                    
-                    <div className="p-4">
-                      <h3 className="font-bold text-gray-800 text-lg mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#8e44ad] transition-colors">
+
+                    <div className="p-4 bg-transparent md:bg-white">
+                      <h3 className="font-bold text-white md:text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] md:group-hover:text-[#006fff] transition-colors">
                         {card.title}
                       </h3>
-                      
-                      <p className="text-gray-600 text-xs line-clamp-2 mb-3">
+
+                      <p className="text-white md:text-gray-600 text-xs line-clamp-2 mb-3">
                         {card.content && card.content.trim()
                           ? card.content.replace(/<[^>]*>/g, '').slice(0, 120) + '...'
-                          : card.summary 
+                          : card.summary
                             ? card.summary.slice(0, 120) + '...'
                             : 'No content available'}
                       </p>
-                      
-                      <div className="flex justify-between items-end">
-                        {/* 시간 배지 */}
-                        <div className="flex items-center text-gray-500 text-xs">
-                          <Clock size={12} className="mr-1 text-[#9b59b6]" />
-                          <span>{new Date(card.createdAt || card.date).toLocaleDateString()}</span>
-                        </div>
-                        
-                        {/* Read more 버튼 */}
-                        <span className="inline-flex items-center text-transparent bg-clip-text bg-gradient-to-r from-purple-600 via-pink-500 to-rose-500 text-xs font-medium hover:underline cursor-pointer group">
-                          Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" />
-                        </span>
+
+                      <div className="flex items-center text-gray-400 md:text-gray-500 text-xs">
+                        <Clock size={12} className="mr-1 text-gray-400 md:text-gray-500" />
+                        <span>{new Date(card.createdAt || card.date).toLocaleDateString()}</span>
                       </div>
                     </div>
+                  </div>
                   </div>
                 </div>
               </Link>
@@ -405,6 +413,8 @@ const CardNews = ({ cards, featured }) => {
       </section>
     </div>
   );
-};
+});
+
+CardNews.displayName = 'CardNews';
 
 export default CardNews; 

@@ -1,6 +1,9 @@
 /* Google Fonts Import */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Poppins:wght@400;500;600;700&display=swap');
 
+/* React Quill Editor Styles */
+@import 'react-quill/dist/quill.snow.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -16,15 +19,31 @@
   --border-color: #e0e0e0;
 }
 
-html, body {
+html {
   background-color: #ffffff;
   width: 100%;
+  height: 100%;
   overflow-x: hidden;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
 }
 
 body {
+  background-color: #ffffff;
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
   color: rgb(var(--foreground-rgb));
   font-family: 'Noto Sans', 'Malgun Gothic', sans-serif;
+  margin: 0;
+  padding: 0;
+  position: relative;
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* 롤링 뉴스 애니메이션 */
@@ -357,17 +376,17 @@ body {
   display: none !important;
 }
 
-/* blockquote 스타일링 - 보라색-핑크색 그라데이션 따옴표 (소셜 미디어 임베드 제외) */
-.prose blockquote:not(.instagram-media):not(.twitter-tweet), 
-.article-content blockquote:not(.instagram-media):not(.twitter-tweet), 
+/* blockquote 스타일링 - 검정색 따옴표, 흰색 배경 (소셜 미디어 임베드 제외) */
+.prose blockquote:not(.instagram-media):not(.twitter-tweet),
+.article-content blockquote:not(.instagram-media):not(.twitter-tweet),
 .ql-editor blockquote:not(.instagram-media):not(.twitter-tweet) {
   position: relative;
   margin: 2em 0 !important;
   padding: 2em 2.5em 1.5em 2.5em !important;
-  background: linear-gradient(135deg, rgba(147, 51, 234, 0.05), rgba(236, 72, 153, 0.05)) !important;
+  background: #ffffff !important;
   border: none !important;
   border-radius: 12px !important;
-  box-shadow: 0 4px 20px rgba(147, 51, 234, 0.1) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
   font-style: italic !important;
   color: #4b5563 !important;
   line-height: 1.8 !important;
@@ -377,8 +396,8 @@ body {
 }
 
 /* 시작 따옴표 (왼쪽 상단) - 소셜 미디어 임베드 제외 */
-.prose blockquote:not(.instagram-media):not(.twitter-tweet)::before, 
-.article-content blockquote:not(.instagram-media):not(.twitter-tweet)::before, 
+.prose blockquote:not(.instagram-media):not(.twitter-tweet)::before,
+.article-content blockquote:not(.instagram-media):not(.twitter-tweet)::before,
 .ql-editor blockquote:not(.instagram-media):not(.twitter-tweet)::before {
   content: '"';
   position: absolute;
@@ -387,19 +406,19 @@ body {
   font-size: 4em;
   font-weight: 700;
   line-height: 1;
-  background: linear-gradient(135deg, #9333ea, #ec4899);
+  background: linear-gradient(135deg, #ec4899, #f43f5e);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   color: transparent;
-  opacity: 0.8;
+  opacity: 0.9;
   font-family: 'Georgia', serif;
   z-index: 1;
 }
 
 /* 끝 따옴표 (오른쪽 하단) - 소셜 미디어 임베드 제외 */
-.prose blockquote:not(.instagram-media):not(.twitter-tweet)::after, 
-.article-content blockquote:not(.instagram-media):not(.twitter-tweet)::after, 
+.prose blockquote:not(.instagram-media):not(.twitter-tweet)::after,
+.article-content blockquote:not(.instagram-media):not(.twitter-tweet)::after,
 .ql-editor blockquote:not(.instagram-media):not(.twitter-tweet)::after {
   content: '"';
   position: absolute;
@@ -408,12 +427,12 @@ body {
   font-size: 4em;
   font-weight: 700;
   line-height: 1;
-  background: linear-gradient(135deg, #9333ea, #ec4899);
+  background: linear-gradient(135deg, #ec4899, #f43f5e);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   color: transparent;
-  opacity: 0.8;
+  opacity: 0.9;
   font-family: 'Georgia', serif;
   transform: rotate(180deg);
   z-index: 1;
@@ -904,30 +923,36 @@ a {
 /* 모바일에서 핑크색 배경 및 투명요소 완전히 제거 */
 @media (max-width: 768px) {
   .latest-news-section {
-    background: transparent !important;
+    background: #1d1a27 !important;
     box-shadow: none !important;
   }
-  
+
   /* 스크롤 컨테이너의 모든 그라데이션 효과 제거 */
   .hide-scrollbar {
     mask-image: none !important;
     -webkit-mask-image: none !important;
     background: transparent !important;
   }
-  
+
   .hide-scrollbar::after {
     display: none !important;
   }
-  
-  .hide-scrollbar > * {
-    background: white !important;
+
+  /* Latest News 카드의 모든 배경 제거 */
+  .latest-news-section .hide-scrollbar > a,
+  .latest-news-section .hide-scrollbar > a > div,
+  .latest-news-section .hide-scrollbar > a > div > div,
+  .latest-news-section .hide-scrollbar > a > div > div > div {
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
   }
 }
 
-/* 데스크톱에서만 Latest News 섹션 배경 그라데이션 적용 */
+/* 데스크톱에서만 Latest News 섹션 배경 적용 */
 @media (min-width: 768px) {
   .latest-news-section {
-    background-image: linear-gradient(to right, #f9f7ff, #fdf4f9, #f9f7ff) !important;
+    background: #1d1a27 !important;
   }
 }
 

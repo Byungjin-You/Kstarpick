@@ -3,8 +3,13 @@ import { useEffect, useRef } from 'react';
 const DirectRiddleContent = ({ content }) => {
   const contentRef = useRef(null);
 
+  console.log('[DirectRiddleContent] 컴포넌트 렌더링, content 길이:', content?.length || 0);
+
   useEffect(() => {
+    console.log('[DirectRiddleContent] useEffect 시작, contentRef 존재:', !!contentRef.current);
+
     if (!content || !contentRef.current) {
+      console.log('[DirectRiddleContent] useEffect 건너뜀 - content:', !!content, 'contentRef:', !!contentRef.current);
       return;
     }
 
@@ -44,7 +49,127 @@ const DirectRiddleContent = ({ content }) => {
     
     // DOM에 정리된 HTML 삽입
     contentRef.current.innerHTML = cleanedContent;
-    
+
+    console.log('[DirectRiddleContent] HTML 삽입 완료');
+    console.log('[DirectRiddleContent] Instagram blockquote 존재:', cleanedContent.includes('instagram-media'));
+    console.log('[DirectRiddleContent] Twitter blockquote 존재:', cleanedContent.includes('twitter-tweet'));
+
+    // Instagram 임베드 처리
+    if (cleanedContent.includes('instagram-media')) {
+      console.log('[DirectRiddleContent] Instagram 처리 시작');
+
+      let instagramRetryCount = 0;
+      const maxInstagramRetries = 30;
+
+      const processInstagram = () => {
+        console.log(`[DirectRiddleContent] Instagram 시도 #${instagramRetryCount + 1}`);
+
+        if (window.instgrm && window.instgrm.Embeds) {
+          const blockquotes = contentRef.current?.querySelectorAll('blockquote.instagram-media');
+          console.log(`[DirectRiddleContent] Instagram blockquote 발견: ${blockquotes?.length || 0}개`);
+
+          if (blockquotes && blockquotes.length > 0) {
+            try {
+              console.log('[DirectRiddleContent] instgrm.Embeds.process() 실행');
+              window.instgrm.Embeds.process();
+              console.log('[DirectRiddleContent] Instagram 처리 완료');
+              return true;
+            } catch (error) {
+              console.error('[DirectRiddleContent] Instagram 처리 오류:', error);
+            }
+          }
+        } else {
+          console.log('[DirectRiddleContent] Instagram 스크립트 대기 중...');
+          if (window.loadInstagramScript) {
+            window.loadInstagramScript();
+          }
+        }
+
+        if (instagramRetryCount < maxInstagramRetries) {
+          instagramRetryCount++;
+          const delay = instagramRetryCount <= 10 ? 100 : 500;
+          setTimeout(processInstagram, delay);
+        } else {
+          console.warn('[DirectRiddleContent] Instagram 최대 재시도 도달');
+        }
+
+        return false;
+      };
+
+      // 즉시 시작
+      setTimeout(processInstagram, 0);
+    }
+
+    // Twitter 임베드 처리
+    if (cleanedContent.includes('twitter-tweet')) {
+      console.log('[DirectRiddleContent] Twitter 처리 시작');
+
+      let twitterRetryCount = 0;
+      const maxTwitterRetries = 30;
+
+      const processTwitter = () => {
+        console.log(`[DirectRiddleContent] Twitter 시도 #${twitterRetryCount + 1}`);
+
+        if (window.twttr && window.twttr.widgets) {
+          const blockquotes = contentRef.current?.querySelectorAll('blockquote.twitter-tweet');
+          console.log(`[DirectRiddleContent] Twitter blockquote 발견: ${blockquotes?.length || 0}개`);
+
+          if (blockquotes && blockquotes.length > 0) {
+            try {
+              console.log('[DirectRiddleContent] twttr.widgets.load() 실행');
+              window.twttr.widgets.load(contentRef.current).then(() => {
+                console.log('[DirectRiddleContent] Twitter 위젯 로드 완료, iframe 높이 조정 시작');
+
+                // 약간의 지연 후 iframe 높이 강제 조정
+                setTimeout(() => {
+                  const twitterIframes = contentRef.current?.querySelectorAll('iframe[id^="twitter-widget-"]');
+                  if (twitterIframes && twitterIframes.length > 0) {
+                    twitterIframes.forEach((iframe) => {
+                      // iframe 높이 강제 설정
+                      iframe.style.setProperty('height', '600px', 'important');
+                      iframe.style.setProperty('max-height', '600px', 'important');
+                      iframe.setAttribute('height', '600');
+
+                      // 부모 컨테이너도 조정
+                      if (iframe.parentElement) {
+                        iframe.parentElement.style.setProperty('height', '600px', 'important');
+                        iframe.parentElement.style.setProperty('max-height', '600px', 'important');
+                        iframe.parentElement.style.overflow = 'hidden';
+                      }
+
+                      console.log('[DirectRiddleContent] Twitter iframe 높이 조정 완료:', iframe.id, 'offsetHeight:', iframe.offsetHeight);
+                    });
+                  }
+                }, 500);
+              });
+              console.log('[DirectRiddleContent] Twitter 처리 완료');
+              return true;
+            } catch (error) {
+              console.error('[DirectRiddleContent] Twitter 처리 오류:', error);
+            }
+          }
+        } else {
+          console.log('[DirectRiddleContent] Twitter 스크립트 대기 중...');
+          if (window.loadTwitterScript) {
+            window.loadTwitterScript();
+          }
+        }
+
+        if (twitterRetryCount < maxTwitterRetries) {
+          twitterRetryCount++;
+          const delay = twitterRetryCount <= 10 ? 100 : 500;
+          setTimeout(processTwitter, delay);
+        } else {
+          console.warn('[DirectRiddleContent] Twitter 최대 재시도 도달');
+        }
+
+        return false;
+      };
+
+      // 즉시 시작
+      setTimeout(processTwitter, 0);
+    }
+
     // 단순한 Riddle 스크립트 로드만
     const loadRiddleScript = () => {
       const existingScript = document.querySelector('script[src*="riddle.com/embed"]');
@@ -86,18 +211,49 @@ const DirectRiddleContent = ({ content }) => {
   }
 
   return (
-    <div
-      ref={contentRef}
-      className="article-content"
-      style={{
-        fontSize: '16px',
-        lineHeight: '1.6',
-        color: '#333',
-        minHeight: 'auto',
-        height: 'auto',
-        overflow: 'visible'
-      }}
-    />
+    <>
+      <div
+        ref={contentRef}
+        className="article-content"
+        style={{
+          fontSize: '16px',
+          lineHeight: '1.6',
+          color: '#333',
+          minHeight: 'auto',
+          height: 'auto',
+          overflow: 'visible'
+        }}
+      />
+      <style jsx>{`
+        /* Twitter 임베드 여백 제한 */
+        :global(.article-content .twitter-tweet-rendered) {
+          margin-bottom: 1rem !important;
+        }
+
+        :global(.article-content iframe[id^="twitter-widget-"]) {
+          display: block !important;
+          margin-bottom: 1rem !important;
+          height: 600px !important;
+          max-height: 600px !important;
+          overflow: hidden !important;
+        }
+
+        /* Twitter 임베드 컨테이너 여백 제거 */
+        :global(.article-content blockquote.twitter-tweet) {
+          margin-bottom: 1rem !important;
+        }
+
+        /* 임베드 후 생성되는 빈 p 태그 제거 */
+        :global(.article-content p:empty) {
+          display: none !important;
+        }
+
+        /* 연속된 br 태그 제한 */
+        :global(.article-content br + br + br) {
+          display: none !important;
+        }
+      `}</style>
+    </>
   );
 };
 

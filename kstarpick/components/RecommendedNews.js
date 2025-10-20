@@ -6,8 +6,10 @@ const RecommendedNews = ({ allNews = [] }) => {
     return null;
   }
   
-  // 로그 출력
-  console.log("RecommendedNews - 전체 뉴스 개수:", allNews.length);
+  // 로그 출력 (개발 환경에서만)
+  if (process.env.NODE_ENV === 'development') {
+    console.log("RecommendedNews - 전체 뉴스 개수:", allNews.length);
+  }
   
   // Helper function to safely get from cookies
   const getCookieValue = (cookieName, defaultValue = []) => {
@@ -80,8 +82,10 @@ const RecommendedNews = ({ allNews = [] }) => {
         .sort((a, b) => b.score - a.score)
         .slice(0, 6);
         
-      // 최종 선택된 뉴스의 제목 로깅
-      console.log("RecommendedNews - 최종 선택된 뉴스:", recommendations.map(news => news.title));
+      // 최종 선택된 뉴스의 제목 로깅 (개발 환경에서만)
+      if (process.env.NODE_ENV === 'development') {
+        console.log("RecommendedNews - 최종 선택된 뉴스:", recommendations.map(news => news.title));
+      }
       
       return recommendations;
     } catch (error) {
@@ -102,16 +106,20 @@ const RecommendedNews = ({ allNews = [] }) => {
   
   // Render without hooks
   return (
-    <section className="mb-8 md:mb-16">
+    <section className="mt-16 md:mt-24 mb-8 md:mb-16">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center">
-          <div className="w-2 h-16 bg-gradient-to-b from-purple-600 to-pink-500 rounded-full mr-5"></div>
+          {/* Love Circled Icon */}
+          <div className="mr-4 flex-shrink-0">
+            <img
+              src="/images/icons8-love-circled-94.png"
+              alt="Love Circled Icon"
+              className="h-12 w-12 object-contain"
+            />
+          </div>
           <div>
-            <span className="text-pink-600 text-sm font-semibold tracking-wider uppercase mb-1 block">For You</span>
+            <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#233CFA' }}>For You</span>
             <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-pink-600 mr-3">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.499z" />
-              </svg>
               Recommended News
             </h2>
           </div>
@@ -121,15 +129,15 @@ const RecommendedNews = ({ allNews = [] }) => {
       {/* Desktop Grid Layout - use Next.js Link component */}
       <div className="hidden md:grid md:grid-cols-3 gap-6">
         {recommendedNews.map((news, idx) => (
-          <div key={news._id || news.id || `desktop-${idx}`} className="bg-white rounded-xl overflow-hidden transition-all duration-300 group relative">
+          <div key={news._id || news.id || `desktop-${idx}`} className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">
             <Link href={`/news/${news._id || news.id}`} passHref>
               <div className="block cursor-pointer">
-                <div className="h-56 overflow-hidden relative rounded-xl">
+                <div className="h-56 overflow-hidden relative rounded-md">
                   {news.coverImage ? (
                     <img
                       src={news.coverImage}
                       alt={news.title}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-xl"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-md"
                       onError={(e) => {
                         e.target.onerror = null;
                         e.target.src = "/images/placeholder.jpg";
@@ -141,20 +149,10 @@ const RecommendedNews = ({ allNews = [] }) => {
                     </div>
                   )}
                   
-                  {/* Add top decorative element */}
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#8e44ad] via-[#9b59b6] to-[#d35400] opacity-80 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  
-                  {/* 카테고리 배지 */}
-                  <div className="absolute top-2 left-2 md:top-3 md:left-3 z-20">
-                    <span className="px-2 py-1 md:px-3 md:py-1.5 text-white text-xs font-medium rounded-full backdrop-blur-sm"
-                          style={{ background: 'linear-gradient(to right, #9333ea, #ec4899)' }}>
-                      {news.category || 'News'}
-                    </span>
-                  </div>
                 </div>
                 
                 <div className="p-4">
-                  <h3 className="font-bold text-gray-800 text-lg mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#8e44ad] transition-colors">
+                  <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#8e44ad] transition-colors">
                     {news.title}
                   </h3>
                   
@@ -174,9 +172,9 @@ const RecommendedNews = ({ allNews = [] }) => {
                     </div>
                     
                     {/* Read more 버튼 */}
-                    <span className="inline-flex items-center text-transparent bg-clip-text bg-gradient-to-r from-purple-600 via-pink-500 to-rose-500 text-xs font-medium hover:underline cursor-pointer group">
-                      Read more 
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="ml-1 group-hover:animate-pulse">
+                    <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#233CFA' }}>
+                      Read more
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="ml-1 group-hover:animate-pulse" style={{ color: '#233CFA' }}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                       </svg>
                     </span>
@@ -195,11 +193,11 @@ const RecommendedNews = ({ allNews = [] }) => {
             <div className="block bg-white overflow-hidden py-3 cursor-pointer">
               <div className="flex gap-1">
                 {/* Thumbnail */}
-                <div className="w-40 h-32 flex-shrink-0 relative rounded-xl overflow-hidden">
+                <div className="w-40 h-32 flex-shrink-0 relative rounded-md overflow-hidden">
                   <img
                     src={news.coverImage || '/images/placeholder.jpg'}
                     alt={news.title}
-                    className="w-full h-full object-cover rounded-xl"
+                    className="w-full h-full object-cover rounded-md"
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = "/images/placeholder.jpg";
@@ -211,34 +209,15 @@ const RecommendedNews = ({ allNews = [] }) => {
                 {/* Content */}
                 <div className="flex-1 pt-0 pr-3 pb-0 pl-3 flex flex-col justify-between h-32">
                   <div>
-                    <div className="flex items-center gap-2 items-start mb-2">
-                      <span className="px-2 py-0.5 text-xs font-medium rounded-full text-white"
-                            style={{ background: 'linear-gradient(to right, #9333ea, #ec4899)' }}>
-                        {news.category || 'News'}
-                      </span>
-                      {news.views > 1000 && (
-                        <span className="text-pink-600 text-xs flex items-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="mr-1">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                          </svg>
-                          Trending
-                        </span>
-                      )}
-                    </div>
-                    <h3 className="text-sm font-semibold line-clamp-3 text-gray-800">
+                    <h3 className="text-base md:text-lg font-semibold line-clamp-3 text-gray-800 mt-2">
                       {news.title}
                     </h3>
                   </div>
-                  <div className="flex items-end justify-between w-full mt-2">
-                    <div className="flex items-center text-gray-500 text-xs">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="mr-1">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {new Date(news.createdAt).toLocaleDateString()}
-                    </div>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="text-pink-500">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  <div className="flex items-center text-gray-500 text-xs mt-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="mr-1">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
+                    {new Date(news.createdAt).toLocaleDateString()}
                   </div>
                 </div>
               </div>

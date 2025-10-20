@@ -152,9 +152,11 @@ export default function Document() {
                 document.head.appendChild(script);
               };
               
-              // 뉴스 상세페이지에서만 스크립트 로드
+              // 뉴스 상세페이지에서만 스크립트 즉시 로드
               if (isNewsDetailPage()) {
-                console.log('[Global Script] 뉴스 상세페이지 - 임베드 스크립트 로드 시작');
+                console.log('[Global Script] 뉴스 상세페이지 - 임베드 스크립트 즉시 로드');
+
+                // 즉시 스크립트 로드 (대기 없음)
                 window.loadInstagramScript();
                 window.loadTwitterScript();
                 window.loadRiddleScript();

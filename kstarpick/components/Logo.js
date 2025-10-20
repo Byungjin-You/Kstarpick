@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 
@@ -74,8 +74,15 @@ export default function Logo() {
   if (!isClient) {
     return (
       <div className="block cursor-pointer" onClick={handleLogoClick}>
-        <div className="w-auto h-[50px] flex items-center">
-          <span className="text-[#ff3e8e] font-bold text-xl">K-POP News</span>
+        <div className="w-auto h-[40px] flex items-center">
+          <Image
+            src="/images/KSTARPICK Logo - Emblem Style, Futuristic Aesthetic.png"
+            alt="Kstarpick Logo"
+            width={135}
+            height={40}
+            className="object-contain"
+            priority
+          />
         </div>
       </div>
     );
@@ -83,40 +90,25 @@ export default function Logo() {
   
   // Client-side rendering
   return (
-    <div 
+    <div
       className="block cursor-pointer"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleLogoClick}
     >
-      <div className={`w-auto h-[50px] relative flex items-center transition-all duration-300 ${isHovered ? 'scale-105' : ''}`}>
+      <div className={`w-auto h-[40px] relative flex items-center transition-all duration-300 ${isHovered ? 'scale-105' : ''}`}>
         <div className="flex items-center">
-          {/* 음표 아이콘 */}
-          <div className={`mr-2 transition-transform duration-500 ${isHovered ? 'rotate-12' : ''}`}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M9 17.25V8.25M9 17.25C9 18.4926 7.99264 19.5 6.75 19.5C5.50736 19.5 4.5 18.4926 4.5 17.25C4.5 16.0074 5.50736 15 6.75 15C7.99264 15 9 16.0074 9 17.25ZM15 14.25V5.25M15 14.25C15 15.4926 13.9926 16.5 12.75 16.5C11.5074 16.5 10.5 15.4926 10.5 14.25C10.5 13.0074 11.5074 12 12.75 12C13.9926 12 15 13.0074 15 14.25Z" 
-                stroke="url(#music-gradient)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <defs>
-                <linearGradient id="music-gradient" x1="4.5" y1="5.25" x2="15" y2="19.5" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#ff3e8e" />
-                  <stop offset="1" stopColor="#ffb67b" />
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-          
-          {/* 텍스트 로고 */}
-          <div className="flex flex-col">
-            <div className="flex items-baseline">
-              <span className={`font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-[#ff3e8e] to-[#ffb67b] text-2xl tracking-tighter transition-all duration-300 ${isHovered ? 'tracking-normal' : ''}`}>
-                K-POP
-              </span>
-              <span className="text-lg font-bold ml-1 text-gray-800">NEWS</span>
-            </div>
-            <span className="text-[10px] text-gray-500 font-medium -mt-1">Your Daily Korean Updates</span>
-          </div>
+          {/* 이미지 로고 */}
+          <Image
+            src="/images/KSTARPICK Logo - Emblem Style, Futuristic Aesthetic.png"
+            alt="Kstarpick Logo"
+            width={135}
+            height={40}
+            className="object-contain"
+            priority
+          />
         </div>
-        
+
         {/* 애니메이션 효과 - 호버 시 표시되는 파티클 효과 */}
         {isHovered && (
           <div className="absolute -right-2 -top-1">

@@ -36,19 +36,18 @@ const GlobalLoading = () => {
         {/* 로딩 애니메이션 */}
         <div className="relative w-16 h-16 mb-4">
           <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-          <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-[#ff3e8e] animate-spin"></div>
-          <div className="absolute inset-2 rounded-full border-2 border-transparent border-b-[#ff8360] animate-reverse-spin"></div>
+          <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-[#233CFA] animate-spin"></div>
+          <div className="absolute inset-2 rounded-full border-2 border-transparent border-b-[#5a6eff] animate-reverse-spin"></div>
         </div>
-        
+
         {/* 로딩 텍스트 */}
         <div className="text-center">
           <p className="text-lg font-medium text-gray-800 mb-1">Loading...</p>
-          <p className="text-sm text-gray-500">페이지를 불러오고 있습니다</p>
         </div>
-        
+
         {/* 진행 바 */}
         <div className="w-64 h-1 bg-gray-200 rounded-full mt-4 overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-[#ff3e8e] to-[#ff8360] rounded-full animate-progress"></div>
+          <div className="h-full bg-gradient-to-r from-[#233CFA] to-[#5a6eff] rounded-full animate-progress"></div>
         </div>
       </div>
       
