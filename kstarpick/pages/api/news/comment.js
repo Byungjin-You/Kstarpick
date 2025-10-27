@@ -115,19 +115,19 @@ async function getComments(req, res) {
           author: user ? {
             _id: user._id,
             name: user.name,
-            image: user.image || '/images/default-avatar.png',
+            image: user.image || null, // null로 설정하여 프론트엔드에서 랜덤 아바타 사용
             isGuest: false
-          } : { name: 'Unknown User', image: '/images/default-avatar.png', isGuest: false }
+          } : { name: 'Unknown User', image: null, isGuest: false }
         };
       } else {
         // 게스트 사용자 댓글
         console.log('Guest comment found:', comment);
         return {
           ...comment,
-          author: { 
-            name: comment.guestName || 'Guest', 
-            image: '/images/default-avatar.png',
-            isGuest: true 
+          author: {
+            name: comment.guestName || 'Guest',
+            image: null, // null로 설정하여 프론트엔드에서 랜덤 아바타 사용
+            isGuest: true
           }
         };
       }
@@ -269,10 +269,10 @@ async function addComment(req, res) {
       author: userId ? {
         _id: userId,
         name: userName || 'User',
-        image: session?.user?.image || '/images/default-avatar.png'
+        image: session?.user?.image || null // null로 설정하여 프론트엔드에서 랜덤 아바타 사용
       } : {
         name: finalGuestName,
-        image: '/images/default-avatar.png', 
+        image: null, // null로 설정하여 프론트엔드에서 랜덤 아바타 사용
         isGuest: true
       }
     };

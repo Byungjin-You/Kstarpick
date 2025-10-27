@@ -6,10 +6,7 @@ const RecommendedNews = ({ allNews = [] }) => {
     return null;
   }
   
-  // 로그 출력 (개발 환경에서만)
-  if (process.env.NODE_ENV === 'development') {
-    console.log("RecommendedNews - 전체 뉴스 개수:", allNews.length);
-  }
+  // 로그 제거
   
   // Helper function to safely get from cookies
   const getCookieValue = (cookieName, defaultValue = []) => {
@@ -82,10 +79,7 @@ const RecommendedNews = ({ allNews = [] }) => {
         .sort((a, b) => b.score - a.score)
         .slice(0, 6);
         
-      // 최종 선택된 뉴스의 제목 로깅 (개발 환경에서만)
-      if (process.env.NODE_ENV === 'development') {
-        console.log("RecommendedNews - 최종 선택된 뉴스:", recommendations.map(news => news.title));
-      }
+      // 로그 제거
       
       return recommendations;
     } catch (error) {

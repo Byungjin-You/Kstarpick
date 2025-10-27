@@ -17,9 +17,7 @@ const CardNews = React.memo(({ cards, featured }) => {
       const existingScroll = sessionStorage.getItem('homeScrollPosition');
       if (!existingScroll || existingScroll === '0' || parseInt(existingScroll) === 0) {
         sessionStorage.setItem('homeScrollPosition', currentScroll.toString());
-        console.log('📍 CardNews - 홈 스크롤 위치 저장:', currentScroll);
       } else {
-        console.log('📍 CardNews - 이미 저장된 스크롤 위치 유지:', existingScroll);
       }
     }
   }, [router.pathname]);
@@ -29,11 +27,7 @@ const CardNews = React.memo(({ cards, featured }) => {
     // 최대 6개의 피처드 카드만 사용하도록 제한
     let featuredCards = featured ? featured.slice(0, 6) : cards.filter(card => card.featured).slice(0, 6);
 
-    // 디버깅 로그 (개발 환경에서만)
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[CardNews] Featured prop:', featured ? featured.length : 'null', '개');
-      console.log('[CardNews] Featured cards:', featuredCards.length, '개');
-    }
+    // 로그 제거
 
     // If we don't have enough featured cards, add some from regular cards
     if (featuredCards.length < 6) {

@@ -3,13 +3,8 @@ import { useEffect, useRef } from 'react';
 const DirectRiddleContent = ({ content }) => {
   const contentRef = useRef(null);
 
-  console.log('[DirectRiddleContent] 컴포넌트 렌더링, content 길이:', content?.length || 0);
-
   useEffect(() => {
-    console.log('[DirectRiddleContent] useEffect 시작, contentRef 존재:', !!contentRef.current);
-
     if (!content || !contentRef.current) {
-      console.log('[DirectRiddleContent] useEffect 건너뜀 - content:', !!content, 'contentRef:', !!contentRef.current);
       return;
     }
 
@@ -50,36 +45,24 @@ const DirectRiddleContent = ({ content }) => {
     // DOM에 정리된 HTML 삽입
     contentRef.current.innerHTML = cleanedContent;
 
-    console.log('[DirectRiddleContent] HTML 삽입 완료');
-    console.log('[DirectRiddleContent] Instagram blockquote 존재:', cleanedContent.includes('instagram-media'));
-    console.log('[DirectRiddleContent] Twitter blockquote 존재:', cleanedContent.includes('twitter-tweet'));
-
     // Instagram 임베드 처리
     if (cleanedContent.includes('instagram-media')) {
-      console.log('[DirectRiddleContent] Instagram 처리 시작');
-
       let instagramRetryCount = 0;
       const maxInstagramRetries = 30;
 
       const processInstagram = () => {
-        console.log(`[DirectRiddleContent] Instagram 시도 #${instagramRetryCount + 1}`);
-
         if (window.instgrm && window.instgrm.Embeds) {
           const blockquotes = contentRef.current?.querySelectorAll('blockquote.instagram-media');
-          console.log(`[DirectRiddleContent] Instagram blockquote 발견: ${blockquotes?.length || 0}개`);
 
           if (blockquotes && blockquotes.length > 0) {
             try {
-              console.log('[DirectRiddleContent] instgrm.Embeds.process() 실행');
               window.instgrm.Embeds.process();
-              console.log('[DirectRiddleContent] Instagram 처리 완료');
               return true;
             } catch (error) {
               console.error('[DirectRiddleContent] Instagram 처리 오류:', error);
             }
           }
         } else {
-          console.log('[DirectRiddleContent] Instagram 스크립트 대기 중...');
           if (window.loadInstagramScript) {
             window.loadInstagramScript();
           }
@@ -102,24 +85,16 @@ const DirectRiddleContent = ({ content }) => {
 
     // Twitter 임베드 처리
     if (cleanedContent.includes('twitter-tweet')) {
-      console.log('[DirectRiddleContent] Twitter 처리 시작');
-
       let twitterRetryCount = 0;
       const maxTwitterRetries = 30;
 
       const processTwitter = () => {
-        console.log(`[DirectRiddleContent] Twitter 시도 #${twitterRetryCount + 1}`);
-
         if (window.twttr && window.twttr.widgets) {
           const blockquotes = contentRef.current?.querySelectorAll('blockquote.twitter-tweet');
-          console.log(`[DirectRiddleContent] Twitter blockquote 발견: ${blockquotes?.length || 0}개`);
 
           if (blockquotes && blockquotes.length > 0) {
             try {
-              console.log('[DirectRiddleContent] twttr.widgets.load() 실행');
               window.twttr.widgets.load(contentRef.current).then(() => {
-                console.log('[DirectRiddleContent] Twitter 위젯 로드 완료, iframe 높이 조정 시작');
-
                 // 약간의 지연 후 iframe 높이 강제 조정
                 setTimeout(() => {
                   const twitterIframes = contentRef.current?.querySelectorAll('iframe[id^="twitter-widget-"]');
@@ -136,20 +111,16 @@ const DirectRiddleContent = ({ content }) => {
                         iframe.parentElement.style.setProperty('max-height', '600px', 'important');
                         iframe.parentElement.style.overflow = 'hidden';
                       }
-
-                      console.log('[DirectRiddleContent] Twitter iframe 높이 조정 완료:', iframe.id, 'offsetHeight:', iframe.offsetHeight);
                     });
                   }
                 }, 500);
               });
-              console.log('[DirectRiddleContent] Twitter 처리 완료');
               return true;
             } catch (error) {
               console.error('[DirectRiddleContent] Twitter 처리 오류:', error);
             }
           }
         } else {
-          console.log('[DirectRiddleContent] Twitter 스크립트 대기 중...');
           if (window.loadTwitterScript) {
             window.loadTwitterScript();
           }

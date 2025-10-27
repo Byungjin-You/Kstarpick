@@ -47,13 +47,33 @@ export default function Document() {
         <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png" />
         <link rel="manifest" href="/site.webmanifest" />
         
+        {/* 무한 새로고침 방지: logoClicked 플래그 강제 제거 */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // 즉시 실행: logoClicked 플래그 제거
+              (function() {
+                try {
+                  const logoClicked = sessionStorage.getItem('logoClicked');
+                  if (logoClicked) {
+                    console.log('[_document.js CLEANUP] logoClicked 플래그 발견 및 즉시 제거:', logoClicked);
+                    sessionStorage.removeItem('logoClicked');
+                  }
+                } catch(e) {
+                  console.error('[_document.js CLEANUP] sessionStorage 초기화 오류:', e);
+                }
+              })();
+            `
+          }}
+        />
+
         {/* 소셜 미디어 임베드 스크립트 - 뉴스 페이지에서만 로드 */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               // 현재 페이지가 뉴스 상세페이지인지 확인
               function isNewsDetailPage() {
-                return window.location.pathname.startsWith('/news/') && 
+                return window.location.pathname.startsWith('/news/') &&
                        window.location.pathname !== '/news' &&
                        !window.location.pathname.endsWith('/news');
               }

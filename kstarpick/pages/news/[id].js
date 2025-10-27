@@ -1279,8 +1279,13 @@ const comments = [
 // 사용자별 고정 아바타 선택 함수
 const getAvatarByUser = (userId, userName) => {
   const avatars = [
-    '/images/icons8-butterfly-50.png',
-    '/images/icons8-frog-head-50.png'
+    '/images/icons8-bt21-koya-50.png',
+    '/images/icons8-bt21-rj-50.png',
+    '/images/icons8-bt21-shooky-50.png',
+    '/images/icons8-bt21-mang-50.png',
+    '/images/icons8-bt21-chimmy-50.png',
+    '/images/icons8-bt21-tata-50.png',
+    '/images/icons8-bt21-cooky-50.png'
   ];
 
   // userId 또는 userName을 기반으로 해시값 생성
@@ -1291,8 +1296,10 @@ const getAvatarByUser = (userId, userName) => {
     hash = hash & hash; // Convert to 32bit integer
   }
 
+  const selectedAvatar = avatars[Math.abs(hash) % avatars.length];
+
   // 항상 같은 인덱스 반환
-  return avatars[Math.abs(hash) % avatars.length];
+  return selectedAvatar;
 };
 
 export default function NewsDetail({ newsArticle, relatedArticles }) {
@@ -1370,18 +1377,14 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
     const scrollY = window.pageYOffset || document.documentElement.scrollTop || window.scrollY || 0;
     lastScrollY.current = scrollY;
 
-    console.log('Scroll detected, position:', scrollY);
-
     if (!ticking.current) {
       window.requestAnimationFrame(() => {
         const currentScrollY = lastScrollY.current;
 
         // 백투탑 버튼 표시 여부
         if (currentScrollY > 300) {
-          console.log('Showing back to top button, scroll:', currentScrollY);
           setShowBackToTop(true);
         } else {
-          console.log('Hiding back to top button, scroll:', currentScrollY);
           setShowBackToTop(false);
         }
 
@@ -1485,6 +1488,50 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // 뉴스 상세 페이지 스크롤 위치 저장 및 복원
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // URL 슬러그를 사용 (MongoDB ID가 아닌)
+    const newsSlug = window.location.pathname.split('/news/')[1];
+    if (!newsSlug) return;
+
+    // 뒤로가기로 돌아온 경우 스크롤 위치 복원
+    const savedScrollPosition = sessionStorage.getItem(`newsScroll_${newsSlug}`);
+    const isBackNavigation = sessionStorage.getItem('isBackToNewsDetail') === 'true';
+
+    if (isBackNavigation && savedScrollPosition) {
+      const scrollPos = parseInt(savedScrollPosition, 10);
+
+      // 스크롤 복원 함수
+      const restoreScroll = () => {
+        window.scrollTo(0, scrollPos);
+        document.documentElement.scrollTop = scrollPos;
+        document.body.scrollTop = scrollPos;
+      };
+
+      // 1차: 즉시 복원 시도
+      restoreScroll();
+
+      // 2차: DOM 렌더링 직후 (RAF 2번 중첩으로 레이아웃 재계산 대기)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          restoreScroll();
+        });
+      });
+
+      // 3차: 이미지 로딩 등을 고려한 지연 복원
+      setTimeout(() => restoreScroll(), 100);
+
+      // 최종: 확실한 복원 및 플래그 제거
+      setTimeout(() => {
+        restoreScroll();
+        sessionStorage.removeItem('isBackToNewsDetail');
+      }, 300);
+    }
+
+  }, [router]);
+
   // Handle like functionality
   const handleLike = () => {
     // 좋아요 상태 토글
@@ -1535,23 +1582,21 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
     try {
       if (!newsArticle?._id) return;
       
-      console.log('Fetching comments for:', newsArticle._id);
       const response = await fetch(`/api/news/comment?id=${newsArticle._id}`);
       
       const data = await response.json();
-      console.log('Fetched comments:', data);
       
       if (response.ok && data.success) {
         // API에서 받은 댓글 형식으로 변환
         const formattedComments = data.comments.map(comment => {
-          console.log('Processing comment:', comment);
           const userId = comment.author?._id || comment._id;
           const userName = comment.author?.name || comment.guestName || 'Guest';
+          const avatarUrl = comment.author?.image || getAvatarByUser(userId, userName);
           return {
             id: comment._id,
             author: userName,
             authorId: comment.author?._id || '',
-            avatar: comment.author?.image || getAvatarByUser(userId, userName),
+            avatar: avatarUrl,
             text: comment.content,
             timestamp: comment.createdAt,
             likes: 0,
@@ -1559,7 +1604,6 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
             isGuest: comment.isGuest || comment.author?.isGuest || false
           };
         });
-        console.log('Formatted comments:', formattedComments);
         setLocalComments(formattedComments);
       } else {
         console.error('API error fetching comments:', data.message);
@@ -1604,13 +1648,6 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
     
     try {
       // 디버깅용 로그 추가
-      console.log('Submitting comment with data:', { 
-        newsId: newsArticle._id, 
-        content: newComment,
-        guestName: session ? undefined : currentGuestName,
-        isLoggedIn: !!session
-      });
-      
       // API를 통해 댓글 등록
       const response = await fetch('/api/news/comment', {
         method: 'POST',
@@ -1625,31 +1662,19 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
       });
       
       const result = await response.json();
-      
+
       if (response.ok && result.success) {
-        console.log('Comment added successfully:', result);
         // 댓글 등록 성공 시 댓글 목록 갱신
         fetchComments();
         setNewComment('');
       } else {
-        console.error('Error posting comment:', result);
         alert(`댓글 등록에 실패했습니다: ${result.message || '알 수 없는 오류가 발생했습니다.'}`);
       }
     } catch (error) {
-      console.error('Error posting comment:', error);
       alert('댓글 등록 중 오류가 발생했습니다.');
     } finally {
       setSubmittingComment(false);
     }
-  };
-  
-  // 댓글 좋아요 처리
-  const handleCommentLike = (index) => {
-    const updatedComments = [...localComments];
-    // 좋아요 상태 토글
-    updatedComments[index].liked = !updatedComments[index].liked;
-    updatedComments[index].likes += updatedComments[index].liked ? 1 : -1;
-    setLocalComments(updatedComments);
   };
   
   // 댓글 삭제 처리
@@ -1694,18 +1719,20 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
   useEffect(() => {
     if (!session && !guestName) {
       const randomName = generateRandomNickname();
-      console.log('Generated random nickname:', randomName);
       setGuestName(randomName);
     }
   }, [session, guestName]);
 
-  // relatedArticles가 변경될 때 relatedNewsIds를 업데이트
+  // relatedArticles가 변경될 때 relatedNewsIds를 업데이트 (현재 뉴스 제외)
   useEffect(() => {
-    if (relatedArticles && relatedArticles.length > 0) {
-      const displayedNewsIds = relatedArticles.slice(0, 6).map(news => news._id);
+    if (relatedArticles && relatedArticles.length > 0 && newsArticle) {
+      const displayedNewsIds = relatedArticles
+        .filter(news => news._id !== newsArticle._id && news.slug !== newsArticle.slug)
+        .slice(0, 6)
+        .map(news => news._id);
       setRelatedNewsIds(displayedNewsIds);
     }
-  }, [relatedArticles]);
+  }, [relatedArticles, newsArticle]);
 
 
 
@@ -2183,7 +2210,7 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                             <button
                               type="submit"
                               disabled={!newComment.trim() || submittingComment}
-                              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                              className={`flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition-all text-sm md:text-base ${
                                 !newComment.trim() || submittingComment
                                   ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                                   : 'text-white hover:shadow-md'
@@ -2191,7 +2218,7 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                               style={!newComment.trim() || submittingComment ? {} : { backgroundColor: '#233CFA' }}
                             >
                               {submittingComment ? 'Posting...' : 'Post Comment'}
-                              <Send size={16} className={submittingComment ? 'animate-pulse' : ''} />
+                              <Send size={14} className={`md:w-4 md:h-4 ${submittingComment ? 'animate-pulse' : ''}`} />
                             </button>
                           </div>
                         )}
@@ -2202,8 +2229,6 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                     <div className="space-y-6">
                       {localComments.length > 0 ? (
                         localComments.map((comment, index) => {
-                          console.log('Rendering comment:', comment);
-                          console.log('Avatar path:', comment.avatar);
                           const colors = getColorFromNickname(comment.author);
                           return (
                           <div key={comment.id || index} className="flex gap-3 pb-6 border-b border-purple-100/40 last:border-0">
@@ -2258,24 +2283,8 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                                 </div>
                               </div>
                               
-                              <div className="bg-white rounded-lg p-3 mb-2 shadow-sm border border-purple-100/30">
+                              <div className="bg-white rounded-lg p-3 shadow-sm border border-purple-100/30">
                                 <p className="text-gray-700">{comment.text}</p>
-                              </div>
-                              
-                              <div className="flex items-center gap-4 text-xs">
-                                <button 
-                                  onClick={() => handleCommentLike(index)}
-                                  className={`flex items-center gap-1 transition-colors ${
-                                    comment.liked ? 'text-[#ff3e8e]' : 'text-gray-500 hover:text-gray-700'
-                                  }`}
-                                >
-                                  <ThumbsUp size={14} className={comment.liked ? 'fill-[#ff3e8e]' : ''} />
-                                  <span>{comment.likes}</span>
-                                </button>
-                                
-                                <button className="text-gray-500 hover:text-gray-700 transition-colors">
-                                  Reply
-                                </button>
                               </div>
                             </div>
                           </div>
@@ -2293,14 +2302,27 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                     <div className="flex items-center mb-4">
                       <div className="flex items-center">
                         <img src="/images/icons8-link-48.png" alt="Related News" className="mr-2 w-5 h-5" />
-                        <h3 className="text-xl md:text-2xl font-bold text-gray-800">Related News</h3>
+                        <h3 className="text-xl md:text-2xl font-bold text-gray-800">
+                          Related News
+                        </h3>
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      {relatedArticles && relatedArticles.length > 0 ? (
-                        relatedArticles.slice(0, 6).map((news, idx) => (
-                          <Link href={`/news/${news._id || news.id}`} key={news._id || news.id || `related-${idx}`} passHref>
+                      {(() => {
+                        const filtered = relatedArticles.filter(news => {
+                          const isDifferentById = news._id !== newsArticle._id;
+                          const isDifferentBySlug = news.slug !== newsArticle.slug;
+                          return isDifferentById && isDifferentBySlug;
+                        });
+
+                        const displayedNews = relatedArticles && relatedArticles.length > 0
+                          ? filtered.slice(0, 6)
+                          : [];
+
+                        return displayedNews.length > 0 ? (
+                          displayedNews.map((news, idx) => (
+                          <Link href={`/news/${news.slug || news._id || news.id}`} key={news._id || news.id || `related-${idx}`} passHref>
                             <div className="block bg-white overflow-hidden py-3 cursor-pointer">
                               <div className="flex gap-1">
                                 {/* Thumbnail */}
@@ -2332,12 +2354,13 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                               </div>
                             </div>
                           </Link>
-                        ))
-                      ) : (
-                        <div className="text-center p-8 bg-gray-50 rounded-lg">
-                          <p className="text-gray-500">No related articles found</p>
-                        </div>
-                      )}
+                          ))
+                        ) : (
+                          <div className="text-center p-8 bg-gray-50 rounded-lg">
+                            <p className="text-gray-500">No related articles found</p>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -2354,9 +2377,9 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {relatedArticles && relatedArticles.length > 0 ? (
-                    // 이미 Related News 섹션에 표시된 뉴스 ID 기반으로 필터링
+                    // 현재 뉴스와 Related News 섹션에 표시된 뉴스 제외
                     relatedArticles
-                      .filter(news => !relatedNewsIds.includes(news._id))
+                      .filter(news => news._id !== newsArticle._id && news.slug !== newsArticle.slug && !relatedNewsIds.includes(news._id))
                       .slice(0, 6)
                       .map((news, index) => (
                       <Link key={index} href={`/news/${news.slug || news._id}`} className="group">
@@ -2527,6 +2550,7 @@ export async function getServerSideProps({ params }) {
       .limit(12) // 12개로 제한
       .project({ // 필요한 필드만 선택
         _id: 1,
+        slug: 1,
         title: 1,
         coverImage: 1,
         thumbnailUrl: 1,
@@ -2553,6 +2577,7 @@ export async function getServerSideProps({ params }) {
         .limit(6 - relatedArticles.length)
         .project({
           _id: 1,
+          slug: 1,
           title: 1,
           coverImage: 1,
           thumbnailUrl: 1,
@@ -2589,12 +2614,19 @@ export async function getServerSideProps({ params }) {
       thumbnailUrl: newsArticle.thumbnailUrl || newsArticle.coverImage
     };
     
-    const processedRelatedArticles = finalRelatedArticles.map(article => ({
+    // 현재 뉴스를 명시적으로 제외 (slug와 _id 모두 체크)
+    const filteredRelatedArticles = finalRelatedArticles.filter(article => {
+      const isDifferentById = article._id.toString() !== newsArticle._id.toString();
+      const isDifferentBySlug = !article.slug || !newsArticle.slug || article.slug !== newsArticle.slug;
+      return isDifferentById && isDifferentBySlug;
+    });
+
+    const processedRelatedArticles = filteredRelatedArticles.map(article => ({
       ...article,
       _id: article._id.toString(),
-      createdAt: article.createdAt 
-        ? (article.createdAt instanceof Date 
-           ? article.createdAt.toISOString() 
+      createdAt: article.createdAt
+        ? (article.createdAt instanceof Date
+           ? article.createdAt.toISOString()
            : article.createdAt)
         : null,
       // thumbnailUrl이 없으면 coverImage를 사용

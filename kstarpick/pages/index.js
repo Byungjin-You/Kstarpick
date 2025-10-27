@@ -59,10 +59,7 @@ function Home({ initialData }) {
   const [rankingNews, setRankingNews] = useState(initialData?.rankingNews || []);
   const [moreNews, setMoreNews] = useState(initialData?.moreNews || []);
   const [error, setError] = useState(null);
-  
-  // 로고 클릭 감지를 위한 상태
-  const [logoClickTrigger, setLogoClickTrigger] = useState(0);
-  
+
   // 클라이언트 마운트 상태 (하이드레이션 에러 방지)
   const [isClientMounted, setIsClientMounted] = useState(false);
   
@@ -84,42 +81,31 @@ function Home({ initialData }) {
 
     // 로고 클릭이 아닌 경우에만 동일한 페이지로 이동 시도를 무시
     if (!isLogoClick && (router.pathname === path || router.asPath === path)) {
-      console.log('동일한 페이지로 이동 시도 무시:', path);
       return false;
     }
 
     // 로고 클릭이 아닌 경우에만 홈페이지로의 중복 이동을 무시
     if (!isLogoClick && path === '/' && (router.pathname === '/' || router.asPath === '/')) {
-      console.log('홈페이지로 이동 시도 무시:', path);
       return false;
     }
 
-    console.log('홈에서 다른 페이지로 이동:', path);
-
     // 페이지 이동 전에 현재 스크롤 위치 저장 (홈 페이지에서 떠날 때)
-    if (typeof window !== 'undefined' && router.pathname === '/') {
-      const currentScroll = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-      sessionStorage.setItem('homeScrollPosition', currentScroll.toString());
-      console.log('✅ navigateToPage - 홈 스크롤 위치 저장:', currentScroll);
-    }
+    // _app.js의 routeChangeStart에서 저장하므로 여기서는 제거
 
     // 페이지 이동 전에 현재 featured 뉴스와 watch 뉴스를 캐시에 저장
     if (typeof window !== 'undefined') {
       if (featuredArticles.length > 0) {
         sessionStorage.setItem('cachedFeaturedNews', JSON.stringify(featuredArticles));
         sessionStorage.setItem('featuredNewsCacheTime', Date.now().toString());
-        console.log('📦 Featured 뉴스 캐시 저장:', featuredArticles.length, '개');
       }
       if (watchNews.length > 0) {
         sessionStorage.setItem('cachedWatchNews', JSON.stringify(watchNews));
         sessionStorage.setItem('watchNewsCacheTime', Date.now().toString());
-        console.log('📦 Watch 뉴스 캐시 저장:', watchNews.length, '개');
       }
     }
 
     // 동일한 페이지로 이동하려는 경우 방지
     if (path === router.pathname || path === router.asPath || path === window.location.pathname) {
-      console.log('동일한 페이지로의 이동 시도 방지:', path);
       return false;
     }
 
@@ -175,28 +161,32 @@ function Home({ initialData }) {
 
   // 이제 SSR로 데이터를 받으므로 클라이언트 사이드 로딩 불필요
 
+  // 🔧 무한 새로고침 방지: logoClicked 플래그 강제 제거
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const logoClicked = sessionStorage.getItem('logoClicked');
+      if (logoClicked) {
+        console.log('[CLEANUP] logoClicked 플래그 발견 및 제거:', logoClicked);
+        sessionStorage.removeItem('logoClicked');
+      }
+    }
+  }, []); // 페이지 로드 시 한 번만 실행
+
   // 랭킹 뉴스가 로드되면 슬라이더 데이터를 업데이트 (초기 표시 이후)
   useEffect(() => {
     if (todayRankingNews.length > 0) {
       // Today 랭킹 뉴스에서 최대 6개를 선택
       const topNews = todayRankingNews.slice(0, 6);
       setTopStoriesData(topNews);
-
-      if (process.env.NODE_ENV === 'development') {
-        console.log('✅ Top Stories 데이터 업데이트 (Today 랭킹 기준):', topNews.length, '개');
-      }
     }
   }, [todayRankingNews]);
 
   // topSongs 데이터 검사 및 수정
   useEffect(() => {
     if (topSongs && topSongs.length > 0) {
-      console.log('Top Songs 데이터:', topSongs.length, '개');
-      
       // youtubeUrl이 없는 노래 항목 찾기
       const songsWithoutUrl = topSongs.filter(song => !song.youtubeUrl);
       if (songsWithoutUrl.length > 0) {
-        console.log('유튜브 URL이 없는 노래:', songsWithoutUrl.length, '개');
         
         // 기본 아티스트별 유튜브 URL 매핑
         const defaultArtistUrls = {
@@ -216,19 +206,13 @@ function Home({ initialData }) {
             // 아티스트 기반으로 URL 찾기
             if (song.artist && defaultArtistUrls[song.artist]) {
               song.youtubeUrl = defaultArtistUrls[song.artist];
-              console.log(`'${song.title}' 노래에 기본 유튜브 URL 추가:`, song.youtubeUrl);
             } else {
               // 기본 K-pop 인기 곡 URL
               song.youtubeUrl = 'https://www.youtube.com/watch?v=gdZLi9oWNZg'; // BTS Dynamite
-              console.log(`'${song.title}' 노래에 BTS Dynamite URL 추가`);
             }
           }
         });
-      } else {
-        console.log('모든 노래에 유튜브 URL이 있습니다.');
       }
-    } else {
-      console.log('Top Songs 데이터가 없습니다.');
     }
   }, [topSongs]);
 
@@ -338,15 +322,15 @@ function Home({ initialData }) {
   // Featured News 초기화 및 캐시 복원 로직
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     // 서버 데이터 확인
     const serverFeaturedNews = initialData?.featuredArticles || [];
 
     // 로고 클릭 플래그 확인 (최우선)
     const logoClicked = sessionStorage.getItem('logoClicked');
-    
+
     if (logoClicked === 'true') {
-      // 로고 클릭으로 인한 새로고침이므로 캐시 무시하고 새로운 랜덤 뉴스 생성
+      // 로고 클릭으로 인한 새로고침이므로 플래그 즉시 제거
       sessionStorage.removeItem('logoClicked');
       sessionStorage.removeItem('cachedFeaturedNews');
       sessionStorage.removeItem('featuredNewsCacheTime');
@@ -354,14 +338,14 @@ function Home({ initialData }) {
       if (serverFeaturedNews.length > 0) {
         const randomNews = shuffleArray([...serverFeaturedNews]).slice(0, 6);
         setFeaturedArticles(randomNews);
-        
+
         // 새로운 랜덤 뉴스를 캐시에 저장
         sessionStorage.setItem('cachedFeaturedNews', JSON.stringify(randomNews));
         sessionStorage.setItem('featuredNewsCacheTime', Date.now().toString());
       }
       return;
     }
-    
+
     // 뒤로가기로 인한 접근인지 확인
     const cached = sessionStorage.getItem('cachedFeaturedNews');
     const cacheTime = sessionStorage.getItem('featuredNewsCacheTime');
@@ -391,12 +375,12 @@ function Home({ initialData }) {
     if (serverFeaturedNews.length > 0) {
       const randomNews = shuffleArray([...serverFeaturedNews]).slice(0, 6);
       setFeaturedArticles(randomNews);
-      
+
       // 새로운 랜덤 뉴스를 캐시에 저장
       sessionStorage.setItem('cachedFeaturedNews', JSON.stringify(randomNews));
       sessionStorage.setItem('featuredNewsCacheTime', Date.now().toString());
     }
-  }, [logoClickTrigger]); // logoClickTrigger 변경 시에만 재실행
+  }, []); // logoClickTrigger 제거 - 페이지 로드 시 한 번만 실행
 
   // 클라이언트 마운트 감지 useEffect (하이드레이션 에러 방지)
   useEffect(() => {
@@ -419,7 +403,6 @@ function Home({ initialData }) {
             .slice(0, 6);
           
           if (process.env.NODE_ENV === 'development') {
-            console.log('✅ Watch News 클라이언트 로딩:', watchNewsFiltered.length, '개');
           }
           setWatchNews(watchNewsFiltered);
         }
@@ -431,36 +414,19 @@ function Home({ initialData }) {
     loadWatchNews();
   }, [isClientMounted]);
   
-  // 로고 클릭 감지를 위한 useEffect
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    const checkLogoClick = () => {
-      const logoClicked = sessionStorage.getItem('logoClicked');
-      if (logoClicked === 'true') {
-        console.log('[Home] 로고 클릭 감지 - 트리거 업데이트');
-        setLogoClickTrigger(prev => prev + 1);
-      }
-    };
-    
-    // 페이지 로드 시 즉시 확인
-    checkLogoClick();
-    
-    // 주기적으로 확인 (100ms마다)
-    const interval = setInterval(checkLogoClick, 100);
-    
-    return () => clearInterval(interval);
-  }, []);
+  // 로고 클릭 감지는 339줄의 useEffect에서 처리하므로 제거
 
   // useEffect to prepare moreNews data for MoreNews component
   useEffect(() => {
+    // 이미 로드된 경우 실행하지 않음 (무한 루프 방지)
+    if (loadedMoreNews) return;
+
     // 세션 스토리지에서 저장된 MoreNews 데이터 먼저 복원 시도
     if (typeof window !== 'undefined') {
       try {
         const savedMoreNewsData = JSON.parse(sessionStorage.getItem('moreNewsData') || '[]');
         if (savedMoreNewsData.length > 0) {
-          console.log("Home - restoring MoreNews data from session storage:", savedMoreNewsData.length);
-          setInitialMoreNews(savedMoreNewsData);
+            setInitialMoreNews(savedMoreNewsData);
           setLoadedMoreNews(true);
           return; // 세션 스토리지에서 복원 성공 시 아래 로직 실행하지 않음
         }
@@ -468,30 +434,27 @@ function Home({ initialData }) {
         console.error("Error restoring MoreNews data:", e);
       }
     }
-    
+
     // 세션 스토리지에 데이터가 없는 경우에만 실행
-    if (!loadedMoreNews) {  // 이미 로드된 경우 실행하지 않음
-      console.log("Home - preparing moreNews data for client-side rendering");
-      if (moreNews?.length > 0) {
-        setInitialMoreNews(moreNews);
-        console.log("Home - using moreNews data:", moreNews.length);
-        setLoadedMoreNews(true);
-      } else if (newsArticles?.length > 0) {
-        // moreNews가 없으면 newsArticles 배열에서 데이터 가져옴
-        const newsForMoreNews = newsArticles.slice(0, 20);
-        setInitialMoreNews(newsForMoreNews);
-        console.log("Home - using newsArticles for moreNews:", newsForMoreNews.length);
-        setLoadedMoreNews(true);
-      }
+    console.log("Home - preparing moreNews data for client-side rendering");
+    if (moreNews?.length > 0) {
+      setInitialMoreNews(moreNews);
+      console.log("Home - using moreNews data:", moreNews.length);
+      setLoadedMoreNews(true);
+    } else if (newsArticles?.length > 0) {
+      // moreNews가 없으면 newsArticles 배열에서 데이터 가져옴
+      const newsForMoreNews = newsArticles.slice(0, 20);
+      setInitialMoreNews(newsForMoreNews);
+      console.log("Home - using newsArticles for moreNews:", newsForMoreNews.length);
+      setLoadedMoreNews(true);
     }
-  }, [moreNews, newsArticles, loadedMoreNews]); // 의존성 배열에 데이터 추가
+  }, [moreNews, newsArticles]); // loadedMoreNews를 의존성에서 제거하여 무한 루프 방지
 
   // 클라이언트 사이드에서 추가 데이터 로드 (성능 최적화)
   const loadAdditionalData = async () => {
     if (typeof window === 'undefined') return;
     
     try {
-      console.log('🔄 추가 데이터 로딩 시작...');
       
       // 오늘 날짜 계산
       const today = new Date();
@@ -548,8 +511,6 @@ function Home({ initialData }) {
       setRankingNews(rankingNews.success ? rankingNews.data.news || [] : []);
       setTodayRankingNews(todayRankingNews.success ? todayRankingNews.data.news || [] : []); // today 랭킹 뉴스 설정
       setMoreNews(moreNews.success ? moreNews.data.news || [] : []);
-      
-      console.log('✅ 추가 데이터 로딩 완료');
       
     } catch (error) {
       console.error('❌ 추가 데이터 로딩 오류:', error);
@@ -670,8 +631,9 @@ function Home({ initialData }) {
                             <SwiperSlide key={item._id || item.id}>
                               <div
                                 className="w-full block cursor-pointer"
-                                onClick={() => {
-                                  navigateToPage(`/news/${item._id || item.id}`);
+                                onClick={(e) => {
+                                  // _app.js의 routeChangeStart에서 스크롤 저장을 처리하므로 여기서는 제거
+                                  navigateToPage(`/news/${item._id || item.id}`, e);
                                 }}
                               >
                                 <div className="w-full transform transition-all duration-500 hover:scale-[1.02] animate-fadeIn">

@@ -91,7 +91,6 @@ const Analytics = () => {
               const observer = new PerformanceObserver((list) => {
                 for (const entry of list.getEntries()) {
                   if (!entry.hadRecentInput) {
-                    console.log('CLS:', entry.value);
                     if (onPerfEntry && typeof onPerfEntry === 'function') {
                       onPerfEntry(entry);
                     }
@@ -106,7 +105,6 @@ const Analytics = () => {
             if ('PerformanceObserver' in window) {
               const observer = new PerformanceObserver((list) => {
                 for (const entry of list.getEntries()) {
-                  console.log('FID:', entry.processingStart - entry.startTime);
                   if (onPerfEntry && typeof onPerfEntry === 'function') {
                     onPerfEntry(entry);
                   }
@@ -121,7 +119,6 @@ const Analytics = () => {
               const observer = new PerformanceObserver((list) => {
                 const entries = list.getEntries();
                 const lastEntry = entries[entries.length - 1];
-                console.log('LCP:', lastEntry.startTime);
                 if (onPerfEntry && typeof onPerfEntry === 'function') {
                   onPerfEntry(lastEntry);
                 }
@@ -130,10 +127,10 @@ const Analytics = () => {
             }
           }
 
-          // 측정 시작
-          getCLS(console.log);
-          getFID(console.log);
-          getLCP(console.log);
+          // 측정 시작 (성능 데이터 수집만, 로그 출력 안 함)
+          getCLS();
+          getFID();
+          getLCP();
         `}
       </Script>
     </>

@@ -30,12 +30,6 @@ function useHasMounted() {
   return hasMounted;
 }
 
-// 메인 메뉴 페이지인지 확인하는 간단한 함수
-function isMainMenuPage(pathname) {
-  const mainMenuPaths = ['/drama', '/music', '/celeb', '/tvfilm', '/ranking', '/features', '/'];
-  return mainMenuPaths.includes(pathname);
-}
-
 function MyApp({ Component, pageProps: { session, ...pageProps } }) {
   const hasMounted = useHasMounted();
   const router = useRouter();
@@ -47,7 +41,6 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
     // 브라우저의 자동 스크롤 복원 비활성화
     if ('scrollRestoration' in window.history) {
       window.history.scrollRestoration = 'manual';
-      console.log('브라우저 스크롤 복원 비활성화됨');
     }
 
     // 홈 페이지에서 스크롤 위치를 주기적으로 저장 (throttle 적용)
@@ -66,7 +59,6 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
         if (Math.abs(currentScroll - lastSavedScroll) > 10) {
           lastSavedScroll = currentScroll;
           sessionStorage.setItem('homeScrollPosition', currentScroll.toString());
-          console.log('📍 _app.js - 홈 스크롤 위치 자동 저장:', currentScroll);
         }
       }
     };
@@ -75,8 +67,6 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       // throttle: 100ms마다 저장
       if (scrollSaveTimer) return;
       scrollSaveTimer = setTimeout(() => {
-        const scrollPos = getScrollPosition();
-        console.log('📜 _app.js - 스크롤 이벤트 감지, pathname:', router.pathname, 'scroll:', scrollPos);
         saveHomeScroll();
         scrollSaveTimer = null;
       }, 100);
@@ -85,110 +75,144 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
     // 스크롤 이벤트 리스너
     window.addEventListener('scroll', handleScroll, { passive: true });
 
+    // 뒤로가기 플래그 추적
+    let isNavigatingBack = false;
+    // 중복 저장 방지 플래그
+    let hasScrollSaved = false;
+
+    // popstate 이벤트로 뒤로가기 감지
+    const handlePopState = () => {
+      isNavigatingBack = true;
+      // 충분히 긴 시간으로 설정 (routeChangeStart가 실행될 때까지)
+      setTimeout(() => {
+        isNavigatingBack = false;
+      }, 2000);
+    };
+    window.addEventListener('popstate', handlePopState);
+
     const handleRouteChangeStart = (url) => {
       const currentScroll = getScrollPosition();
-      console.log(`🔵 routeChangeStart: ${router.pathname} -> ${url}`);
-      console.log('현재 스크롤 위치:', currentScroll);
 
-      // 홈 페이지에서 나갈 때 현재 스크롤 위치 저장
-      if (router.pathname === '/' && currentScroll > 0) {
+      // 뒤로가기 감지: 뉴스→뉴스 이동 시 저장된 스크롤이 있으면 뒤로가기
+      const targetNewsSlugTemp = url.startsWith('/news/') ? url.split('/news/')[1] : null;
+      const hasStoredScroll = targetNewsSlugTemp && sessionStorage.getItem(`newsScroll_${targetNewsSlugTemp}`) !== null;
+      const isActuallyBack = isNavigatingBack || hasStoredScroll;
+
+      // 로고 클릭 확인
+      const isLogoClick = sessionStorage.getItem('logoClicked') === 'true';
+
+      // 홈 페이지에서 나갈 때 현재 스크롤 위치 저장 (로고 클릭이 아닌 경우만)
+      // 스크롤이 0이어도 저장 (슬라이더 클릭 등의 경우를 위해)
+      // 중복 저장 방지: hasScrollSaved가 false일 때만 저장
+      if (router.pathname === '/' && !isLogoClick && !hasScrollSaved) {
         sessionStorage.setItem('homeScrollPosition', currentScroll.toString());
-        console.log('📍 routeChangeStart - 홈 스크롤 위치 저장:', currentScroll);
+        hasScrollSaved = true; // 저장 완료 플래그 설정
       }
 
-      // 뉴스 페이지에서 홈으로 돌아가는 경우
-      const backToHome = url === '/' && router.pathname.startsWith('/news/');
-      console.log('뒤로가기로 홈 복귀:', backToHome);
+      // 뉴스 페이지에서 다른 뉴스 페이지로 이동하는 경우 (뒤로가기 제외)
+      const newsToNews = router.pathname.startsWith('/news/') && url.startsWith('/news/');
+      if (newsToNews && currentScroll > 0 && !isActuallyBack) {
+        // 현재 뉴스 슬러그 추출 - router.asPath 사용 (window.location은 아직 업데이트 안됨)
+        const currentNewsSlug = router.asPath.split('/news/')[1];
+        // 목적지 뉴스 슬러그 추출
+        const targetNewsSlug = url.split('/news/')[1];
+
+        if (currentNewsSlug && targetNewsSlug !== currentNewsSlug) {
+          // 현재 뉴스의 스크롤 위치 저장
+          sessionStorage.setItem(`newsScroll_${currentNewsSlug}`, currentScroll.toString());
+          sessionStorage.setItem('isBackToNewsDetail', 'true');
+
+          // Forward 이동이므로 목적지 뉴스의 이전 스크롤 위치는 삭제 (처음부터 시작)
+          sessionStorage.removeItem(`newsScroll_${targetNewsSlug}`);
+        }
+      }
+
+      // 뉴스 페이지에서 홈으로 돌아가는 경우 (로고 클릭이 아닌 경우만)
+      const backToHome = url === '/' && router.pathname.startsWith('/news/') && !isLogoClick;
 
       if (backToHome) {
         sessionStorage.setItem('isBackToHome', 'true');
-        console.log('🔖 isBackToHome 플래그 저장됨');
       } else if (url !== '/' && router.pathname === '/') {
         // 홈에서 다른 곳으로 갈 때는 플래그 제거
         sessionStorage.removeItem('isBackToHome');
       }
 
-      // 뉴스 페이지로 이동하는 경우에만 즉시 스크롤 리셋
-      if (url.startsWith('/news/')) {
-        console.log('🚀 뉴스 페이지로 이동 시작 - 즉시 스크롤 0으로');
+      // 뉴스 페이지로 이동하는 경우에만 즉시 스크롤 리셋 (단, 뒤로가기는 제외)
+      if (url.startsWith('/news/') && !isActuallyBack) {
         window.scrollTo(0, 0);
         document.documentElement.scrollTop = 0;
         document.body.scrollTop = 0;
+      }
+
+      // 로고 클릭 플래그가 있으면 제거 (한 번만 사용)
+      if (isLogoClick) {
+        sessionStorage.removeItem('logoClicked');
       }
     };
 
     const handleRouteChangeComplete = () => {
       const currentPath = router.pathname;
-      console.log(`🟢 routeChangeComplete: -> ${currentPath}`);
-      console.log('현재 router.pathname:', router.pathname);
-      console.log('현재 window.location.pathname:', window.location.pathname);
+
+      // 로고 클릭 플래그 확인
+      const wasLogoClick = sessionStorage.getItem('logoClicked') === 'true';
 
       // 뉴스 페이지로 이동한 경우 - 스크롤 최상단 유지
       if (currentPath.startsWith('/news/')) {
-        console.log('뉴스 페이지 진입 - 스크롤을 0으로 강제 설정');
-        window.scrollTo(0, 0);
-        requestAnimationFrame(() => {
+        // 뒤로가기로 뉴스 상세 페이지에 돌아온 경우는 스크롤 복원을 방해하지 않음
+        const isBackToNewsDetail = sessionStorage.getItem('isBackToNewsDetail') === 'true';
+        if (!isBackToNewsDetail) {
           window.scrollTo(0, 0);
-        });
+          requestAnimationFrame(() => {
+            window.scrollTo(0, 0);
+          });
+        }
       }
       // 홈 페이지로 돌아온 경우
       else if (currentPath === '/') {
+        // 로고를 클릭한 경우 - 무조건 최상단으로
+        if (wasLogoClick) {
+          window.scrollTo(0, 0);
+          sessionStorage.removeItem('logoClicked');
+          sessionStorage.removeItem('isBackToHome');
+          sessionStorage.removeItem('homeScrollPosition');
+          return;
+        }
+
         const savedScroll = sessionStorage.getItem('homeScrollPosition');
         const homeScrollPosition = savedScroll ? parseInt(savedScroll, 10) : 0;
         const backToHomeFlag = sessionStorage.getItem('isBackToHome') === 'true';
-        console.log('저장된 홈 스크롤 위치:', homeScrollPosition);
-        console.log('isBackToHome 플래그:', backToHomeFlag);
 
         // 뒤로가기로 홈에 온 경우 - 스크롤 복원
-        if (backToHomeFlag && homeScrollPosition > 0) {
-          console.log('🔙 홈 페이지로 복귀 (뒤로가기) - 스크롤 복원:', homeScrollPosition);
-
-          // 스크롤 복원 함수 (모든 스크롤 속성에 적용)
-          const restoreScroll = () => {
+        // savedScroll이 존재하면 복원 (값이 0이어도 복원)
+        if (backToHomeFlag && savedScroll !== null) {
+          // 스크롤 복원 함수
+          const restoreHomeScroll = () => {
             window.scrollTo(0, homeScrollPosition);
             document.documentElement.scrollTop = homeScrollPosition;
             document.body.scrollTop = homeScrollPosition;
           };
 
-          // 즉시 복원
-          restoreScroll();
+          // 1차: 즉시 복원 시도
+          restoreHomeScroll();
 
-          // 여러 타이밍에 스크롤 복원 시도 (DOM 렌더링 완료 대기)
+          // 2차: DOM 렌더링 직후 (RAF 2번 중첩으로 레이아웃 재계산 대기)
           requestAnimationFrame(() => {
-            restoreScroll();
-            const currentScroll = getScrollPosition();
-            console.log('스크롤 복원 시도 1 (RAF):', homeScrollPosition, '현재:', currentScroll);
+            requestAnimationFrame(() => {
+              restoreHomeScroll();
+            });
           });
 
-          setTimeout(() => {
-            restoreScroll();
-            const currentScroll = getScrollPosition();
-            console.log('스크롤 복원 시도 2 (10ms):', homeScrollPosition, '현재:', currentScroll);
-          }, 10);
+          // 3차: 이미지 로딩 등을 고려한 지연 복원
+          setTimeout(() => restoreHomeScroll(), 100);
 
+          // 최종: 확실한 복원 및 플래그 제거 (깊은 스크롤 위치 대응)
           setTimeout(() => {
-            restoreScroll();
-            const currentScroll = getScrollPosition();
-            console.log('스크롤 복원 시도 3 (50ms):', homeScrollPosition, '현재:', currentScroll);
-          }, 50);
-
-          setTimeout(() => {
-            restoreScroll();
-            const currentScroll = getScrollPosition();
-            console.log('스크롤 복원 시도 4 (100ms):', homeScrollPosition, '현재:', currentScroll);
-          }, 100);
-
-          setTimeout(() => {
-            restoreScroll();
-            const currentScroll = getScrollPosition();
-            console.log('스크롤 복원 최종 (200ms):', homeScrollPosition, '현재:', currentScroll);
-            // 복원 후 플래그 제거
+            restoreHomeScroll();
             sessionStorage.removeItem('isBackToHome');
-          }, 200);
+          }, 300);
         }
         // 직접 접근 또는 새로고침 - 최상단
         else {
-          console.log('홈 페이지 진입 (새로고침 또는 직접 접근) - 스크롤 0 유지');
           window.scrollTo(0, 0);
           sessionStorage.removeItem('isBackToHome');
         }
@@ -197,6 +221,9 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       else {
         window.scrollTo(0, 0);
       }
+
+      // 네비게이션 완료 후 중복 저장 방지 플래그 리셋
+      hasScrollSaved = false;
     };
 
     router.events.on('routeChangeStart', handleRouteChangeStart);
@@ -204,20 +231,13 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('popstate', handlePopState);
       if (scrollSaveTimer) clearTimeout(scrollSaveTimer);
       router.events.off('routeChangeStart', handleRouteChangeStart);
       router.events.off('routeChangeComplete', handleRouteChangeComplete);
     };
   }, [router]);
   
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      console.log('MyApp mounted, current path:', window.location.pathname);
-      if (window.location.pathname.includes('/admin')) {
-        console.log('Admin page detected, session:', session);
-      }
-    }
-  }, [session]);
   
   return (
     <Fragment>

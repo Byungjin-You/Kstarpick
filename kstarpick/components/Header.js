@@ -81,8 +81,6 @@ const Header = () => {
   // 페이지 변경 시 메뉴 닫기 (스크롤 관리는 _app.js에서 처리)
   useEffect(() => {
     const handleRouteChange = (url) => {
-      console.log('[Header] 라우트 변경 감지:', url);
-
       // 메뉴가 열려있으면 닫기
       if (isMenuOpen) {
         setIsMenuOpen(false);
@@ -269,11 +267,15 @@ const Header = () => {
             <div className="flex items-center">
               {/* Logo - Visible on all screens */}
               <div className="mr-6 flex-shrink-0">
-                <Link href="/">
-                  <div className="block cursor-pointer" onClick={router.pathname === '/' ? handleSameMenuClick : undefined}>
-                    <Logo />
-                  </div>
-                </Link>
+                <div onClick={(e) => {
+                  e.preventDefault();
+                  // 모든 세션 스토리지 초기화
+                  sessionStorage.clear();
+                  // 페이지 완전 새로고침
+                  window.location.href = '/';
+                }} className="block cursor-pointer">
+                  <Logo />
+                </div>
               </div>
               
               {/* Primary Navigation - Hidden on Mobile */}

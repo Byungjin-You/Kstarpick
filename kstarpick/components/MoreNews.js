@@ -31,9 +31,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
       const existingScroll = sessionStorage.getItem('homeScrollPosition');
       if (!existingScroll || existingScroll === '0' || parseInt(existingScroll) === 0) {
         sessionStorage.setItem('homeScrollPosition', currentScroll.toString());
-        console.log('📍 MoreNews - 홈 스크롤 위치 저장:', currentScroll);
-      } else {
-        console.log('📍 MoreNews - 이미 저장된 스크롤 위치 유지:', existingScroll);
       }
     }
   };
@@ -75,7 +72,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
   
   // 디버깅을 위한 상태 로깅
   useEffect(() => {
-    console.log(`[MoreNews] 상태 변경 - loading: ${loading}, hasMore: ${hasMore}, allNews.length: ${allNews.length}, page: ${page}`);
   }, [loading, hasMore, allNews.length, page]);
   // 각 세트에 6개의 뉴스 항목이 있도록 설정 (첫 번째는 큰 카드, 나머지 5개는 작은 카드)
   const NEWS_PER_SET = 6;
@@ -102,7 +98,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
       if (logoClicked) {
         isRefresh = true;
         isBackNavigation = false;
-        console.log('[MoreNews] 로고 클릭 감지 - 새로고침으로 처리');
         
         // 플래그 초기화 (일회성 사용)
         sessionStorage.removeItem('logoClicked');
@@ -117,23 +112,19 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         if (cacheTime) {
           const timeDiff = Date.now() - parseInt(cacheTime);
           isCacheValid = timeDiff < CACHE_EXPIRY_TIME;
-          console.log(`[MoreNews] 캐시 시간 검사: ${Math.floor(timeDiff / 1000)}초 경과, 유효: ${isCacheValid}`);
         }
         
         if ((hasCachedNews || hasCachedScroll) && isCacheValid) {
           // 세션 스토리지에 유효한 데이터가 있으면 뒤로가기로 처리
           isBackNavigation = true;
           isRefresh = false;
-          console.log('[MoreNews] 유효한 캐시 데이터 존재 - 뒤로가기로 처리');
         } else {
           // 캐시가 없거나 만료된 경우는 새로고침으로 처리
           isRefresh = true;
           isBackNavigation = false;
-          console.log('[MoreNews] 캐시 없음 또는 만료 - 새로고침으로 처리');
           
           // 만료된 캐시 정리
           if (hasCachedNews || hasCachedScroll) {
-            console.log('[MoreNews] 만료된 캐시 정리');
             sessionStorage.removeItem(STORAGE_KEYS.NEWS_DATA);
             sessionStorage.removeItem(STORAGE_KEYS.NEWS_PAGE);
             sessionStorage.removeItem(STORAGE_KEYS.GLOBAL_ID_SET);
@@ -147,7 +138,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
     // 뒤로가기 감지되면 스크롤 복원 플래그 활성화
     if (isBackNavigation) {
       restoringScrollRef.current = true;
-      console.log('[MoreNews] 뒤로가기 감지 - 스크롤 복원 모드 활성화');
       
       // 세션 스토리지에서 데이터 복원
       try {
@@ -156,7 +146,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         const savedPage = parseInt(sessionStorage.getItem(STORAGE_KEYS.NEWS_PAGE) || '1');
         
         if (savedNewsData.length > 0) {
-          console.log(`[MoreNews] 뒤로가기: 세션 스토리지에서 ${savedNewsData.length}개 뉴스, 페이지 ${savedPage} 복원`);
           
           // 300개 제한 적용하여 상태 설정
           const limitedSavedNews = savedNewsData.slice(0, maxNewsCount);
@@ -165,7 +154,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
           
           // 300개 제한에 도달했으면 무한 스크롤 비활성화
           if (limitedSavedNews.length >= maxNewsCount) {
-            console.log(`[MoreNews] 뒤로가기 복원 시 최대 뉴스 개수 도달 (${limitedSavedNews.length}/${maxNewsCount}) - 무한 스크롤 비활성화`);
             setHasMore(false);
           } else {
             setHasMore(true);
@@ -193,7 +181,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
     
     // 새로고침 처리
     if (isRefresh) {
-      console.log('[MoreNews] 새로고침 처리 - 세션 스토리지 초기화');
       
       // 세션 스토리지 초기화
       if (typeof window !== 'undefined') {
@@ -210,7 +197,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
           Object.keys(sessionStorage).forEach(key => {
             if (key.startsWith('moreNews') || key.includes('moreNews')) {
               sessionStorage.removeItem(key);
-              console.log(`[MoreNews] 캐시 정리: ${key}`);
             }
           });
           
@@ -229,7 +215,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
             ? initialNews.slice(0, NEWS_PER_LOAD) 
             : [];
           
-          console.log('[MoreNews] 초기 뉴스 데이터:', initialNews?.length || 0, '개, 제한 후:', limitedInitialNews.length, '개');
           
           // 상태 초기화
           setAllNews(limitedInitialNews);
@@ -239,7 +224,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
           
           // 초기 데이터가 없으면 즉시 API 호출
           if (limitedInitialNews.length === 0) {
-            console.log('[MoreNews] 초기 데이터가 없어서 API 호출 시작');
             setTimeout(() => {
               loadMoreNews();
             }, 100);
@@ -259,7 +243,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
           // 새로고침 시 캐시 타임 설정
           sessionStorage.setItem(STORAGE_KEYS.CACHE_TIME, Date.now().toString());
           
-          console.log(`[MoreNews] 새로고침 완료: ${limitedInitialNews.length}개 뉴스 로드`);
         } catch (error) {
           console.error('[MoreNews] 초기화 중 오류:', error);
         }
@@ -270,7 +253,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
     
     // 기본 초기화 (일반 탐색)
     if (!initialDataAppliedRef.current) {
-      console.log('[MoreNews] 일반 탐색 - 초기 데이터 적용');
       
       // 카테고리가 지정된 경우 initialNews에서 해당 카테고리만 필터링
       if (category && initialNews.length > 0) {
@@ -278,9 +260,7 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         const filteredNews = initialNews.filter(news => isNewsInCategory(news));
         
         if (isCategoryArray()) {
-          console.log(`[MoreNews] 카테고리 [${category.join(', ')}]로 필터링: ${initialNews.length}개 중 ${filteredNews.length}개 선택됨`);
         } else {
-          console.log(`[MoreNews] 카테고리 '${category}'로 필터링: ${initialNews.length}개 중 ${filteredNews.length}개 선택됨`);
         }
         
         const limitedNews = (filteredNews || []).slice(0, NEWS_PER_LOAD);
@@ -361,7 +341,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
   // 디버깅용 로그 추가
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      console.log(`[MoreNews] 상태 업데이트: ${allNews.length}개 뉴스, 페이지 ${page}, hasMore=${hasMore}, loading=${loading}, 새로고침=${wasRefreshedRef.current}`);
     }
   }, [allNews.length, page, hasMore, loading]);
 
@@ -377,7 +356,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         sessionStorage.setItem(STORAGE_KEYS.CACHE_TIME, Date.now().toString()); // 캐시 타임 업데이트
         
         // 세션 스토리지 저장 완료 로그
-        console.log(`[MoreNews] 세션 스토리지에 ${allNews.length}개 뉴스 저장, 페이지 ${page}`);
       } catch (e) {
         console.error('[MoreNews] 상태 저장 오류:', e);
       }
@@ -405,7 +383,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         
         // 스크롤 위치가 하단에 가까우면 추가 데이터 로드
         if (scrollPercent > 0.7) {
-          console.log(`[MoreNews] 복원 후 스크롤 확인: ${(scrollPercent * 100).toFixed(1)}% - 추가 뉴스 로드`);
           loadMoreNews();
         }
       };
@@ -444,7 +421,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
       const scrollPercent = (scrollTop + windowHeight) / documentHeight;
       
       if (scrollPercent > 0.85) {
-        console.log(`[MoreNews] Scroll detection: ${(scrollPercent * 100).toFixed(1)}% - Loading more news`);
         loadMoreNews();
       }
     };
@@ -455,7 +431,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
     // 초기 페이지 로드 시 화면이 충분히 차지 않으면 추가 로드
     const initialCheckTimer = setTimeout(() => {
       if (document.body.scrollHeight <= window.innerHeight && hasMore && !loading && !restoringScrollRef.current) {
-        console.log("[MoreNews] Initial content doesn't fill the screen, loading more");
         loadMoreNews();
       } else if (!restoringScrollRef.current) {
         // 복원 중이 아니면 스크롤 확인
@@ -472,20 +447,16 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
   // 추가 뉴스 로드
   const loadMoreNews = async () => {
     if (loading) {
-      console.log('[MoreNews] 이미 로딩 중 - 요청 무시');
       return;
     }
     
     // 스크롤 복원 중이면 건너뛰기
     if (restoringScrollRef.current) {
-      console.log('[MoreNews] 스크롤 복원 중 - 데이터 로드 건너뜀');
       return;
     }
     
     // 최대 뉴스 개수 제한 확인
     if (allNews.length >= maxNewsCount) {
-      console.log(`[MoreNews] 최대 뉴스 개수 도달 (${allNews.length}/${maxNewsCount}) - 무한 스크롤 비활성화`);
-      console.log('[MoreNews] 🔴 hasMore를 false로 설정 (이유: 최대 뉴스 개수 도달)');
       setHasMore(false);
       return;
     }
@@ -493,7 +464,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
     try {
       // 로딩 상태 설정
       setLoading(true);
-      console.log(`[MoreNews] Loading page ${page}, current items: ${allNews.length}`);
       
       // 현재 카테고리 가져오기 (props나 ref에서)
       const currentCategory = categoryRef.current || category;
@@ -520,7 +490,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
             apiUrl = `/api/news?page=${page}&limit=${NEWS_PER_LOAD}&category=${encodeURIComponent(cat)}`;
           }
           
-          console.log(`[MoreNews] API 요청 (카테고리: ${cat}): ${apiUrl}`);
           
           const response = await fetch(apiUrl);
           if (!response.ok) {
@@ -530,7 +499,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
           
           const data = await response.json();
           if (!data.success || !data.data) {
-            console.log(`[MoreNews] API 데이터 없음 (카테고리: ${cat})`);
             return [];
           }
           
@@ -543,7 +511,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
             // 기본 API: data.news가 배열
             newsArray = data.data.news;
           } else {
-            console.log(`[MoreNews] 예상하지 못한 API 응답 형식 (카테고리: ${cat}):`, data.data);
             return [];
           }
           
@@ -557,14 +524,12 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         let allReceivedNews = [];
         resultsArray.forEach((newsArray, index) => {
           if (newsArray.length > 0) {
-            console.log(`[MoreNews] 카테고리 '${currentCategory[index]}'에서 ${newsArray.length}개 뉴스 수신`);
             allReceivedNews = [...allReceivedNews, ...newsArray];
           }
         });
         
         // 모든 카테고리에서 뉴스를 받아오지 못한 경우
         if (allReceivedNews.length === 0) {
-          console.log('[MoreNews] 모든 카테고리에서 데이터 없음 - 무한 스크롤 비활성화');
           setHasMore(false);
           setLoading(false);
           return;
@@ -610,7 +575,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
           
           // 300개 제한에 도달하면 무한 스크롤 비활성화
           if (limitedNews.length >= maxNewsCount) {
-            console.log(`[MoreNews] 최대 뉴스 개수 도달 (${limitedNews.length}/${maxNewsCount}) - 무한 스크롤 비활성화`);
             setHasMore(false);
           }
           
@@ -651,7 +615,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         apiUrl = `/api/news?page=${page}&limit=${NEWS_PER_LOAD}`;
       }
       
-      console.log(`[MoreNews] API 요청: ${apiUrl} (카테고리: ${currentCategory || '없음'})`);
       
       const response = await fetch(apiUrl);
       
@@ -663,8 +626,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
       
       // API에서 데이터 반환됐는지 확인
       if (!data.success || !data.data) {
-        console.log('[MoreNews] API 데이터 없음 - 무한 스크롤 비활성화');
-        console.log('[MoreNews] 🔴 hasMore를 false로 설정 (이유: API 데이터 없음)');
         setHasMore(false);
         return;
       }
@@ -678,15 +639,12 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         // 기본 API: data.news가 배열
         receivedNews = data.data.news;
       } else {
-        console.log('[MoreNews] 예상하지 못한 API 응답 형식:', data.data);
         setHasMore(false);
         return;
       }
       
       // 데이터가 비어있는 경우
       if (receivedNews.length === 0) {
-        console.log('[MoreNews] API에서 빈 배열 반환 - 무한 스크롤 비활성화');
-        console.log('[MoreNews] 🔴 hasMore를 false로 설정 (이유: 빈 배열 반환)');
         setHasMore(false);
         return;
       }
@@ -697,7 +655,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         : receivedNews;
         
       if (currentCategory && !isMultiCategory && filteredNews.length < receivedNews.length) {
-        console.log(`[MoreNews] 클라이언트 측 추가 필터링: ${receivedNews.length}개 중 ${filteredNews.length}개가 '${currentCategory}' 카테고리에 해당`);
       }
       
       // 현재 로드된 ID들을 Set으로 구성 (중복 체크용)
@@ -730,7 +687,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         
         // 300개 제한에 도달하면 무한 스크롤 비활성화
         if (limitedNews.length >= maxNewsCount) {
-          console.log(`[MoreNews] 최대 뉴스 개수 도달 (${limitedNews.length}/${maxNewsCount}) - 무한 스크롤 비활성화`);
           setHasMore(false);
         }
         
@@ -746,7 +702,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
       const isLastPage = pagination && (page >= totalPages || receivedNews.length < NEWS_PER_LOAD);
       
       if (isLastPage) {
-        console.log('[MoreNews] 🔴 hasMore를 false로 설정 (이유: 마지막 페이지 도달)');
         setHasMore(false);
       }
       
@@ -756,7 +711,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
       
       // API 에러 시 무한스크롤 비활성화하여 무한루프 방지
       if (err.message.includes('API error: 500')) {
-        console.log('[MoreNews] API 서버 에러로 인해 무한스크롤 비활성화');
         setHasMore(false);
       }
     } finally {
@@ -769,9 +723,7 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
   useEffect(() => {
     if (category) {
       if (isCategoryArray()) {
-        console.log(`[MoreNews] 현재 카테고리: [${category.join(', ')}], 뉴스 개수: ${allNews.length}, 페이지: ${page}`);
       } else {
-        console.log(`[MoreNews] 현재 카테고리: ${category}, 뉴스 개수: ${allNews.length}, 페이지: ${page}`);
       }
     }
     
@@ -787,7 +739,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         
         // 필터링 적용 (필요한 경우에만)
         if (correctCategoryCount < allNews.length * 0.9) { // 90% 이상이 올바른 카테고리가 아닌 경우에만 수정
-          console.log('[MoreNews] 카테고리 불일치 수정 적용');
           setAllNews(prev => prev.filter(news => isNewsInCategory(news)));
         }
       }
@@ -903,7 +854,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
     try {
       const savedScrollPosition = parseInt(sessionStorage.getItem(STORAGE_KEYS.SCROLL_POS) || '0');
       if (savedScrollPosition > 0) {
-        console.log(`[MoreNews] 스크롤 위치 복원: ${savedScrollPosition}px`);
         
         // 스크롤 복원은 한 번만 시도 (지연 적용)
         const timer = setTimeout(() => {
@@ -920,7 +870,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
             
             // 스크롤 복원 플래그 비활성화 (즉시)
             restoringScrollRef.current = false;
-            console.log('[MoreNews] 스크롤 복원 완료 - 복원 모드 비활성화');
           }
         }, 300);
         
@@ -928,7 +877,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
       } else {
         // 저장된 스크롤 위치가 없으면 즉시 복원 모드 비활성화
         restoringScrollRef.current = false;
-        console.log('[MoreNews] 저장된 스크롤 위치 없음 - 복원 모드 비활성화');
       }
     } catch (e) {
       console.error('[MoreNews] 스크롤 위치 복원 오류:', e);
@@ -945,14 +893,11 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
-    console.log('[MoreNews] Observer 설정 시도 - loading:', loading, 'hasMore:', hasMore, 'allNews.length:', allNews.length);
     
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          console.log('[MoreNews] Observer 콜백 - isIntersecting:', entry.isIntersecting, 'loading:', loading, 'hasMore:', hasMore);
           if (entry.isIntersecting && !loading && hasMore) {
-            console.log('[MoreNews] 조건 만족 - 추가 뉴스 로드 시작');
             loadMoreNews();
           }
         });
@@ -968,9 +913,7 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
     const timer = setTimeout(() => {
       if (lastNewsElementRef.current) {
         observer.observe(lastNewsElementRef.current);
-        console.log('[MoreNews] Intersection Observer 설정 완료 - 감지 요소:', lastNewsElementRef.current);
       } else {
-        console.log('[MoreNews] 경고: lastNewsElementRef.current가 null입니다');
       }
     }, 100);
 
@@ -980,7 +923,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         observer.unobserve(lastNewsElementRef.current);
       }
       observer.disconnect();
-      console.log('[MoreNews] Intersection Observer 정리 완료');
     };
   }, [loading, hasMore, allNews.length]); // allNews.length 의존성 추가로 새 뉴스 로드 시 observer 재설정
   
@@ -1021,7 +963,7 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
           {/* New Icon */}
           <div className="mr-4 flex-shrink-0">
             <img
-              src="/images/icons8-new-50.png"
+              src="/images/icons8-new-48.png"
               alt="New Icon"
               className="h-12 w-12 object-contain"
             />

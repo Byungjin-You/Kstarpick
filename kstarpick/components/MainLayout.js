@@ -55,7 +55,6 @@ const MainLayout = ({ children }) => {
       // 현재 페이지 경로에 맞는 클래스 추가
       const path = router.pathname.split('/')[1] || 'home';
       document.body.classList.add(`page-${path}`);
-      console.log(`페이지 본문 클래스 설정: page-${path}`);
     }
   }, [router.pathname]);
   
@@ -66,9 +65,13 @@ const MainLayout = ({ children }) => {
     // 현재 페이지 경로
     const currentPath = window.location.pathname;
 
-    // 홈페이지에서는 스크롤 복원하지 않음
+    // 홈페이지에서는 _app.js에서 스크롤 복원 처리하므로 여기서는 건너뜀
     if (currentPath === '/') {
-      console.log('[MainLayout] 홈페이지 - 스크롤 복원 건너뜀');
+      return;
+    }
+
+    // 뉴스 상세 페이지에서는 [id].js에서 스크롤 복원 처리하므로 여기서는 건너뜀
+    if (currentPath.startsWith('/news/')) {
       return;
     }
 
@@ -77,46 +80,43 @@ const MainLayout = ({ children }) => {
     const isBackForwardNavigation = navigation && navigation.type === 'back_forward';
 
     if (isBackForwardNavigation) {
-      console.log('[MainLayout] 뒤로가기/앞으로가기 감지:', currentPath);
-      
+
       // 저장된 스크롤 위치 복원 (여러 저장소에서 시도)
       const scrollPositions = JSON.parse(sessionStorage.getItem('scrollPositions') || '{}');
       const lastPath = sessionStorage.getItem('lastPath');
       const lastPosition = parseInt(sessionStorage.getItem('lastScrollPosition'), 10);
       const localLastPath = localStorage.getItem('lastPath');
       const localLastPosition = parseInt(localStorage.getItem('lastScrollPosition'), 10);
-      
+
       // 가장 적절한 스크롤 위치 결정
       let finalPosition = scrollPositions[currentPath] || 0;
-      
+
       if (finalPosition === 0 && lastPath === currentPath && !isNaN(lastPosition)) {
         finalPosition = lastPosition;
       } else if (finalPosition === 0 && localLastPath === currentPath && !isNaN(localLastPosition)) {
         finalPosition = localLastPosition;
       }
-      
+
       if (finalPosition > 0) {
-        console.log('[MainLayout] 스크롤 위치 복원:', finalPosition);
-        
         // 다단계 복원 시도
         const restoreScroll = () => {
           // 즉시 한 번
           window.scrollTo(0, finalPosition);
-          
+
           // 약간의 지연 후
           setTimeout(() => {
             window.scrollTo(0, finalPosition);
           }, 100);
-          
+
           // 더 긴 지연 후
           setTimeout(() => {
             window.scrollTo(0, finalPosition);
           }, 300);
         };
-        
+
         // 페이지 로드 직후 복원
         restoreScroll();
-        
+
         // DOM 완전 로드 후 다시 시도
         window.addEventListener('load', restoreScroll, { once: true });
       }
