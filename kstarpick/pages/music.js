@@ -4,7 +4,7 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import Seo from '../components/Seo';
 import Link from 'next/link';
-import { Music as MusicIcon, TrendingUp, Calendar, BarChart2, Disc, Play, Award, ArrowRight, ChevronRight, ArrowUp, ArrowDown, X, RefreshCcw, Star, Clock } from 'lucide-react';
+import { Music as MusicIcon, TrendingUp, Calendar, BarChart2, Disc, Play, Award, ArrowRight, ChevronRight, X, RefreshCcw, Star, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import MainLayout from '../components/MainLayout';
 import { decodeHtmlEntities } from '../utils/helpers';
@@ -21,6 +21,10 @@ export default function Music({ musicNews = [], topSongs = [], newsPagination })
   const [visibleSongs, setVisibleSongs] = useState(10);
   const [isLoadingMoreSongs, setIsLoadingMoreSongs] = useState(false);
   const [allSongs, setAllSongs] = useState([]);
+  const [autoPlayVideoId, setAutoPlayVideoId] = useState(null);
+  const cardRefs = useRef({});
+  const [showAll, setShowAll] = useState(false);
+  const initialDisplayCount = 10;
   
   // 화면 크기 감지를 위한 useEffect
   useEffect(() => {
@@ -85,9 +89,49 @@ export default function Music({ musicNews = [], topSongs = [], newsPagination })
       setAllSongs([]);
     }
   }, [topSongs, visibleSongs]);
-  
-  // 더 많은 음악 로드
+
+  // Intersection Observer로 화면 중앙 카드 자동재생
+  useEffect(() => {
+    if (typeof window === 'undefined' || processedSongs.length === 0) return;
+
+    const observerOptions = {
+      root: null,
+      rootMargin: '-40% 0px -40% 0px', // 화면 중앙 20% 영역만 감지
+      threshold: 0.5
+    };
+
+    const observerCallback = (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+          const songId = entry.target.dataset.songId;
+          setAutoPlayVideoId(songId);
+        }
+      });
+    };
+
+    const observer = new IntersectionObserver(observerCallback, observerOptions);
+
+    // 모든 카드 관찰
+    Object.values(cardRefs.current).forEach((card) => {
+      if (card) observer.observe(card);
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [processedSongs]);
+
+  // 더 많은 음악 로드 또는 접기
   const loadMoreSongs = async () => {
+    // 이미 모든 노래를 보여주고 있다면 접기
+    if (showAll && visibleSongs >= allSongs.length) {
+      setVisibleSongs(initialDisplayCount);
+      setShowAll(false);
+      // 페이지 상단으로 스크롤
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     setIsLoadingMoreSongs(true);
     try {
       // 이미 모든 노래를 불러온 경우, 더 많은 노래 불러오기
@@ -104,7 +148,7 @@ export default function Music({ musicNews = [], topSongs = [], newsPagination })
                 const parsed = parseInt(value);
                 return isNaN(parsed) ? defaultValue : parsed;
               };
-              
+
               return {
                 ...song,
                 position: ensureNumber(song.position, index + 1),
@@ -113,19 +157,32 @@ export default function Music({ musicNews = [], topSongs = [], newsPagination })
                 totalViews: ensureNumber(song.totalViews, 0)
               };
             });
-            
+
             setAllSongs(processed);
           }
         }
       }
-      
+
       // 더 보여줄 노래 수 증가
       setVisibleSongs(prev => prev + 10);
+
+      // 모든 노래를 불러왔는지 확인
+      if (visibleSongs + 10 >= allSongs.length) {
+        setShowAll(true);
+      }
     } catch (error) {
       console.error('더 많은 음악 로드 오류:', error);
     } finally {
       setIsLoadingMoreSongs(false);
     }
+  };
+
+  // YouTube URL에서 비디오 ID 추출
+  const getYoutubeVideoId = (url) => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
   };
 
   // 유튜브 모달 열기
@@ -203,58 +260,68 @@ export default function Music({ musicNews = [], topSongs = [], newsPagination })
         jsonLd={generateWebsiteJsonLd()}
       />
       <div className="bg-white min-h-screen">
-        
-        <div className="container mx-auto px-4 py-12">
-          {/* 헤더 섹션 - 셀럽 페이지와 동일한 스타일 적용 */}
-          <div className="mb-8 relative">
-            <div className="absolute -top-10 -left-6 w-32 h-32 bg-gradient-to-br from-pink-200 to-purple-200 rounded-full blur-3xl opacity-60"></div>
-            <div className="absolute top-12 right-20 w-40 h-40 bg-gradient-to-br from-blue-200 to-indigo-200 rounded-full blur-3xl opacity-40"></div>
-            
-            <div className="relative z-10">
-              <div className="flex items-center mb-1">
-                <div className="h-1.5 w-16 bg-gradient-to-r from-[#ff3e8e] to-[#ff8360] rounded-full mr-3"></div>
-                <MusicIcon size={20} className="text-[#ff3e8e] animate-pulse" />
-                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-[#ff3e8e] via-[#ff8360] to-[#ff61ab] text-transparent bg-clip-text ml-2">
-                  K-POP Music
-                </h1>
-              </div>
-              <p className="text-gray-500 text-sm mt-2">Discover the latest music releases and trending songs from K-POP artists</p>
-            </div>
+
+        <div className="container mx-auto px-4 pt-0 pb-12">
+          {/* 제목 영역 */}
+          <div className="mb-8 mt-8">
+            <h1 className="font-bold text-black" style={{ fontSize: '20px' }}>
+              <span style={{ color: '#233CFA' }}>Music News</span> at a Glance
+            </h1>
           </div>
           
           {/* Top K-POP Songs 섹션 */}
           <section className="mb-12">
-            <div className="bg-white rounded-xl p-5 md:p-5 sm:p-3 shadow-sm overflow-hidden">
-              {/* 데스크톱 환경에서는 테이블로 표시 */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-pink-100/50">
-                      <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-[#ff3e8e] uppercase tracking-wider w-16 text-center">
-                        #
-                      </th>
-                      <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-[#ff3e8e] uppercase tracking-wider">
-                        Song / Artist
-                      </th>
-                      <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-[#ff3e8e] uppercase tracking-wider hidden md:table-cell">
-                        Daily Views
-                      </th>
-                      <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-[#ff3e8e] uppercase tracking-wider hidden md:table-cell">
-                        Total Views
-                      </th>
-                      <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-[#ff3e8e] uppercase tracking-wider hidden md:table-cell">
-                        Release Date
-                      </th>
-                      <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-[#ff3e8e] uppercase tracking-wider w-16">
-                        
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {processedSongs.map((song, index) => (
-                      <tr 
-                        key={song._id} 
-                        className={`hover:bg-gray-50 transition-colors cursor-pointer ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+            {/* Masonry Grid */}
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+              <div>
+
+                {/* Masonry Layout - Pinterest 스타일 */}
+                <style dangerouslySetInnerHTML={{__html: `
+                  .masonry-grid {
+                    column-count: 2;
+                    column-gap: 12px;
+                  }
+                  @media (min-width: 640px) {
+                    .masonry-grid {
+                      column-count: 3;
+                      column-gap: 16px;
+                    }
+                  }
+                  @media (min-width: 1024px) {
+                    .masonry-grid {
+                      column-count: 4;
+                    }
+                  }
+                  @media (min-width: 1280px) {
+                    .masonry-grid {
+                      column-count: 5;
+                    }
+                  }
+                  @media (min-width: 1536px) {
+                    .masonry-grid {
+                      column-count: 6;
+                    }
+                  }
+                  .masonry-item {
+                    break-inside: avoid;
+                    page-break-inside: avoid;
+                    -webkit-column-break-inside: avoid;
+                  }
+                `}} />
+                <div className="masonry-grid">
+
+                  {processedSongs.map((song, index) => {
+                    // 다양한 높이를 위한 랜덤 계산 (80% ~ 200% 범위)
+                    const heightVariation = 80 + (index * 23) % 120; // 80 ~ 200 사이의 값
+                    const videoId = getYoutubeVideoId(song.youtubeUrl);
+                    const isAutoPlaying = autoPlayVideoId === song._id;
+
+                    return (
+                      <div
+                        key={song._id}
+                        ref={(el) => (cardRefs.current[song._id] = el)}
+                        data-song-id={song._id}
+                        className="masonry-item group cursor-pointer mb-3 sm:mb-4"
                         onClick={(e) => {
                           if (song.youtubeUrl) {
                             openYoutubeModal(song.youtubeUrl, e);
@@ -264,204 +331,152 @@ export default function Music({ musicNews = [], topSongs = [], newsPagination })
                           }
                         }}
                       >
-                        <td className="px-3 py-4 whitespace-nowrap text-center">
-                          <div className="text-lg font-semibold text-gray-800">{song.position}</div>
-                          <div className="text-xs font-medium">
-                            {song.previousPosition !== song.position ? (
-                              song.previousPosition > song.position ? (
-                                <span className="text-green-500 flex items-center justify-center">
-                                  <ArrowUp size={12} className="mr-1" />
-                                  {song.previousPosition - song.position}
-                                </span>
-                              ) : (
-                                <span className="text-red-500 flex items-center justify-center">
-                                  <ArrowDown size={12} className="mr-1" />
-                                  {song.position - song.previousPosition}
-                                </span>
-                              )
+                        {/* Card Container */}
+                        <div
+                          className="relative bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1"
+                        >
+
+                          {/* Album Cover Image - 다양한 높이 */}
+                          <div className="relative w-full bg-gray-100" style={{ paddingBottom: `${heightVariation}%` }}>
+                            {/* YouTube 자동재생 임베드 - 화면 중앙에 있을 때만 */}
+                            {isAutoPlaying && videoId ? (
+                              <iframe
+                                className="absolute inset-0 w-full h-full"
+                                src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&loop=1&playlist=${videoId}`}
+                                title={song.title}
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                                style={{ border: 'none' }}
+                              />
                             ) : (
-                              <span className="text-gray-400">-</span>
+                              <>
+                                {/* 일반 이미지 표시 */}
+                                {song.coverImage ? (
+                                  <img
+                                    src={song.coverImage}
+                                    alt={song.title}
+                                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                    onError={(e) => {
+                                      e.target.onerror = null;
+                                      e.target.src = '/images/placeholder.jpg';
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                                    <MusicIcon size={48} className="text-gray-400" />
+                                  </div>
+                                )}
+
+                                {/* Ranking - Top Left (드라마 스타일) */}
+                                <div className="absolute top-0 left-0 w-16 h-16 flex items-center justify-center">
+                                  <span className="text-white font-bold text-5xl drop-shadow-lg" style={{textShadow: '0 2px 4px rgba(0,0,0,0.5)'}}>
+                                    {song.position}
+                                  </span>
+                                </div>
+
+                                {/* Gradient Overlay */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end">
+                                  <div className="p-4 w-full">
+                                    <p className="text-white font-medium line-clamp-1">{decodeHtmlEntities(song.title)}</p>
+                                  </div>
+                                </div>
+
+                                {/* Play Button - Center Overlay */}
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                  <button
+                                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shadow-2xl transition-transform transform group-hover:scale-110"
+                                    style={{ background: 'linear-gradient(to bottom right, #233cfa, #009efc)' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openYoutubeModal(song.youtubeUrl, e);
+                                    }}
+                                  >
+                                    <Play size={16} className="text-white ml-0.5 sm:ml-1" fill="white" />
+                                  </button>
+                                </div>
+                              </>
                             )}
                           </div>
-                        </td>
-                        <td className="px-3 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="h-12 w-20 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden shadow-sm">
-                              {song.coverImage ? (
-                                <img 
-                                  src={song.coverImage} 
-                                  alt={song.title}
-                                  className="w-full h-full object-cover transition-transform hover:scale-105"
-                                  style={{ objectFit: 'cover', objectPosition: 'center' }}
-                                  onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.src = '/images/placeholder.jpg';
-                                  }}
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-gray-500 font-bold">
-                                  {song.title.charAt(0)}
+
+                          {/* Song Info */}
+                          <div className="p-3">
+                            <h3 className="text-sm font-bold text-gray-900 line-clamp-2 group-hover:text-[#233cfa] transition-colors">
+                              {decodeHtmlEntities(song.title)}
+                            </h3>
+                            <div className="flex items-center mt-2 gap-2">
+                              {/* YouTube Channel Profile Image */}
+                              <div className="flex-shrink-0">
+                                <div className="w-6 h-6 rounded-full overflow-hidden bg-white flex items-center justify-center">
+                                  {song.channelThumbnail ? (
+                                    <img
+                                      src={song.channelThumbnail}
+                                      alt={song.artist}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.nextSibling.style.display = 'flex';
+                                      }}
+                                    />
+                                  ) : null}
+                                  <div
+                                    style={{ display: song.channelThumbnail ? 'none' : 'flex' }}
+                                    className="w-full h-full items-center justify-center"
+                                  >
+                                    <img
+                                      src="/images/icons8-youtube-logo-94.png"
+                                      alt="YouTube"
+                                      className="w-4 h-4 object-contain"
+                                    />
+                                  </div>
                                 </div>
-                              )}
+                              </div>
+                              <p className="text-xs text-gray-500 line-clamp-1 flex-1">
+                                {decodeHtmlEntities(song.artist)}
+                              </p>
                             </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-bold text-gray-900">{decodeHtmlEntities(song.title)}</div>
-                              <div className="text-xs text-gray-500">{decodeHtmlEntities(song.artist)}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell text-center">
-                          <div className="flex justify-center">
-                            <span className="font-medium bg-pink-50 text-[#ff3e8e] px-3 py-1 rounded-full flex items-center inline-flex">
-                              <span className="text-red-400 mr-1 text-xs translate-y-px animate-pulse">▲</span> 
-                              {song.dailyViews?.toLocaleString()}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">
-                          <span className="font-medium">{song.totalViews?.toLocaleString()}</span>
-                        </td>
-                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">
-                          {song.releaseDate ? new Date(song.releaseDate).toLocaleDateString() : '-'}
-                        </td>
-                        <td className="px-3 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button 
-                            className="bg-[#ff3e8e] hover:bg-[#ff8360] p-2 rounded-full transition-all inline-flex items-center justify-center shadow-md hover:shadow-lg transform hover:scale-105"
-                            onClick={(e) => openYoutubeModal(song.youtubeUrl, e)}
-                          >
-                            <Play size={16} className="text-white" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {processedSongs.length === 0 && (
-                      <tr>
-                        <td colSpan="6" className="text-center py-8 text-gray-500">
-                          No music data available
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              
-              {/* 모바일 환경에서는 카드 형식으로 표시 */}
-              <div className="md:hidden -mx-3">
-                <div className="flex justify-between mb-4 pb-2 border-b border-pink-100/50 px-2">
-                  <div className="text-xs font-medium text-[#ff3e8e] uppercase tracking-wider">K-POP Chart</div>
-                  <div className="text-xs font-medium text-[#ff3e8e] uppercase tracking-wider">Top {processedSongs.length}</div>
-                </div>
-                
-                <div className="space-y-2">
-                  {processedSongs.map((song, index) => (
-                    <div 
-                      key={song._id} 
-                      className={`rounded-xl p-2.5 shadow-sm flex items-center justify-between ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'} relative mx-1`}
-                      onClick={(e) => {
-                        if (song.youtubeUrl) {
-                          openYoutubeModal(song.youtubeUrl, e);
-                        } else if (song.slug || song._id) {
-                          e.preventDefault();
-                          router.push(`/music/song/${song.slug || song._id}`);
-                        }
-                      }}
-                    >
-                      {/* 순위 및 변동사항 */}
-                      <div className="flex-shrink-0 w-8 h-full flex flex-col items-center justify-center">
-                        <div className="text-lg font-bold text-gray-800">{song.position}</div>
-                        <div className="text-xs font-medium">
-                          {song.previousPosition !== song.position ? (
-                            song.previousPosition > song.position ? (
-                              <span className="text-green-500 flex items-center justify-center">
-                                <ArrowUp size={10} className="mr-0.5" />
-                                {song.previousPosition - song.position}
-                              </span>
-                            ) : (
-                              <span className="text-red-500 flex items-center justify-center">
-                                <ArrowDown size={10} className="mr-0.5" />
-                                {song.position - song.previousPosition}
-                              </span>
-                            )
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* 앨범아트 및 정보 */}
-                      <div className="flex-1 flex items-center min-w-0 pl-0.5">
-                        <div className="h-14 w-14 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden shadow-sm">
-                          {song.coverImage ? (
-                            <img 
-                              src={song.coverImage} 
-                              alt={song.title}
-                              className="w-full h-full object-cover transition-transform hover:scale-105"
-                              style={{ objectFit: 'cover', objectPosition: 'center' }}
-                              onError={(e) => {
-                                e.target.onerror = null;
-                                e.target.src = '/images/placeholder.jpg';
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-500 font-bold">
-                              {song.title.charAt(0)}
-                            </div>
-                          )}
-                        </div>
-                        <div className="ml-3.5 min-w-0 flex-1">
-                          <div className="text-sm font-bold text-gray-900 truncate">{decodeHtmlEntities(song.title)}</div>
-                          <div className="text-xs text-gray-500 truncate">{decodeHtmlEntities(song.artist)}</div>
-                          <div className="flex items-center mt-1">
-                            <span className="text-xs text-[#ff3e8e] font-medium bg-pink-50 px-2 py-0.5 rounded-full inline-flex items-center">
-                              <span className="text-red-400 mr-0.5 text-[10px] animate-pulse">▲</span> 
-                              {song.dailyViews?.toLocaleString()}
-                            </span>
                           </div>
                         </div>
                       </div>
-                      
-                      {/* 재생 버튼 */}
-                      <div className="flex-shrink-0 ml-1.5">
-                        <button 
-                          className="bg-[#ff3e8e] hover:bg-[#ff8360] p-1.5 rounded-full transition-all inline-flex items-center justify-center shadow-md"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openYoutubeModal(song.youtubeUrl, e);
-                          }}
-                        >
-                          <Play size={14} className="text-white" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  
+                    );
+                  })}
+
                   {processedSongs.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      No music data available
+                    <div className="col-span-full bg-white rounded-xl p-8 text-center border border-gray-100" style={{ boxShadow: 'none' }}>
+                      <MusicIcon size={40} className="mx-auto text-gray-300 mb-3" />
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">No Music Available</h3>
+                      <p className="text-gray-500">
+                        No music data available at the moment.
+                      </p>
                     </div>
                   )}
                 </div>
               </div>
-            </div>
 
-            {/* "더 보기" 버튼 추가 */}
-            <div className="text-center mt-8 mb-4">
-              <button 
+              {/* "더 보기" 버튼 추가 */}
+              <div className="text-center mt-8 mb-4 pb-4">
+              <button
                 onClick={loadMoreSongs}
-                disabled={isLoadingMoreSongs || (allSongs.length <= visibleSongs && visibleSongs > allSongs.length)}
-                className="px-6 py-2 bg-gradient-to-r from-[#ff3e8e] to-[#ff8360] text-white rounded-full hover:shadow-lg transition-all transform hover:-translate-y-1 animate-pulse inline-block disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isLoadingMoreSongs}
+                className="w-full max-w-md mx-auto py-3 bg-white text-black font-medium rounded-2xl border-2 border-gray-300 hover:border-gray-400 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoadingMoreSongs ? (
-                  <span className="flex items-center">
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                  <span className="flex items-center justify-center">
+                    <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin mr-2"></span>
                     Loading...
                   </span>
-                ) : allSongs.length > visibleSongs ? (
-                  "View More Songs ✨"
+                ) : showAll && visibleSongs >= allSongs.length ? (
+                  <span className="flex items-center justify-center">
+                    Fold
+                    <ChevronUp className="ml-2" size={20} />
+                  </span>
                 ) : (
-                  "All Songs Loaded ✨"
+                  <span className="flex items-center justify-center">
+                    See more
+                    <ChevronDown className="ml-2" size={20} />
+                  </span>
                 )}
               </button>
+            </div>
             </div>
           </section>
           

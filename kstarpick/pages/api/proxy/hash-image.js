@@ -61,6 +61,14 @@ export default async function handler(req, res) {
     
     if (!imageRecord) {
       console.log(`[Hash Image API] 해시를 찾을 수 없음: ${hash}`);
+
+      // 로컬 개발 환경에서는 기본 이미지 사용
+      if (process.env.NODE_ENV === 'development' || process.env.IS_LOCAL_DEV === 'true') {
+        console.log('[Hash Image API] 로컬 개발 환경 - 기본 이미지 리다이렉트');
+        // 기본 뉴스 이미지로 리다이렉트
+        return res.redirect(307, '/images/news/default-news.jpg');
+      }
+
       return res.status(404).json({ error: 'Image hash not found' });
     }
 

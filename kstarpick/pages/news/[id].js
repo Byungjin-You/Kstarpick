@@ -2297,14 +2297,22 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                 
                 {/* Sidebar */}
                 <div className="lg:w-1/3">
-                  {/* Related News */}
+                  {/* Related News - 드라마 페이지와 동일한 디자인 */}
                   <div className="bg-white rounded-xl px-0 py-3 mb-8 mt-0 md:mt-12">
-                    <div className="flex items-center mb-4">
+                    <div className="mb-6">
                       <div className="flex items-center">
-                        <img src="/images/icons8-link-48.png" alt="Related News" className="mr-2 w-5 h-5" />
-                        <h3 className="text-xl md:text-2xl font-bold text-gray-800">
-                          Related News
-                        </h3>
+                        {/* Link Icon */}
+                        <div className="mr-4 flex-shrink-0">
+                          <img
+                            src="/images/icons8-link-48.png"
+                            alt="Related News"
+                            className="h-12 w-12 object-contain"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#233CFA' }}>Related Content</span>
+                          <h2 className="text-2xl md:text-3xl font-bold text-gray-800">Related News</h2>
+                        </div>
                       </div>
                     </div>
 
@@ -2368,11 +2376,21 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
               
               {/* More News Section */}
               <div className="mb-24">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center">
-                    <img src="/images/icons8-copy-48.png" alt="More News" className="mr-2 w-5 h-5" />
-                    More K-POP News
-                  </h3>
+                <div className="mb-8">
+                  <div className="flex items-center">
+                    {/* Copy Icon */}
+                    <div className="mr-4 flex-shrink-0">
+                      <img
+                        src="/images/icons8-copy-48.png"
+                        alt="More News"
+                        className="h-12 w-12 object-contain"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#233CFA' }}>More Content</span>
+                      <h2 className="text-2xl md:text-3xl font-bold text-gray-800">More K-POP News</h2>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
@@ -2442,37 +2460,20 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
       {isMounted && showBackToTop && (
         <button
               onClick={scrollToTop}
-              className="fixed bottom-6 right-6 p-3 text-white rounded-full shadow-lg transition-colors hover:animate-none animate-bounce-custom transform hover:scale-110"
+              className="fixed bottom-6 right-6 p-3 bg-white rounded-full shadow-lg transition-all duration-300 transform hover:scale-110"
               aria-label="Back to top"
               style={{
-                backgroundColor: '#233CFA',
-                animation: 'bounce-button 2s infinite',
+                border: '2px solid #233CFA',
                 zIndex: 9999,
               }}
             >
               <style jsx>{`
-                @keyframes bounce-button {
-                  0%, 100% {
-                    transform: translateY(0);
-                  }
-                  50% {
-                    transform: translateY(-10px);
-                  }
-                  70% {
-                    transform: translateY(-5px);
-                  }
-                }
-                button {
-                  animation: bounce-button 2s ease-in-out infinite;
-                  transition: all 0.3s;
-                }
                 button:hover {
-                  animation: none;
                   transform: scale(1.15);
                   box-shadow: 0 10px 25px -5px rgba(35, 60, 250, 0.4);
                 }
               `}</style>
-              <ArrowUp size={20} />
+              <ArrowUp size={20} color="#233CFA" />
             </button>
       )}
 

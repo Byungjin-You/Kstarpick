@@ -147,69 +147,51 @@ export default async function handler(req, res) {
     // Now handles single words (like "Sooyoung") as well as multi-word names
     const isCelebrityNameSearch = searchTerms.length >= 1 && searchTerms.length <= 3;
     
-    // Also try to search for celebrity name in any collection
+    // Single word search - must be exact match in title or content
     if ((type === 'all' || type === 'news') && searchTerms.length === 1 && searchTerms[0].length >= 4) {
       try {
-        console.log(`[SEARCH] This looks like a single word celebrity name: "${q}"`);
-        
-        // Try to find exact matches in news titles first
+        console.log(`[SEARCH] Single word search: "${q}"`);
+
         const newsCollection = db.collection('news');
-        const titleQuery = {
-          title: { $regex: q, $options: 'i' }
+
+        // Search in title and content with the keyword
+        const searchQuery = {
+          $or: [
+            { title: { $regex: q, $options: 'i' } },
+            { content: { $regex: q, $options: 'i' } },
+            { contentHtml: { $regex: q, $options: 'i' } }
+          ],
+          ...dateFilter
         };
-        
-        console.log(`[SEARCH] News title query: ${JSON.stringify(titleQuery)}`);
-        
+
+        console.log(`[SEARCH] News search query: ${JSON.stringify(searchQuery)}`);
+
         const newsMatches = await newsCollection
-          .find(titleQuery)
+          .find(searchQuery)
+          .sort(sortOptions)
+          .skip(skip)
           .limit(parseInt(limit))
           .toArray();
-          
-        console.log(`[SEARCH] Found ${newsMatches.length} news title matches for "${q}"`);
-        
-        // Also check content for single word celebrities like "Sooyoung"
-        let contentMatches = [];
-        if (newsMatches.length < parseInt(limit)) {
-          console.log(`[SEARCH] Checking content for single word celebrity: "${q}"`);
-          
-          const contentQuery = {
-            $or: [
-              { content: { $regex: q, $options: 'i' } },
-              { contentHtml: { $regex: q, $options: 'i' } }
-            ]
-          };
-          
-          contentMatches = await newsCollection
-            .find(contentQuery)
-            .limit(parseInt(limit) - newsMatches.length)
-            .toArray();
-            
-          console.log(`[SEARCH] Found ${contentMatches.length} additional news content matches for "${q}"`);
-          
-          // Remove duplicates
-          const existingIds = new Set(newsMatches.map(item => item._id.toString()));
-          contentMatches = contentMatches.filter(item => !existingIds.has(item._id.toString()));
-        }
-        
-        // Combine title and content matches
-        const allNewsMatches = [...newsMatches, ...contentMatches];
-        
-        if (allNewsMatches.length > 0) {
-          // Return combined news results
+
+        console.log(`[SEARCH] Found ${newsMatches.length} news matches for "${q}"`);
+
+        if (newsMatches.length > 0) {
+          const total = await newsCollection.countDocuments(searchQuery);
+
           return res.status(200).json({
             results: {
-              news: allNewsMatches,
+              news: newsMatches,
               dramas: [],
               movies: [],
               actors: []
             },
-            total: allNewsMatches.length,
+            total: total,
             page: parseInt(page),
-            totalPages: Math.ceil(allNewsMatches.length / parseInt(limit))
+            totalPages: Math.ceil(total / parseInt(limit))
           });
         }
       } catch (error) {
-        console.error(`[SEARCH] Error in single word celebrity search: ${error.message}`, error);
+        console.error(`[SEARCH] Error in single word search: ${error.message}`, error);
         // Continue with normal search if there's an error
       }
     }

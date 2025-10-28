@@ -427,21 +427,11 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
   return (
     <MainLayout>
       <div className="container mx-auto px-4 py-12">
-        {/* 헤더 섹션 - 셀럽 페이지와 동일한 스타일 적용 */}
-        <div className="mb-8 relative">
-          <div className="absolute -top-10 -left-6 w-32 h-32 bg-gradient-to-br from-pink-200 to-purple-200 rounded-full blur-3xl opacity-60"></div>
-          <div className="absolute top-12 right-20 w-40 h-40 bg-gradient-to-br from-blue-200 to-indigo-200 rounded-full blur-3xl opacity-40"></div>
-          
-          <div className="relative z-10">
-            <div className="flex items-center mb-1">
-              <div className="h-1.5 w-16 bg-gradient-to-r from-[#ff3e8e] to-[#ff8360] rounded-full mr-3"></div>
-              <Star size={20} className="text-[#ff3e8e] animate-pulse" />
-              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-[#ff3e8e] via-[#ff8360] to-[#ff61ab] text-transparent bg-clip-text ml-2">
-                TV & Films
-              </h1>
-            </div>
-            <p className="text-gray-500 text-sm mt-2">Discover the latest Korean movies with exclusive updates and reviews</p>
-          </div>
+        {/* 제목 영역 */}
+        <div className="mb-8 mt-8">
+          <h1 className="font-bold text-black" style={{ fontSize: '20px' }}>
+            Most searched <span style={{ color: '#233CFA' }}>movies</span> right now
+          </h1>
         </div>
 
         {error && (
@@ -454,10 +444,11 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
         <div className="relative">
           {/* 왼쪽 네비게이션 버튼 - 첫 페이지가 아닐 때만 표시, PC에서만 표시 */}
           {currentPage > 1 && !isMobile && (
-            <button 
+            <button
               onClick={goToPrevPage}
               disabled={isPageChanging}
-              className="flex absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-3 md:-translate-x-6 z-10 w-10 h-10 md:w-12 md:h-12 rounded-full items-center justify-center text-white bg-gradient-to-r from-[#ff3e8e] to-[#ff8360] hover:shadow-md transition-all duration-300 shadow-md"
+              className="flex absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-3 md:-translate-x-6 z-10 w-10 h-10 md:w-12 md:h-12 rounded-full items-center justify-center text-white hover:shadow-md transition-all duration-300 shadow-md"
+              style={{ backgroundColor: '#233CFA' }}
               aria-label="Previous Page"
             >
               <ChevronLeft size={18} />
@@ -508,14 +499,14 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
                       <div className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 h-full">
                         <div className="flex items-center p-4">
                           {/* 순위 - flex-shrink-0 추가하여 크기 고정 */}
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center text-white font-bold text-lg shadow-lg mr-3 flex-shrink-0">
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg mr-3 flex-shrink-0" style={{ backgroundColor: '#233CFA' }}>
                             {(currentPage - 1) * itemsPerPage + index + 1}
                           </div>
-                          
+
                           {/* 제목과 정보 - 너비 제한 추가 */}
                           <div className="flex-grow min-w-0">
                             <Link href={`/tvfilm/${item._id}`} className="block">
-                              <h3 className={`text-base font-semibold text-gray-800 hover:text-[#ff3e8e] transition-colors ${isMobile ? 'line-clamp-1' : 'line-clamp-2'} truncate`}>
+                              <h3 className="text-base font-semibold text-gray-800 hover:text-[#009efc] transition-colors line-clamp-1 truncate">
                                 {item.title}
                               </h3>
                               
@@ -524,15 +515,23 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
                                 {/* 첫 번째 장르 태그 */}
                                 {(item.genres && Array.isArray(item.genres) && item.genres.length > 0) ? (
                                   <span
-                                    className="inline-block text-xs font-medium text-pink-700 px-2 py-0.5 bg-pink-50 rounded-full shadow-sm mr-2 whitespace-nowrap flex-shrink-0"
+                                    className="inline-block text-xs font-medium px-2 py-0.5 rounded-full shadow-sm mr-2 whitespace-nowrap flex-shrink-0"
+                                    style={{
+                                      backgroundColor: '#f3f4f6',
+                                      color: '#1f2937'
+                                    }}
                                   >
-                                    {typeof item.genres[0] === 'string' 
-                                      ? item.genres[0].charAt(0).toUpperCase() + item.genres[0].slice(1) 
+                                    {typeof item.genres[0] === 'string'
+                                      ? item.genres[0].charAt(0).toUpperCase() + item.genres[0].slice(1)
                                       : item.genres[0]}
                                   </span>
                                 ) : (typeof item.genre === 'string' && item.genre.trim() !== '') ? (
                                   <span
-                                    className="inline-block text-xs font-medium text-pink-700 px-2 py-0.5 bg-pink-50 rounded-full shadow-sm mr-2 whitespace-nowrap flex-shrink-0"
+                                    className="inline-block text-xs font-medium px-2 py-0.5 rounded-full shadow-sm mr-2 whitespace-nowrap flex-shrink-0"
+                                    style={{
+                                      backgroundColor: '#f3f4f6',
+                                      color: '#1f2937'
+                                    }}
                                   >
                                     {item.genre.split(',')[0].trim().charAt(0).toUpperCase() + item.genre.split(',')[0].trim().slice(1)}
                                   </span>
@@ -560,17 +559,11 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
                     ) : (
                       // 펼쳐진 상태 - 기존 카드 UI
                       <Link href={`/tvfilm/${item._id}`} className="block h-full">
-                        <div 
+                        <div
                           className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 h-full transform hover:-translate-y-1"
-                          style={{
-                            // 모바일에서 펼쳐진 카드에 그라데이션 테두리 효과
-                            ...(isMobile && !collapsedCards[item._id] ? {
-                              border: '2px solid transparent',
-                              backgroundImage: 'linear-gradient(white, white), linear-gradient(to right, #ff3e8e, #9333ea, #3b82f6)',
-                              backgroundOrigin: 'border-box',
-                              backgroundClip: 'padding-box, border-box'
-                            } : {})
-                          }}
+                          style={isMobile ? {
+                            border: '2px solid #233CFA'
+                          } : {}}
                         >
                           <div className="relative">
                             <div className={`${isMobile ? 'aspect-[5/4.5]' : 'h-60 md:h-64 lg:h-80'} bg-gray-100 relative overflow-hidden`}>
@@ -596,10 +589,10 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
                               {/* 별점 - 모바일에서는 제거 */}
                               {!isMobile && (
                                 <div className="absolute top-2 right-2 flex items-center bg-black/50 backdrop-blur-sm px-2 py-1 rounded-full">
-                                  <div className="h-6 w-6 rounded-full bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center text-white font-bold text-xs mr-1 shadow-lg">
+                                  <div className="h-6 w-6 rounded-full flex items-center justify-center text-white font-bold text-xs mr-1 shadow-lg" style={{ backgroundColor: '#233CFA' }}>
                                     {item.reviewRating != null && item.reviewRating !== undefined && parseFloat(item.reviewRating) > 0
-                                      ? parseFloat(item.reviewRating) === 10 
-                                        ? "10" 
+                                      ? parseFloat(item.reviewRating) === 10
+                                        ? "10"
                                         : parseFloat(item.reviewRating).toFixed(1)
                                       : "-"
                                     }
@@ -617,7 +610,7 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
                             </div>
                             
                             <div className="p-4">
-                              <h3 className="text-base font-bold text-gray-800 group-hover:text-[#ff3e8e] transition-colors flex items-center justify-between">
+                              <h3 className="text-base font-bold text-gray-800 group-hover:text-[#009efc] transition-colors flex items-center justify-between">
                                 <span className={`mr-2 ${isMobile ? 'line-clamp-1' : 'line-clamp-2'}`}>{item.title}</span>
                                 {/* Rating 평점을 제목 오른쪽에 표시 (모바일용) - 별 아이콘 추가 */}
                                 {isMobile && (
@@ -643,10 +636,29 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
                                       ? item.genres.map((genre, idx) => (
                                         <span
                                           key={idx}
-                                          className="inline-block text-xs font-medium text-pink-700 px-2 py-0.5 bg-pink-50 rounded-full mr-1 shadow-sm hover:bg-pink-100 transition-colors"
+                                          className="inline-block text-xs font-medium px-2 py-0.5 rounded-full mr-1 shadow-sm transition-colors"
+                                          style={{
+                                            display: 'inline-block',
+                                            backgroundColor: '#f3f4f6',
+                                            color: '#1f2937',
+                                            borderRadius: '9999px',
+                                            padding: '0.25rem 0.5rem',
+                                            marginRight: '0.25rem',
+                                            fontSize: '0.75rem',
+                                            fontWeight: '500',
+                                            cursor: 'pointer'
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#009efc';
+                                            e.currentTarget.style.color = 'white';
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#f3f4f6';
+                                            e.currentTarget.style.color = '#1f2937';
+                                          }}
                                         >
-                                          {genre && typeof genre === 'string' 
-                                            ? genre.charAt(0).toUpperCase() + genre.slice(1) 
+                                          {genre && typeof genre === 'string'
+                                            ? genre.charAt(0).toUpperCase() + genre.slice(1)
                                             : genre}
                                         </span>
                                       ))
@@ -654,13 +666,53 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
                                         ? item.genre.split(',').map((g, idx) => (
                                           <span
                                             key={idx}
-                                            className="inline-block text-xs font-medium text-pink-700 px-2 py-0.5 bg-pink-50 rounded-full mr-1 shadow-sm hover:bg-pink-100 transition-colors"
+                                            className="inline-block text-xs font-medium px-2 py-0.5 rounded-full mr-1 shadow-sm transition-colors"
+                                            style={{
+                                              display: 'inline-block',
+                                              backgroundColor: '#f3f4f6',
+                                              color: '#1f2937',
+                                              borderRadius: '9999px',
+                                              padding: '0.25rem 0.5rem',
+                                              marginRight: '0.25rem',
+                                              fontSize: '0.75rem',
+                                              fontWeight: '500',
+                                              cursor: 'pointer'
+                                            }}
+                                            onMouseEnter={(e) => {
+                                              e.currentTarget.style.backgroundColor = '#009efc';
+                                              e.currentTarget.style.color = 'white';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                              e.currentTarget.style.backgroundColor = '#f3f4f6';
+                                              e.currentTarget.style.color = '#1f2937';
+                                            }}
                                           >
                                             {g.trim().charAt(0).toUpperCase() + g.trim().slice(1)}
                                           </span>
                                         ))
                                         : (
-                                          <span className="inline-block text-xs font-medium text-pink-700 px-2 py-0.5 bg-pink-50 rounded-full mr-1 shadow-sm hover:bg-pink-100 transition-colors">
+                                          <span
+                                            className="inline-block text-xs font-medium px-2 py-0.5 rounded-full mr-1 shadow-sm transition-colors"
+                                            style={{
+                                              display: 'inline-block',
+                                              backgroundColor: '#f3f4f6',
+                                              color: '#1f2937',
+                                              borderRadius: '9999px',
+                                              padding: '0.25rem 0.5rem',
+                                              marginRight: '0.25rem',
+                                              fontSize: '0.75rem',
+                                              fontWeight: '500',
+                                              cursor: 'pointer'
+                                            }}
+                                            onMouseEnter={(e) => {
+                                              e.currentTarget.style.backgroundColor = '#009efc';
+                                              e.currentTarget.style.color = 'white';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                              e.currentTarget.style.backgroundColor = '#f3f4f6';
+                                              e.currentTarget.style.color = '#1f2937';
+                                            }}
+                                          >
                                             {item.category ? item.category.charAt(0).toUpperCase() + item.category.slice(1) : "Film"}
                                           </span>
                                         )
@@ -704,10 +756,11 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
           
           {/* 오른쪽 네비게이션 버튼 - 마지막 페이지가 아닐 때만 표시, PC에서만 표시 */}
           {currentPage < totalPages && !isMobile && (
-            <button 
+            <button
               onClick={goToNextPage}
               disabled={isPageChanging}
-              className="flex absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-3 md:translate-x-6 z-10 w-10 h-10 md:w-12 md:h-12 rounded-full items-center justify-center text-white bg-gradient-to-r from-[#ff3e8e] to-[#ff8360] hover:shadow-md transition-all duration-300 shadow-md"
+              className="flex absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-3 md:translate-x-6 z-10 w-10 h-10 md:w-12 md:h-12 rounded-full items-center justify-center text-white hover:shadow-md transition-all duration-300 shadow-md"
+              style={{ backgroundColor: '#233CFA' }}
               aria-label="Next Page"
             >
               <ChevronRight size={18} />
@@ -717,12 +770,22 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
         
         {/* 모바일 View More Button */}
         {isMobile && (
-          <div className="mt-6 text-center">
+          <div className="mt-6">
             <button
               onClick={toggleMobileView}
-              className="px-6 py-2 bg-gradient-to-r from-[#ff3e8e] to-[#ff8360] text-white rounded-full hover:shadow-lg transition-all transform hover:-translate-y-1"
+              className="w-full py-3 bg-white text-black font-medium rounded-2xl border-2 border-gray-300 hover:border-gray-400 hover:shadow-md transition-all"
             >
-              {showMoreMobile ? "Show Less ↑" : "Show More ↓"}
+              {showMoreMobile ? (
+                <span className="flex items-center justify-center">
+                  Fold
+                  <ChevronUp className="ml-2" size={20} />
+                </span>
+              ) : (
+                <span className="flex items-center justify-center">
+                  See more
+                  <ChevronDown className="ml-2" size={20} />
+                </span>
+              )}
             </button>
           </div>
         )}

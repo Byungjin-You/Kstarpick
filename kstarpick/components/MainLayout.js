@@ -135,26 +135,13 @@ const MainLayout = ({ children }) => {
       {showBackToTop && (
         <button
           onClick={scrollToTop}
-          className="fixed bottom-6 right-6 p-3 text-white rounded-full shadow-lg transition-all hover:scale-110 z-[9999]"
+          className="fixed bottom-6 right-6 p-3 bg-white rounded-full shadow-lg transition-all hover:scale-110 z-[9999]"
           aria-label="맨 위로 이동"
           style={{
-            backgroundColor: '#233CFA',
-            animation: 'bounce 2s infinite',
+            border: '2px solid #233CFA',
           }}
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1a2db8'}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#233CFA'}
         >
-          <style jsx>{`
-            @keyframes bounce {
-              0%, 100% {
-                transform: translateY(0);
-              }
-              50% {
-                transform: translateY(-10px);
-              }
-            }
-          `}</style>
-          <ArrowUp size={20} />
+          <ArrowUp size={20} color="#233CFA" />
         </button>
       )}
     </div>

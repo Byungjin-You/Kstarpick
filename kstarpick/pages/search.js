@@ -49,7 +49,7 @@ export default function SearchPage() {
         dateRange: filters.dateRange
       });
 
-      const response = await fetch(`/api/news?${params}`);
+      const response = await fetch(`/api/search?${params}`);
       if (!response.ok) {
         throw new Error('Failed to fetch search results');
       }
@@ -219,11 +219,7 @@ export default function SearchPage() {
         )}
 
         {/* Search Results */}
-        {isLoading ? (
-          <div className="flex justify-center items-center py-20">
-            <LoadingSpinner />
-          </div>
-        ) : searchTerm ? (
+        {searchTerm && !isLoading ? (
           <div>
 
 

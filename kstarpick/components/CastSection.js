@@ -84,7 +84,7 @@ const CastSection = ({ cast = [], onActorClick }) => {
   if (!cast || cast.length === 0) {
     return (
       <div id="cast" className="mb-14 scroll-mt-24">
-        <h2 className="text-2xl font-bold mb-5 text-gray-900 border-l-4 border-pink-500 pl-4 py-1">
+        <h2 className="text-2xl font-bold mb-5 text-gray-900 py-1">
           Cast
         </h2>
         <div className="w-full text-center py-10">
@@ -98,7 +98,7 @@ const CastSection = ({ cast = [], onActorClick }) => {
 
   return (
     <div id="cast" className="mb-14 scroll-mt-24">
-      <h2 className="text-2xl font-bold mb-5 text-gray-900 border-l-4 border-pink-500 pl-4 py-1">
+      <h2 className="text-2xl font-bold mb-5 text-gray-900 py-1">
         Cast
       </h2>
       
@@ -128,7 +128,7 @@ const CastSection = ({ cast = [], onActorClick }) => {
               style={{ scrollSnapAlign: 'center' }}
               onClick={() => handleActorClick(actor)}
             >
-              <div className="relative w-[90px] h-[120px] rounded-lg bg-gray-100 overflow-hidden border border-gray-100 transition-all group-hover:border-pink-300">
+              <div className="relative w-[90px] h-[120px] rounded-lg bg-gray-100 overflow-hidden border border-gray-100 transition-all group-hover:border-[#233cfa]">
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300"></div>
                 {actor.image || actor.profileImage ? (
                   <Image 
@@ -161,7 +161,7 @@ const CastSection = ({ cast = [], onActorClick }) => {
                 </div>
               </div>
               <div className="mt-2">
-                <h3 className="text-sm text-gray-900 font-medium group-hover:text-pink-500 transition-colors line-clamp-1">
+                <h3 className="text-sm text-gray-900 font-medium group-hover:text-[#233cfa] transition-colors line-clamp-1">
                   {actor.name || 'Unknown Actor'}
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">
@@ -178,20 +178,36 @@ const CastSection = ({ cast = [], onActorClick }) => {
             <div className={`absolute top-1/2 -right-4 transform -translate-y-1/2 ${
               scrollState.canScrollRight ? 'visible' : 'invisible'
             }`}>
-              <button 
+              <button
                 onClick={() => scrollCast('right')}
-                className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:text-pink-500 hover:border-pink-200 transition-all group"
+                className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 transition-all group"
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#233cfa';
+                  e.currentTarget.style.borderColor = '#233cfa';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '#4b5563';
+                  e.currentTarget.style.borderColor = '#e5e7eb';
+                }}
               >
                 <ChevronRight className="w-5 h-5 group-hover:scale-110 transition-transform" />
               </button>
             </div>
-            
+
             <div className={`absolute top-1/2 -left-4 transform -translate-y-1/2 ${
               scrollState.canScrollLeft ? 'visible' : 'invisible'
             }`}>
-              <button 
+              <button
                 onClick={() => scrollCast('left')}
-                className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:text-pink-500 hover:border-pink-200 transition-all group"
+                className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 transition-all group"
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#233cfa';
+                  e.currentTarget.style.borderColor = '#233cfa';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '#4b5563';
+                  e.currentTarget.style.borderColor = '#e5e7eb';
+                }}
               >
                 <ChevronRight className="w-5 h-5 rotate-180 group-hover:scale-110 transition-transform" />
               </button>

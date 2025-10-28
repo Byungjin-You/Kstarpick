@@ -955,13 +955,13 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                 <div className="flex-1 sm:pt-2">
                   {/* Category tag */}
                   <div className="mb-3 sm:mb-4 flex space-x-2">
-                    <span className="px-3 py-1 bg-pink-500/30 text-pink-300 backdrop-blur-sm rounded-full text-xs font-medium inline-flex items-center">
+                    <span className="px-3 py-1 backdrop-blur-sm rounded-full text-xs font-medium inline-flex items-center" style={{ backgroundColor: 'rgba(35, 60, 250, 0.3)', color: '#93b4ff' }}>
                       <Film className="w-3 h-3 mr-1" />
                       {currentTVFilm.category || "Movie"}
                     </span>
                     {currentTVFilm.releaseDate && (
                       <span className="px-3 py-1 bg-white/10 text-white/80 backdrop-blur-sm rounded-full text-xs font-medium inline-flex items-center">
-                        <Calendar className="w-3 h-3 mr-1 text-pink-300" />
+                        <Calendar className="w-3 h-3 mr-1" style={{ color: '#93b4ff' }} />
                         {formatDate(currentTVFilm.releaseDate) || "2023"}
                       </span>
                     )}
@@ -982,25 +982,25 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                   {/* Metrics row with modern design */}
                   <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
                     <div className="flex items-center bg-black/40 backdrop-blur-sm px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-full">
-                      <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center text-white font-bold text-xs sm:text-sm mr-2 shadow-lg">
+                      <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm mr-2 shadow-lg" style={{ backgroundColor: '#1d1a27' }}>
                         {currentTVFilm.reviewRating != null && currentTVFilm.reviewRating !== undefined && parseFloat(currentTVFilm.reviewRating) > 0
-                          ? parseFloat(currentTVFilm.reviewRating) === 10 
-                            ? "10" 
+                          ? parseFloat(currentTVFilm.reviewRating) === 10
+                            ? "10"
                             : parseFloat(currentTVFilm.reviewRating).toFixed(1)
                           : "-"
                         }
                       </div>
                       <span className="text-white/90 text-xs sm:text-sm">Rating</span>
                     </div>
-                    
+
                     {currentTVFilm.ageRating && (
                       <div className="flex items-center bg-black/40 backdrop-blur-sm px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-full">
-                        <div className="flex items-center justify-center bg-pink-600 h-7 w-7 sm:h-8 sm:w-8 rounded-full text-white font-bold text-xs sm:text-sm mr-2 shadow-lg">
-                          {typeof currentTVFilm.ageRating === 'string' && currentTVFilm.ageRating.includes('+') 
+                        <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-full text-white font-bold text-xs sm:text-sm mr-2 shadow-lg" style={{ backgroundColor: '#233cfa' }}>
+                          {typeof currentTVFilm.ageRating === 'string' && currentTVFilm.ageRating.includes('+')
                             ? currentTVFilm.ageRating.split('+')[0]
-                            : currentTVFilm.ageRating === 'Not Rated' || currentTVFilm.ageRating === 'Not Yet Rated' 
+                            : currentTVFilm.ageRating === 'Not Rated' || currentTVFilm.ageRating === 'Not Yet Rated'
                               ? "NR"
-                              : currentTVFilm.ageRating === 'ALL' ? "All" 
+                              : currentTVFilm.ageRating === 'ALL' ? "All"
                               : typeof currentTVFilm.ageRating === 'string' && currentTVFilm.ageRating.includes(' - ')
                                 ? currentTVFilm.ageRating.split(' - ')[0]
                                 : currentTVFilm.ageRating || "15"
@@ -1023,7 +1023,7 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                     
                     {currentTVFilm.runtime && (
                       <div className="flex items-center bg-black/40 backdrop-blur-sm px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-full">
-                        <Clock className="text-pink-400 w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
+                        <Clock className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" style={{ color: '#93b4ff' }} />
                         <span className="text-white/90 text-xs sm:text-sm">{currentTVFilm.runtime || "2h 17min"}</span>
                       </div>
                     )}
@@ -1031,9 +1031,12 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                   
                   {/* Action buttons with enhanced design */}
                   <div className="flex mt-4 sm:mt-6">
-                    <button 
+                    <button
                       onClick={() => setShowTrailer(true)}
-                      className="bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full flex items-center font-medium text-sm sm:text-base shadow-lg hover:shadow-xl transition-all group transform hover:translate-y-[-2px]"
+                      className="text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full flex items-center font-medium text-sm sm:text-base shadow-lg hover:shadow-xl transition-all group transform hover:translate-y-[-2px]"
+                      style={{ backgroundColor: '#233cfa' }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1d31cb'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#233cfa'}
                     >
                       <Play className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-2.5 group-hover:animate-pulse" />
                       Watch Trailer
@@ -1081,11 +1084,11 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center bg-gradient-to-r from-pink-500 to-purple-600 px-3 py-2 rounded-2xl shadow-lg">
+                  <div className="px-3 py-2 rounded-2xl shadow-lg" style={{ backgroundColor: '#233cfa' }}>
                     <div className="h-7 w-7 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-bold text-sm mr-2 shadow-md">
                       {currentTVFilm.reviewRating != null && currentTVFilm.reviewRating !== undefined && parseFloat(currentTVFilm.reviewRating) > 0
-                        ? parseFloat(currentTVFilm.reviewRating) === 10 
-                          ? "10" 
+                        ? parseFloat(currentTVFilm.reviewRating) === 10
+                          ? "10"
                           : parseFloat(currentTVFilm.reviewRating).toFixed(1)
                         : "NR"
                       }
@@ -1108,61 +1111,52 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                   <div className="ml-5 flex flex-col flex-1">
                     <div className="space-y-2">
                       {currentTVFilm.runtime && (
-                        <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-xl px-3 py-1.5 shadow-sm border border-white/50">
-                          <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center mr-2.5 shadow-sm">
-                            <Clock className="w-3 h-3 text-white" />
+                        <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm border border-white/50">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-2.5 shadow-sm" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
+                            <img src="/images/icons8-clock-24.png" alt="Runtime" className="w-5 h-5" />
                           </div>
                           <span className="text-xs font-medium text-gray-700">{currentTVFilm.runtime}</span>
                         </div>
                       )}
-                      
+
                       {currentTVFilm.releaseDate && (
-                        <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-xl px-3 py-1.5 shadow-sm border border-white/50">
-                          <div className="w-6 h-6 bg-gradient-to-br from-green-400 to-emerald-600 rounded-lg flex items-center justify-center mr-2.5 shadow-sm">
-                            <Calendar className="w-3 h-3 text-white" />
+                        <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm border border-white/50">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-2.5 shadow-sm" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
+                            <img src="/images/icons8-calendar-94.png" alt="Release Date" className="w-5 h-5" />
                           </div>
                           <span className="text-xs font-medium text-gray-700">{formatDate(currentTVFilm.releaseDate)}</span>
                         </div>
                       )}
-                      
+
                       {currentTVFilm.ageRating && (
-                        <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-xl px-3 py-1.5 shadow-sm border border-white/50">
-                          <div className="w-6 h-6 bg-gradient-to-br from-orange-400 to-red-500 rounded-lg flex items-center justify-center mr-2.5 shadow-sm">
-                            <div className="flex items-center justify-center w-3.5 h-3.5 rounded-full bg-white text-orange-600 text-[9px] font-bold">
-                              {typeof currentTVFilm.ageRating === 'string' && currentTVFilm.ageRating.includes('+') 
-                                ? currentTVFilm.ageRating.split('+')[0]
-                                : currentTVFilm.ageRating === 'Not Rated' ? "NR" 
-                                : currentTVFilm.ageRating === 'ALL' ? "All" 
-                                : typeof currentTVFilm.ageRating === 'string' && currentTVFilm.ageRating.includes(' - ')
-                                  ? currentTVFilm.ageRating.split(' - ')[0]
-                                  : currentTVFilm.ageRating || "15"
-                              }
-                            </div>
+                        <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm border border-white/50">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-2.5 shadow-sm" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
+                            <img src="/images/icons8-warning-shield-94.png" alt="Age Rating" className="w-5 h-5" />
                           </div>
                           <span className="text-xs font-medium text-gray-700">
-                            {currentTVFilm.ageRating === '15' || currentTVFilm.ageRating?.includes('15+') ? '15 and over' : 
-                             currentTVFilm.ageRating === '12' || currentTVFilm.ageRating?.includes('12+') ? '12 and over' : 
-                             currentTVFilm.ageRating === '18' || currentTVFilm.ageRating?.includes('18+') ? 'Adults only' : 
-                             currentTVFilm.ageRating === 'ALL' ? 'All ages' : 
+                            {currentTVFilm.ageRating === '15' || currentTVFilm.ageRating?.includes('15+') ? '15 and over' :
+                             currentTVFilm.ageRating === '12' || currentTVFilm.ageRating?.includes('12+') ? '12 and over' :
+                             currentTVFilm.ageRating === '18' || currentTVFilm.ageRating?.includes('18+') ? 'Adults only' :
+                             currentTVFilm.ageRating === 'ALL' ? 'All ages' :
                              currentTVFilm.ageRating === 'Not Rated' ? 'Not Rated' :
                              currentTVFilm.ageRating || 'Not rated'}
                           </span>
                         </div>
                       )}
-                      
+
                       {currentTVFilm.director && (
-                        <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-xl px-3 py-1.5 shadow-sm border border-white/50">
-                          <div className="w-6 h-6 bg-gradient-to-br from-purple-400 to-indigo-600 rounded-lg flex items-center justify-center mr-2.5 shadow-sm">
-                            <Award className="w-3 h-3 text-white" />
+                        <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm border border-white/50">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-2.5 shadow-sm" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
+                            <img src="/images/icons8-documentary-94.png" alt="Director" className="w-5 h-5" />
                           </div>
                           <span className="text-xs font-medium text-gray-700">{currentTVFilm.director}</span>
                         </div>
                       )}
-                      
+
                       {currentTVFilm.country && (
-                        <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-xl px-3 py-1.5 shadow-sm border border-white/50">
-                          <div className="w-6 h-6 bg-gradient-to-br from-teal-400 to-cyan-600 rounded-lg flex items-center justify-center mr-2.5 shadow-sm">
-                            <span className="text-xs">🌍</span>
+                        <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm border border-white/50">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-2.5 shadow-sm" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
+                            <img src="/images/icons8-globe-94.png" alt="Country" className="w-5 h-5" />
                           </div>
                           <span className="text-xs font-medium text-gray-700">{currentTVFilm.country || "South Korea"}</span>
                         </div>
@@ -1175,7 +1169,26 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                 <div className="mt-6 flex flex-wrap gap-2">
                   {(currentTVFilm && currentTVFilm.genres && Array.isArray(currentTVFilm.genres) && currentTVFilm.genres.length > 0) ? (
                     currentTVFilm.genres.map((genre, index) => (
-                      <span key={index} className="px-3 py-1.5 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded-full text-xs font-semibold border border-purple-200/50 shadow-sm">
+                      <span
+                        key={index}
+                        className="px-3 py-1.5 rounded-full text-xs font-semibold border shadow-sm transition-all"
+                        style={{
+                          backgroundColor: '#f3f4f6',
+                          color: '#1f2937',
+                          borderColor: '#e5e7eb',
+                          cursor: 'pointer'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#009efc';
+                          e.currentTarget.style.color = 'white';
+                          e.currentTarget.style.borderColor = '#009efc';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = '#f3f4f6';
+                          e.currentTarget.style.color = '#1f2937';
+                          e.currentTarget.style.borderColor = '#e5e7eb';
+                        }}
+                      >
                         {genre}
                       </span>
                     ))
@@ -1187,9 +1200,14 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
               
               {/* 트레일러 버튼 - 개선된 디자인 */}
               <div className="px-6 pb-6">
-                <button 
+                <button
                   onClick={() => setShowTrailer(true)}
-                  className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-600 hover:from-pink-600 hover:via-purple-600 hover:to-indigo-700 text-white w-full py-3.5 rounded-2xl flex items-center justify-center font-semibold text-sm shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] relative overflow-hidden"
+                  className="text-white w-full py-3.5 rounded-2xl flex items-center justify-center font-semibold text-sm shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] relative overflow-hidden"
+                  style={{ backgroundColor: '#233cfa' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1d31cb'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#233cfa'}
+                  onTouchStart={(e) => e.currentTarget.style.backgroundColor = '#1d31cb'}
+                  onTouchEnd={(e) => e.currentTarget.style.backgroundColor = '#233cfa'}
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300"></div>
                   <div className="relative flex items-center">
@@ -1206,8 +1224,8 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
           {/* 리뷰 평가 점수 (모바일 전용) */}
           {currentTVFilm.reviewCount > 0 && (
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-1">
-              <h3 className="text-sm font-medium text-gray-800 mb-2 flex items-center">
-                <MessageCircle className="w-4 h-4 text-pink-500 mr-1.5" />
+              <h3 className="text-sm font-bold text-gray-800 mb-2 flex items-center">
+                <img src="/images/icons8-star-94.png" alt="Star" className="w-4 h-4 mr-1.5" />
                 Viewer Ratings
               </h3>
               <div className="space-y-2">
@@ -1215,48 +1233,48 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                   <span className="text-xs text-gray-600">Acting/Cast</span>
                   <div className="flex items-center">
                     <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
-                      <div 
-                        className="h-full bg-gradient-to-r from-pink-400 to-rose-500 rounded-full"
-                        style={{ width: `${(currentTVFilm.reviewStats?.castRating || 8.0) * 10}%` }}
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${(currentTVFilm.reviewStats?.castRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
                       ></div>
                     </div>
                     <span className="text-xs font-medium text-gray-800">{currentTVFilm.reviewStats?.castRating || 8.0}</span>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-600">Story</span>
                   <div className="flex items-center">
                     <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
-                      <div 
-                        className="h-full bg-gradient-to-r from-pink-400 to-rose-500 rounded-full"
-                        style={{ width: `${(currentTVFilm.reviewStats?.storyRating || 8.0) * 10}%` }}
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${(currentTVFilm.reviewStats?.storyRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
                       ></div>
                     </div>
                     <span className="text-xs font-medium text-gray-800">{currentTVFilm.reviewStats?.storyRating || 8.0}</span>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-600">Music</span>
                   <div className="flex items-center">
                     <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
-                      <div 
-                        className="h-full bg-gradient-to-r from-pink-400 to-rose-500 rounded-full"
-                        style={{ width: `${(currentTVFilm.reviewStats?.musicRating || 7.5) * 10}%` }}
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${(currentTVFilm.reviewStats?.musicRating || 7.5) * 10}%`, backgroundColor: '#233cfa' }}
                       ></div>
                     </div>
                     <span className="text-xs font-medium text-gray-800">{currentTVFilm.reviewStats?.musicRating || 7.5}</span>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-600">Rewatch Value</span>
                   <div className="flex items-center">
                     <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
-                      <div 
-                        className="h-full bg-gradient-to-r from-pink-400 to-rose-500 rounded-full"
-                        style={{ width: `${(currentTVFilm.reviewStats?.rewatchRating || 7.0) * 10}%` }}
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${(currentTVFilm.reviewStats?.rewatchRating || 7.0) * 10}%`, backgroundColor: '#233cfa' }}
                       ></div>
                     </div>
                     <span className="text-xs font-medium text-gray-800">{currentTVFilm.reviewStats?.rewatchRating || 7.0}</span>
@@ -1329,8 +1347,9 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
               </button>
             )}
             
-            <div 
-              className="relative w-full max-w-3xl bg-white rounded-xl overflow-hidden shadow-2xl border border-pink-100 mx-4 my-4 sm:my-8" 
+            <div
+              className="relative w-full max-w-3xl bg-white rounded-xl overflow-hidden shadow-2xl mx-4 my-4 sm:my-8"
+              style={{ border: '1px solid rgba(35, 60, 250, 0.2)' }}
               onClick={e => e.stopPropagation()}
             >
               <div className="p-4 sm:p-5 max-h-[calc(100vh-4rem)] overflow-y-auto">
@@ -1344,7 +1363,7 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                 </div>
                 
                 <div className="flex items-start sm:items-center mb-3 sm:mb-4 gap-2.5 sm:gap-3">
-                  <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center text-white font-bold text-base sm:text-lg">
+                  <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full flex items-center justify-center text-white font-bold text-base sm:text-lg" style={{ background: 'linear-gradient(to bottom right, #233cfa, #009efc)' }}>
                     {selectedReview.rating}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -1379,25 +1398,25 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                 <div className="bg-gray-50 p-3 sm:p-4 rounded-lg mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex items-center justify-between space-x-4">
                     <span className="text-xs sm:text-sm text-gray-600">Acting/Cast</span>
-                    <span className="text-xs sm:text-sm font-medium text-pink-600">
+                    <span className="text-xs sm:text-sm font-medium" style={{ color: '#233cfa' }}>
                       {selectedReview.castRating ? selectedReview.castRating : (selectedReview.rating * 0.9).toFixed(1)}/10
                     </span>
                   </div>
                   <div className="flex items-center justify-between space-x-4">
                     <span className="text-xs sm:text-sm text-gray-600">Story</span>
-                    <span className="text-xs sm:text-sm font-medium text-pink-600">
+                    <span className="text-xs sm:text-sm font-medium" style={{ color: '#233cfa' }}>
                       {selectedReview.storyRating ? selectedReview.storyRating : (selectedReview.rating * 0.95).toFixed(1)}/10
                     </span>
                   </div>
                   <div className="flex items-center justify-between space-x-4">
                     <span className="text-xs sm:text-sm text-gray-600">Music</span>
-                    <span className="text-xs sm:text-sm font-medium text-pink-600">
+                    <span className="text-xs sm:text-sm font-medium" style={{ color: '#233cfa' }}>
                       {selectedReview.musicRating ? selectedReview.musicRating : (selectedReview.rating * 0.9).toFixed(1)}/10
                     </span>
                   </div>
                   <div className="flex items-center justify-between space-x-4">
                     <span className="text-xs sm:text-sm text-gray-600">Rewatch Value</span>
-                    <span className="text-xs sm:text-sm font-medium text-pink-600">
+                    <span className="text-xs sm:text-sm font-medium" style={{ color: '#233cfa' }}>
                       {selectedReview.rewatchValue ? selectedReview.rewatchValue : (selectedReview.rating * 0.85).toFixed(1)}/10
                     </span>
                   </div>
@@ -1416,7 +1435,7 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                 {selectedReview.tags && selectedReview.tags.length > 0 && (
                   <div className="mt-3 sm:mt-4 flex flex-wrap gap-1.5 sm:gap-2">
                     {selectedReview.tags.map((tag, index) => (
-                      <span key={index} className="px-2 sm:px-2.5 py-0.5 sm:py-1 bg-pink-50 text-pink-600 rounded-full text-[10px] sm:text-xs font-medium">
+                      <span key={index} className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)', color: '#233cfa' }}>
                         {tag}
                       </span>
                     ))}
@@ -1467,16 +1486,18 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                 onClick={(e) => { e.preventDefault(); setActiveSection('watch'); document.getElementById('watch').scrollIntoView({ behavior: 'smooth' }); }}
                 className={`group relative flex items-center px-5 py-4 text-sm transition-all whitespace-nowrap ${
                   activeSection === 'watch'
-                    ? 'text-pink-500 font-medium'
+                    ? 'font-medium'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
+                style={activeSection === 'watch' ? { color: '#233cfa' } : {}}
               >
-                <div className={`flex items-center justify-center ${activeSection === 'watch' ? 'text-pink-500' : 'text-gray-400 group-hover:text-gray-600'}`}>
+                <div className={`flex items-center justify-center ${activeSection === 'watch' ? '' : 'text-gray-400 group-hover:text-gray-600'}`}
+                  style={activeSection === 'watch' ? { color: '#233cfa' } : {}}>
                   <Eye className="w-4 h-4 mr-2" />
                   <span>Where to Watch</span>
                 </div>
                 {activeSection === 'watch' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-pink-400 to-pink-500 rounded-t-full"></div>
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#233cfa' }}></div>
                 )}
               </a>
               <a
@@ -1484,16 +1505,18 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                 onClick={(e) => { e.preventDefault(); setActiveSection('synopsis'); document.getElementById('synopsis').scrollIntoView({ behavior: 'smooth' }); }}
                 className={`group relative flex items-center px-5 py-4 text-sm transition-all whitespace-nowrap ${
                   activeSection === 'synopsis'
-                    ? 'text-pink-500 font-medium'
+                    ? 'font-medium'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
+                style={activeSection === 'synopsis' ? { color: '#233cfa' } : {}}
               >
-                <div className={`flex items-center justify-center ${activeSection === 'synopsis' ? 'text-pink-500' : 'text-gray-400 group-hover:text-gray-600'}`}>
+                <div className={`flex items-center justify-center ${activeSection === 'synopsis' ? '' : 'text-gray-400 group-hover:text-gray-600'}`}
+                  style={activeSection === 'synopsis' ? { color: '#233cfa' } : {}}>
                   <Info className="w-4 h-4 mr-2" />
                   <span>Synopsis</span>
                 </div>
                 {activeSection === 'synopsis' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-pink-400 to-pink-500 rounded-t-full"></div>
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#233cfa' }}></div>
                 )}
               </a>
               <a
@@ -1501,16 +1524,18 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                 onClick={(e) => { e.preventDefault(); setActiveSection('trailers'); document.getElementById('tvfilm-trailers').scrollIntoView({ behavior: 'smooth' }); }}
                 className={`group relative flex items-center px-5 py-4 text-sm transition-all whitespace-nowrap ${
                   activeSection === 'trailers'
-                    ? 'text-pink-500 font-medium'
+                    ? 'font-medium'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
+                style={activeSection === 'trailers' ? { color: '#233cfa' } : {}}
               >
-                <div className={`flex items-center justify-center ${activeSection === 'trailers' ? 'text-pink-500' : 'text-gray-400 group-hover:text-gray-600'}`}>
+                <div className={`flex items-center justify-center ${activeSection === 'trailers' ? '' : 'text-gray-400 group-hover:text-gray-600'}`}
+                  style={activeSection === 'trailers' ? { color: '#233cfa' } : {}}>
                   <Play className="w-4 h-4 mr-2" />
                   <span>Trailers</span>
                 </div>
                 {activeSection === 'trailers' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-pink-400 to-pink-500 rounded-t-full"></div>
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#233cfa' }}></div>
                 )}
               </a>
               <a
@@ -1518,16 +1543,18 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                 onClick={(e) => { e.preventDefault(); setActiveSection('cast'); document.getElementById('cast').scrollIntoView({ behavior: 'smooth' }); }}
                 className={`group relative flex items-center px-5 py-4 text-sm transition-all whitespace-nowrap ${
                   activeSection === 'cast'
-                    ? 'text-pink-500 font-medium'
+                    ? 'font-medium'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
+                style={activeSection === 'cast' ? { color: '#233cfa' } : {}}
               >
-                <div className={`flex items-center justify-center ${activeSection === 'cast' ? 'text-pink-500' : 'text-gray-400 group-hover:text-gray-600'}`}>
+                <div className={`flex items-center justify-center ${activeSection === 'cast' ? '' : 'text-gray-400 group-hover:text-gray-600'}`}
+                  style={activeSection === 'cast' ? { color: '#233cfa' } : {}}>
                   <User className="w-4 h-4 mr-2" />
                   <span>Cast</span>
                 </div>
                 {activeSection === 'cast' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-pink-400 to-pink-500 rounded-t-full"></div>
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#233cfa' }}></div>
                 )}
               </a>
               <a
@@ -1535,16 +1562,18 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                 onClick={(e) => { e.preventDefault(); setActiveSection('reviews'); document.getElementById('reviews').scrollIntoView({ behavior: 'smooth' }); }}
                 className={`group relative flex items-center px-5 py-4 text-sm transition-all whitespace-nowrap ${
                   activeSection === 'reviews'
-                    ? 'text-pink-500 font-medium'
+                    ? 'font-medium'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
+                style={activeSection === 'reviews' ? { color: '#233cfa' } : {}}
               >
-                <div className={`flex items-center justify-center ${activeSection === 'reviews' ? 'text-pink-500' : 'text-gray-400 group-hover:text-gray-600'}`}>
+                <div className={`flex items-center justify-center ${activeSection === 'reviews' ? '' : 'text-gray-400 group-hover:text-gray-600'}`}
+                  style={activeSection === 'reviews' ? { color: '#233cfa' } : {}}>
                   <MessageCircle className="w-4 h-4 mr-2" />
                   <span>Reviews</span>
                 </div>
                 {activeSection === 'reviews' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-pink-400 to-pink-500 rounded-t-full"></div>
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#233cfa' }}></div>
                 )}
               </a>
               <a
@@ -1552,16 +1581,18 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                 onClick={(e) => { e.preventDefault(); setActiveSection('similar'); document.getElementById('similar').scrollIntoView({ behavior: 'smooth' }); }}
                 className={`group relative flex items-center px-5 py-4 text-sm transition-all whitespace-nowrap ${
                   activeSection === 'similar'
-                    ? 'text-pink-500 font-medium'
+                    ? 'font-medium'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
+                style={activeSection === 'similar' ? { color: '#233cfa' } : {}}
               >
-                <div className={`flex items-center justify-center ${activeSection === 'similar' ? 'text-pink-500' : 'text-gray-400 group-hover:text-gray-600'}`}>
+                <div className={`flex items-center justify-center ${activeSection === 'similar' ? '' : 'text-gray-400 group-hover:text-gray-600'}`}
+                  style={activeSection === 'similar' ? { color: '#233cfa' } : {}}>
                   <ListFilter className="w-4 h-4 mr-2" />
                   <span>Similar</span>
                 </div>
                 {activeSection === 'similar' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-pink-400 to-pink-500 rounded-t-full"></div>
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#233cfa' }}></div>
                 )}
               </a>
             </div>
@@ -1576,7 +1607,7 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
               <div className="lg:w-2/3 flex flex-col">
                 {/* Where to Watch section */}
                 <div id="watch" className="mb-12 scroll-mt-24 order-1">
-                  <h2 className="text-2xl font-bold mb-5 text-gray-900 border-l-4 border-pink-500 pl-4 py-1">
+                  <h2 className="text-2xl font-bold mb-5 text-gray-900 py-1">
                     Where to Watch
                   </h2>
                   
@@ -1584,44 +1615,59 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                   <div className="space-y-4">
                     {filteredWatchProviders && filteredWatchProviders.length > 0 ? (
                       filteredWatchProviders.map((provider, index) => (
-                        <div 
-                          key={index} 
-                          className="bg-white rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:translate-y-[-3px] border border-gray-100 shadow-sm relative group"
+                        <div
+                          key={index}
+                          className="rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:translate-y-[-3px] shadow-sm relative group"
+                          style={{ backgroundColor: '#1d1a27' }}
                         >
-                          <div className="absolute inset-0 bg-gradient-to-r from-pink-500/10 to-rose-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'linear-gradient(to right, rgba(35, 60, 250, 0.1), rgba(0, 158, 252, 0.1))' }}></div>
                           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:p-5 relative">
                             <div className="flex items-center w-full sm:w-auto">
                               {/* Watch Provider logo */}
-                              <div className={`${provider.logo ? 'bg-white' : 'bg-gray-100'} h-12 w-24 sm:h-14 sm:w-32 flex items-center justify-center rounded-lg overflow-hidden shadow-md border border-gray-100 group-hover:border-pink-200 transition-colors duration-300`}>
-                                {provider.logo ? 
-                                  renderImage(provider.logo, provider.name, "object-contain", 100, 50, false, 'logo') : 
+                              <div className={`${provider.logo ? 'bg-white' : 'bg-gray-100'} h-12 w-24 sm:h-14 sm:w-32 flex items-center justify-center overflow-hidden shadow-md transition-colors duration-300`}
+                                style={{ borderRadius: '12px' }}>
+                                {provider.logo ?
+                                  renderImage(provider.logo, provider.name, "object-contain", 100, 50, false, 'logo') :
                                   <span className="text-gray-800 font-bold text-base sm:text-lg">{provider.name}</span>
                                 }
                               </div>
                               <div className="ml-3 sm:ml-4">
-                                <h3 className="text-base font-semibold text-gray-900 group-hover:text-pink-600 transition-colors duration-300">{provider.name}</h3>
+                                <h3
+                                  className="text-base font-semibold transition-colors duration-300"
+                                  style={{ color: 'white' }}
+                                  onMouseEnter={(e) => e.currentTarget.style.color = '#009efc'}
+                                  onMouseLeave={(e) => e.currentTarget.style.color = 'white'}
+                                >
+                                  {provider.name}
+                                </h3>
                                 <div className="flex flex-wrap gap-1.5 mt-2">
                                   {provider.quality && provider.quality.map((quality, qIndex) => (
-                                    <div key={qIndex} className="bg-gray-50 text-gray-600 group-hover:bg-pink-50 group-hover:text-pink-600 text-xs px-2.5 py-1 rounded-full font-medium border border-gray-100 group-hover:border-pink-200 transition-all duration-300">{quality}</div>
+                                    <div key={qIndex} className="text-xs px-2.5 py-1 rounded-full font-medium transition-all duration-300"
+                                      style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', color: 'rgba(255, 255, 255, 0.8)' }}>
+                                      {quality}
+                                    </div>
                                   ))}
                                 </div>
                               </div>
                             </div>
-                            <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto mt-4 sm:mt-0 border-t sm:border-t-0 pt-3 sm:pt-0 mt-3 sm:mt-0">
+                            <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto mt-4 sm:mt-0 border-t sm:border-t-0 pt-3 sm:pt-0 mt-3 sm:mt-0" style={{ borderColor: 'rgba(255, 255, 255, 0.1)' }}>
                               <div className="sm:mr-6 text-left sm:text-right">
-                                <div className="text-gray-900 font-semibold text-sm sm:text-base">
+                                <div className="font-semibold text-sm sm:text-base" style={{ color: 'white' }}>
                                   {provider.type.charAt(0).toUpperCase() + provider.type.slice(1)}
                                 </div>
                                 {provider.price && (
-                                  <div className="text-pink-500 text-xs sm:text-sm font-medium">{provider.price}</div>
+                                  <div className="text-xs sm:text-sm font-medium" style={{ color: '#009efc' }}>{provider.price}</div>
                                 )}
                               </div>
                               {provider.url ? (
-                                <a 
-                                  href={provider.url} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer" 
-                                  className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full flex items-center font-medium text-sm shadow-md hover:shadow-lg transition-all group-hover:scale-105 duration-300"
+                                <a
+                                  href={provider.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full flex items-center font-medium text-sm shadow-md hover:shadow-lg transition-all group-hover:scale-105 duration-300"
+                                  style={{ backgroundColor: '#233cfa' }}
+                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1d31cb'}
+                                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#233cfa'}
                                 >
                                   <Play className="w-4 h-4 mr-1.5 sm:mr-2" />
                                   <span>Watch Now</span>
@@ -1637,15 +1683,11 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                         </div>
                       ))
                     ) : (
-                      <div className="bg-white rounded-xl p-8 text-center border border-gray-100 shadow-sm">
-                        <div className="w-16 h-16 bg-pink-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Eye className="w-8 h-8 text-pink-300" />
-                        </div>
+                      <div className="bg-white rounded-xl p-8 text-center border border-gray-100" style={{ boxShadow: 'none' }}>
                         <h3 className="text-lg font-semibold text-gray-800 mb-2">No Providers Found</h3>
                         <p className="text-gray-500 max-w-md mx-auto">
                           No watch providers available for this content.
                         </p>
-                        <p className="text-gray-400 text-sm mt-2">Check back later</p>
                       </div>
                     )}
                   </div>
@@ -1653,7 +1695,7 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                 
                 {/* Synopsis section - 시놉시스 */}
                 <div id="synopsis" className="mb-16 scroll-mt-24 order-2">
-                  <h2 className="text-2xl font-bold mb-5 text-gray-900 border-l-4 border-pink-500 pl-4 py-1">
+                  <h2 className="text-2xl font-bold mb-5 text-gray-900 py-1">
                     Synopsis
                   </h2>
                   
@@ -1671,20 +1713,20 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                 {/* User Reviews Section - Enhanced Modern Design */}
                 <div id="reviews" className="mb-6 scroll-mt-24 order-5">
                   <div className="flex items-center mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900 border-l-4 border-pink-500 pl-4 py-1">
+                    <h2 className="text-2xl font-bold text-gray-900 py-1">
                       Reviews
                       <span className="ml-2 text-sm font-normal text-gray-500 align-middle">{currentTVFilm.reviewCount || '0'}</span>
                     </h2>
                   </div>
-                  
+
                   <div className="bg-white rounded-xl overflow-hidden">
                     {/* 평점 가로형 레이아웃 - 상단 배치 */}
                     <div className="p-4 sm:p-6 border-b border-gray-50">
                       <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
                         {/* 메인 평점 표시 */}
                         <div className="flex items-center">
-                          <div className="bg-white p-4 sm:p-5 rounded-full shadow-lg border border-pink-100 relative">
-                            <div className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-pink-500 to-rose-600 bg-clip-text text-transparent">
+                          <div className="bg-white p-4 sm:p-5 rounded-full shadow-lg relative" style={{ border: '1px solid rgba(35, 60, 250, 0.2)' }}>
+                            <div className="text-3xl sm:text-4xl md:text-5xl font-bold" style={{ background: 'linear-gradient(to right, #233cfa, #009efc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
                               {currentTVFilm.reviewRating ? parseFloat(currentTVFilm.reviewRating).toFixed(1) : '0.0'}
                             </div>
                             <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-400 rounded-full text-xs text-white flex items-center justify-center shadow-sm font-bold">
@@ -1731,9 +1773,9 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                                 <div key={ratingNumber} className="flex flex-col items-center group">
                                   <span className="text-xs font-medium text-gray-600 mb-1">{ratingNumber}</span>
                                   <div className="h-2.5 w-full bg-gray-200 rounded-full overflow-hidden">
-                                    <div 
-                                      className="h-full rounded-full bg-gradient-to-r from-pink-400 to-rose-500 transition-all duration-500 ease-out group-hover:from-pink-500 group-hover:to-rose-600 shadow-sm"
-                                      style={{ width: `${percentage}%` }}
+                                    <div
+                                      className="h-full rounded-full transition-all duration-500 ease-out shadow-sm"
+                                      style={{ width: `${percentage}%`, backgroundColor: '#233cfa' }}
                                     ></div>
                                   </div>
                                   <span className="text-xs font-medium text-gray-500 mt-1">{percentage}%</span>
@@ -1755,9 +1797,9 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                                 <div key={ratingNumber} className="flex items-center group">
                                   <span className="w-6 text-xs font-medium text-gray-600 text-center">{ratingNumber}</span>
                                   <div className="flex-grow mx-2 bg-gray-200 rounded-full h-2 overflow-hidden">
-                                    <div 
-                                      className="h-full rounded-full bg-gradient-to-r from-pink-400 to-rose-500 transition-all duration-500 ease-out group-hover:from-pink-500 group-hover:to-rose-600 shadow-sm"
-                                      style={{ width: `${percentage}%` }}
+                                    <div
+                                      className="h-full rounded-full transition-all duration-500 ease-out shadow-sm"
+                                      style={{ width: `${percentage}%`, backgroundColor: '#233cfa' }}
                                     ></div>
                                   </div>
                                   <span className="w-8 text-right text-xs font-medium text-gray-500">{percentage}%</span>
@@ -1773,7 +1815,7 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                     <div className="p-4 sm:p-6">
                       <div className="flex items-center justify-between mb-2 sm:mb-4">
                         <h3 className="font-bold text-sm sm:text-lg text-gray-800 flex items-center">
-                          <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 text-pink-500" />
+                          <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" style={{ color: '#233cfa' }} />
                           Featured Reviews
                         </h3>
                       </div>
@@ -1802,22 +1844,24 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                                   };
                                   
                                   return (
-                                    <div 
-                                      key={review._id || review.reviewId || index} 
-                                      className="w-[calc(100vw-56px)] max-w-[260px] sm:w-[280px] md:w-[320px] flex-shrink-0 bg-white border border-gray-200 rounded-xl p-2.5 sm:p-3 hover:shadow-md transition-all duration-300 hover:border-pink-200 group relative flex flex-col cursor-pointer"
+                                    <div
+                                      key={review._id || review.reviewId || index}
+                                      className="w-[calc(100vw-56px)] max-w-[260px] sm:w-[280px] md:w-[320px] flex-shrink-0 bg-white border rounded-xl p-2.5 sm:p-3 hover:shadow-md transition-all duration-300 group relative flex flex-col cursor-pointer"
                                       onClick={() => openReviewModal(review)}
-                                      style={{ scrollSnapAlign: 'start' }}
+                                      style={{ scrollSnapAlign: 'start', borderColor: '#e5e7eb' }}
+                                      onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(35, 60, 250, 0.3)'}
+                                      onMouseLeave={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
                                     >
                                       {/* Decorative accent */}
-                                      <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-pink-100 to-transparent rounded-tr-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                                      
+                                      <div className="absolute top-0 right-0 w-16 h-16 rounded-tr-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'linear-gradient(to bottom left, rgba(35, 60, 250, 0.1), transparent)' }}></div>
+
                                       <div className="flex justify-between items-start mb-1.5 sm:mb-2 relative">
                                         <div className="flex items-center">
-                                          <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center text-white font-bold text-xs sm:text-sm shadow-sm group-hover:shadow-md transition-all duration-300">
+                                          <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm shadow-sm group-hover:shadow-md transition-all duration-300" style={{ background: 'linear-gradient(to bottom right, #233cfa, #009efc)' }}>
                                             {review.rating}
                                           </div>
                                           <div className="ml-2">
-                                            <div className="text-xs sm:text-sm font-semibold text-gray-800 group-hover:text-pink-600 transition-colors duration-300 truncate max-w-[120px] sm:max-w-[160px]">{review.username || review.authorName || 'Anonymous'}</div>
+                                            <div className="text-xs sm:text-sm font-semibold text-gray-800 transition-colors duration-300 truncate max-w-[120px] sm:max-w-[160px] group-hover:text-[#009efc]">{review.username || review.authorName || 'Anonymous'}</div>
                                             <div className="flex mt-0.5">
                                               {[1, 2, 3, 4, 5].map(star => (
                                                 <Star
@@ -1837,12 +1881,14 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                                         </span>
                                       </div>
                                       
-                                      <h4 className="font-bold text-gray-900 text-xs sm:text-sm mb-1 sm:mb-1.5 line-clamp-1 group-hover:text-pink-600 transition-colors duration-300">{review.title || 'First Impressions'}</h4>
+                                      <h4 className="font-bold text-gray-900 text-xs sm:text-sm mb-1 sm:mb-1.5 line-clamp-1 transition-colors duration-300 group-hover:text-[#009efc]">{review.title || 'First Impressions'}</h4>
                                       <p className="text-gray-600 text-xs sm:text-sm line-clamp-3 group-hover:text-gray-700 transition-colors duration-300 flex-grow">{review.reviewText?.replace(/\s{2,}/g, ' ').replace(/^This review may contain spoilers\s+/i, '') || review.content}</p>
                                       
                                       <div className="mt-2 flex justify-between items-center">
                                         <div></div>
-                                        <span className="text-[10px] sm:text-xs text-pink-500 hover:text-pink-600 font-medium flex items-center group-hover:opacity-100 transition-opacity duration-300">
+                                        <span className="text-[10px] sm:text-xs font-medium flex items-center group-hover:opacity-100 transition-opacity duration-300" style={{ color: '#233cfa' }}
+                                          onMouseEnter={(e) => e.currentTarget.style.color = '#009efc'}
+                                          onMouseLeave={(e) => e.currentTarget.style.color = '#233cfa'}>
                                           Read more
                                           <ChevronRight className="w-2.5 h-2.5 sm:w-3 sm:h-3 ml-0.5" />
                                         </span>
@@ -1878,12 +1924,9 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                           )}
                         </div>
                       ) : (
-                        <div className="flex flex-col items-center justify-center py-10 text-center">
-                          <div className="w-16 h-16 bg-pink-50 rounded-full flex items-center justify-center mb-4">
-                            <MessageSquare className="w-7 h-7 text-pink-300" />
-                          </div>
-                          <h4 className="text-lg font-medium text-gray-700 mb-2">No Reviews Yet</h4>
-                          <p className="text-gray-500 max-w-md">
+                        <div className="bg-white rounded-xl p-8 text-center border border-gray-100" style={{ boxShadow: 'none' }}>
+                          <h3 className="text-lg font-semibold text-gray-800 mb-2">No Reviews Yet</h3>
+                          <p className="text-gray-500 max-w-md mx-auto">
                             No reviews available for this title.
                           </p>
                         </div>
@@ -1894,7 +1937,7 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                 
                 {/* Trailers Section - 예고편 */}
                 <div id="tvfilm-trailers" className="mb-12 scroll-mt-24 order-3">
-                  <h2 className="text-2xl font-bold mb-5 text-gray-900 border-l-4 border-pink-500 pl-4 py-1">
+                  <h2 className="text-2xl font-bold mb-5 text-gray-900 py-1">
                     Videos: Trailers & Teasers
                   </h2>
                   
@@ -1940,7 +1983,7 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                                   
                                   {/* 썸네일 왼쪽 상단에 타이틀 제거 */}
                                   
-                                  <button 
+                                  <button
                                     onClick={(e) => {
                                       e.preventDefault();
                                       setSelectedVideoId(videoId);
@@ -1949,16 +1992,21 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                                     }}
                                     className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/0 transition-all"
                                   >
-                                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-white/20 backdrop-blur-md group-hover:backdrop-blur-none border border-white/30 flex items-center justify-center transform group-hover:scale-110 transition-all duration-300 group-hover:bg-pink-500">
+                                    <div
+                                      className="h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-white/20 backdrop-blur-md group-hover:backdrop-blur-none border border-white/30 flex items-center justify-center transform group-hover:scale-110 transition-all duration-300"
+                                      style={{ transition: 'all 0.3s' }}
+                                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#233cfa'}
+                                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'}
+                                    >
                                       <Play className="w-6 h-6 sm:w-8 sm:h-8 text-white ml-0.5" />
                                     </div>
                                   </button>
                                 </div>
-                                
+
                                 {/* 타이틀을 썸네일 아래에 추가 */}
                                 {video.title && (
                                   <div className="p-3">
-                                    <h3 className="text-sm font-medium text-gray-900 line-clamp-2 group-hover:text-pink-600 transition-colors">
+                                    <h3 className="text-sm font-medium text-gray-900 line-clamp-2 transition-colors group-hover:text-[#009efc]">
                                       {video.title || "Official Trailer"}
                                     </h3>
                                   </div>
@@ -1968,10 +2016,11 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                           })}
                         </>
                       ) : (
-                        <div className="text-center py-10">
-                          <FileImage size={40} className="mx-auto text-gray-300 mb-3" />
-                          <p className="text-gray-500 font-medium">No videos available</p>
-                          <p className="text-gray-400 text-sm mt-1">Check back later for trailers and teasers</p>
+                        <div className="bg-white rounded-xl p-8 text-center border border-gray-100 w-full" style={{ boxShadow: 'none' }}>
+                          <h3 className="text-lg font-semibold text-gray-800 mb-2">No Videos Available</h3>
+                          <p className="text-gray-500 max-w-md mx-auto">
+                            No trailers or teasers available for this content.
+                          </p>
                         </div>
                       )}
                     </div>
@@ -1982,20 +2031,38 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                         <div className={`absolute top-1/2 -right-2 sm:-right-4 transform -translate-y-1/2 ${
                           videoScrollState.canScrollRight ? 'visible' : 'invisible'
                         }`}>
-                          <button 
+                          <button
                             onClick={() => scrollVideos('right')}
-                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white shadow-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:text-pink-500 hover:border-pink-200 transition-all group"
+                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white shadow-lg border flex items-center justify-center transition-all group"
+                            style={{ borderColor: '#e5e7eb', color: '#4b5563' }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = '#233cfa';
+                              e.currentTarget.style.borderColor = '#233cfa';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = '#4b5563';
+                              e.currentTarget.style.borderColor = '#e5e7eb';
+                            }}
                           >
                             <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 group-hover:scale-110 transition-transform" />
                           </button>
                         </div>
-                        
+
                         <div className={`absolute top-1/2 -left-2 sm:-left-4 transform -translate-y-1/2 ${
                           videoScrollState.canScrollLeft ? 'visible' : 'invisible'
                         }`}>
-                          <button 
+                          <button
                             onClick={() => scrollVideos('left')}
-                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white shadow-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:text-pink-500 hover:border-pink-200 transition-all group"
+                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white shadow-lg border flex items-center justify-center transition-all group"
+                            style={{ borderColor: '#e5e7eb', color: '#4b5563' }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = '#233cfa';
+                              e.currentTarget.style.borderColor = '#233cfa';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = '#4b5563';
+                              e.currentTarget.style.borderColor = '#e5e7eb';
+                            }}
                           >
                             <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 rotate-180 group-hover:scale-110 transition-transform" />
                           </button>
@@ -2038,22 +2105,41 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                       
                       {/* Rating */}
                       <div className="flex items-center mb-3 bg-gray-50 rounded-lg px-3 py-2">
-                        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center text-white font-bold text-sm mr-3 shadow-md">
+                        <div className="h-8 w-8 rounded-full flex items-center justify-center text-white font-bold text-sm mr-3 shadow-md" style={{ backgroundColor: '#1d1a27' }}>
                           {currentTVFilm.reviewRating != null && currentTVFilm.reviewRating !== undefined && parseFloat(currentTVFilm.reviewRating) > 0
-                            ? parseFloat(currentTVFilm.reviewRating) === 10 
-                              ? "10" 
+                            ? parseFloat(currentTVFilm.reviewRating) === 10
+                              ? "10"
                               : parseFloat(currentTVFilm.reviewRating).toFixed(1)
                             : "NR"
                           }
                         </div>
                         <span className="text-gray-700 font-medium">Rating</span>
                       </div>
-                      
+
                       {/* Genres */}
                       <div className="flex flex-wrap gap-1.5 mt-1">
                         {(currentTVFilm.genres && currentTVFilm.genres.length > 0) ? (
                           currentTVFilm.genres.map((genre, index) => (
-                            <span key={index} className="px-2.5 py-1 bg-pink-50 text-pink-600 rounded-full text-xs font-medium border border-pink-200">
+                            <span
+                              key={index}
+                              className="px-2.5 py-1 rounded-full text-xs font-medium border transition-all"
+                              style={{
+                                backgroundColor: '#f3f4f6',
+                                color: '#1f2937',
+                                borderColor: '#e5e7eb',
+                                cursor: 'pointer'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#009efc';
+                                e.currentTarget.style.color = 'white';
+                                e.currentTarget.style.borderColor = '#009efc';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = '#f3f4f6';
+                                e.currentTarget.style.color = '#1f2937';
+                                e.currentTarget.style.borderColor = '#e5e7eb';
+                              }}
+                            >
                               {genre}
                             </span>
                           ))
@@ -2072,8 +2158,8 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                       {/* Director */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center">
-                          <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center mr-3">
-                            <Award className="text-pink-500 w-4.5 h-4.5" />
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
+                            <img src="/images/icons8-documentary-94.png" alt="Director" className="w-5 h-5" />
                           </div>
                           <h4 className="text-sm text-gray-500 font-medium">Director</h4>
                         </div>
@@ -2087,8 +2173,8 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                       {/* Runtime */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center">
-                          <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center mr-3">
-                            <Clock className="text-pink-500 w-4.5 h-4.5" />
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
+                            <img src="/images/icons8-clock-24.png" alt="Runtime" className="w-5 h-5" />
                           </div>
                           <h4 className="text-sm text-gray-500 font-medium">Runtime</h4>
                         </div>
@@ -2098,26 +2184,16 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                       {/* Age Rating */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center">
-                          <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center mr-3">
-                            <div className="flex items-center justify-center w-5 h-5 rounded-full bg-pink-500 text-white text-[10px] font-bold">
-                              {typeof currentTVFilm.ageRating === 'string' && currentTVFilm.ageRating.includes('+') 
-                                ? '🔞'
-                                : currentTVFilm.ageRating === 'Not Rated' || currentTVFilm.ageRating === 'Not Yet Rated' 
-                                  ? "NR"
-                                  : currentTVFilm.ageRating === 'ALL' ? '👪' 
-                                  : typeof currentTVFilm.ageRating === 'string' && currentTVFilm.ageRating.includes(' - ')
-                                    ? currentTVFilm.ageRating.split(' - ')[0]
-                                    : currentTVFilm.ageRating || "15"
-                              }
-                            </div>
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
+                            <img src="/images/icons8-warning-shield-94.png" alt="Age Rating" className="w-5 h-5" />
                           </div>
                           <h4 className="text-sm text-gray-500 font-medium">Age Rating</h4>
                         </div>
                         <span className="text-gray-900 font-semibold text-sm whitespace-nowrap">
-                          {currentTVFilm.ageRating === '15' || currentTVFilm.ageRating?.includes('15+') ? '15 and over' : 
-                           currentTVFilm.ageRating === '12' || currentTVFilm.ageRating?.includes('12+') ? '12 and over' : 
-                           currentTVFilm.ageRating === '18' || currentTVFilm.ageRating?.includes('18+') ? 'Adults only' : 
-                           currentTVFilm.ageRating === 'ALL' ? 'All ages' : 
+                          {currentTVFilm.ageRating === '15' || currentTVFilm.ageRating?.includes('15+') ? '15 and over' :
+                           currentTVFilm.ageRating === '12' || currentTVFilm.ageRating?.includes('12+') ? '12 and over' :
+                           currentTVFilm.ageRating === '18' || currentTVFilm.ageRating?.includes('18+') ? 'Adults only' :
+                           currentTVFilm.ageRating === 'ALL' ? 'All ages' :
                            currentTVFilm.ageRating === 'Not Rated' || currentTVFilm.ageRating === 'Not Yet Rated' ? 'Not Rated' :
                            currentTVFilm.ageRating || 'Not rated'}
                         </span>
@@ -2126,8 +2202,8 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                       {/* Production Country */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center">
-                          <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center mr-3">
-                            <span className="text-sm">🌍</span>
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
+                            <img src="/images/icons8-globe-94.png" alt="Country" className="w-5 h-5" />
                           </div>
                           <h4 className="text-sm text-gray-500 font-medium">Country</h4>
                         </div>
@@ -2136,13 +2212,13 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                           <span className="text-sm">{currentTVFilm.country || "South Korea"}</span>
                         </div>
                       </div>
-                      
+
                       {/* Release Date */}
                       {currentTVFilm.releaseDate && (
                         <div className="flex items-center justify-between">
                           <div className="flex items-center">
-                            <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center mr-3">
-                              <Calendar className="text-pink-500 w-4.5 h-4.5" />
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
+                              <img src="/images/icons8-calendar-94.png" alt="Release Date" className="w-5 h-5" />
                             </div>
                             <h4 className="text-sm text-gray-500 font-medium">Release Date</h4>
                           </div>
@@ -2158,59 +2234,59 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                   {currentTVFilm.reviewCount > 0 && (
                     <div className="border-t border-gray-100">
                       <div className="p-5">
-                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                          <MessageCircle className="w-4 h-4 text-pink-500 mr-2" />
+                        <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
+                          <img src="/images/icons8-star-94.png" alt="Star" className="w-4 h-4 mr-2" />
                           Viewer Ratings
                         </h4>
-                        
+
                         <div className="space-y-3">
                           {/* 각 평가 항목 */}
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-gray-600">Acting/Cast</span>
                             <div className="flex items-center">
                               <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-pink-400 to-rose-500 rounded-full"
-                                  style={{ width: `${(currentTVFilm.reviewStats?.castRating || 8.0) * 10}%` }}
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{ width: `${(currentTVFilm.reviewStats?.castRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
                                 ></div>
                               </div>
                               <span className="text-sm font-medium text-gray-800">{currentTVFilm.reviewStats?.castRating || 8.0}</span>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-gray-600">Story</span>
                             <div className="flex items-center">
                               <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-pink-400 to-rose-500 rounded-full"
-                                  style={{ width: `${(currentTVFilm.reviewStats?.storyRating || 8.0) * 10}%` }}
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{ width: `${(currentTVFilm.reviewStats?.storyRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
                                 ></div>
                               </div>
                               <span className="text-sm font-medium text-gray-800">{currentTVFilm.reviewStats?.storyRating || 8.0}</span>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-gray-600">Music</span>
                             <div className="flex items-center">
                               <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-pink-400 to-rose-500 rounded-full"
-                                  style={{ width: `${(currentTVFilm.reviewStats?.musicRating || 7.5) * 10}%` }}
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{ width: `${(currentTVFilm.reviewStats?.musicRating || 7.5) * 10}%`, backgroundColor: '#233cfa' }}
                                 ></div>
                               </div>
                               <span className="text-sm font-medium text-gray-800">{currentTVFilm.reviewStats?.musicRating || 7.5}</span>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-gray-600">Rewatch Value</span>
                             <div className="flex items-center">
                               <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-pink-400 to-rose-500 rounded-full"
-                                  style={{ width: `${(currentTVFilm.reviewStats?.rewatchRating || 7.0) * 10}%` }}
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{ width: `${(currentTVFilm.reviewStats?.rewatchRating || 7.0) * 10}%`, backgroundColor: '#233cfa' }}
                                 ></div>
                               </div>
                               <span className="text-sm font-medium text-gray-800">{currentTVFilm.reviewStats?.rewatchRating || 7.0}</span>
@@ -2226,103 +2302,92 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
           </div>
         </div>
 
-        {/* Similar Content Section - 비슷한 콘텐츠 (Full Width) */}
+        {/* Related News Section - 카드뉴스와 동일한 디자인 */}
         <div className="pt-0 pb-10 bg-transparent">
-         <div className="container mx-auto px-4 lg:px-8">
-          <div id="similar" className="mb-6 scroll-mt-24">
-            <div className="flex items-center justify-between mb-6 relative">
-              {/* Add decorative elements */}
-              <div className="absolute -top-10 -left-4 w-24 h-24 bg-gradient-to-br from-purple-200 to-indigo-200 rounded-full blur-3xl opacity-50"></div>
-              <div className="absolute -bottom-8 right-10 w-28 h-28 bg-gradient-to-br from-pink-200 to-rose-200 rounded-full blur-3xl opacity-30"></div>
-              
-              <div className="relative z-10">
-                <div className="flex items-center mb-1">
-                  <div className="h-1.5 w-16 bg-gradient-to-r from-[#8e44ad] to-[#9b59b6] rounded-full mr-3"></div>
-                  <TrendingUp size={18} className="text-[#8e44ad] animate-pulse" />
-                  <h2 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-[#8e44ad] via-[#9b59b6] to-[#d35400] text-transparent bg-clip-text ml-2">
-                    Related News
-                  </h2>
+          <div className="container mx-auto px-4 lg:px-8">
+            <div className="mt-16 mb-20" id="similar">
+              <div className="mb-8">
+                <div className="flex items-center">
+                  {/* Link Icon */}
+                  <div className="mr-4 flex-shrink-0">
+                    <img
+                      src="/images/icons8-link-48.png"
+                      alt="Related News"
+                      className="h-12 w-12 object-contain"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#233CFA' }}>Related Content</span>
+                    <h2 className="text-2xl md:text-3xl font-bold text-gray-800">Related News</h2>
+                  </div>
                 </div>
-                <p className="text-gray-500 text-sm mt-2">Stay updated with your favorite movie stars</p>
+              </div>
+
+              {/* 뉴스 카드 그리드 - 카드뉴스와 동일한 디자인 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {relatedNews && relatedNews.length > 0 ? (
+                  relatedNews.map((news, index) => (
+                    <Link
+                      key={index}
+                      href={`/news/${news._id}`}
+                      passHref
+                    >
+                      <div className="block cursor-pointer">
+                        <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">
+                          <div className="h-64 overflow-hidden relative rounded-md">
+                            {/* 이미지 */}
+                            <img
+                              src={news.coverImage || news.thumbnail || '/images/placeholder.jpg'}
+                              alt={news.title}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = "/images/placeholder.jpg";
+                              }}
+                            />
+                          </div>
+
+                          <div className="p-4">
+                            <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#006fff] transition-colors">
+                              {news.title}
+                            </h3>
+
+                            <p className="text-gray-600 text-xs line-clamp-2 mb-3">
+                              {news.content && news.content.trim()
+                                ? news.content.replace(/<[^>]*>/g, '').slice(0, 120) + '...'
+                                : news.summary
+                                  ? news.summary.slice(0, 120) + '...'
+                                  : 'No content available'}
+                            </p>
+
+                            <div className="flex justify-between items-end">
+                              {/* 시간 배지 */}
+                              <div className="flex items-center text-gray-500 text-xs">
+                                <Clock size={12} className="mr-1 text-gray-500" />
+                                <span>{new Date(news.publishedAt || news.createdAt).toLocaleDateString()}</span>
+                              </div>
+
+                              {/* Read more 버튼 */}
+                              <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#233CFA' }}>
+                                Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" style={{ color: '#233CFA' }} />
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="bg-white rounded-xl p-8 text-center border border-gray-100 col-span-full" style={{ boxShadow: 'none' }}>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">No Related News</h3>
+                    <p className="text-gray-500 max-w-md mx-auto">
+                      No news related to this movie is currently available.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
-           
-            {/* 뉴스 카드 그리드 - 드라마 페이지와 동일한 디자인 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {relatedNews && relatedNews.length > 0 ? (
-                relatedNews.map((news, index) => (
-                  <div 
-                    key={index} 
-                    className="bg-white overflow-hidden hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 group relative rounded-xl"
-                  >
-                    <Link 
-                      href={`/news/${news._id}`}
-                      className="absolute inset-0 z-10"
-                    >
-                      <span className="sr-only">View article</span>
-                    </Link>
-                    
-                    <div className="h-56 overflow-hidden relative rounded-xl">
-                      <img
-                        src={news.coverImage || news.thumbnail || '/images/placeholder.jpg'} 
-                        alt={news.title}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-xl"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = "/images/placeholder.jpg";
-                        }}
-                      />
-                      
-                      {/* Add top decorative element */}
-                      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#8e44ad] via-[#9b59b6] to-[#d35400] opacity-80 group-hover:opacity-100 transition-opacity duration-300"></div>
-                      
-                      {/* 카테고리 태그 (썸네일 왼쪽 상단에 배치) */}
-                      <div className="absolute top-3 left-3">
-                        <span className="px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-full text-xs font-medium shadow-md">
-                          {news.category || 'K-Movie'}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="p-4">
-                      <h3 className="font-bold text-gray-800 text-lg mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#8e44ad] transition-colors">
-                        {news.title}
-                      </h3>
-                      <p className="text-gray-600 text-xs line-clamp-2 mb-3">
-                        {news.content 
-                          ? news.content.replace(/<[^>]*>/g, '') 
-                          : news.summary || ''}
-                      </p>
-                      <div className="flex justify-between items-end relative z-20">
-                        {/* 시간 배지 */}
-                        <div className="flex items-center text-gray-500 text-xs">
-                          <Clock size={12} className="mr-1 text-[#9b59b6]" />
-                          <span>{new Date(news.publishedAt || news.createdAt).toLocaleDateString()}</span>
-                        </div>
-                        
-                        {/* Read more 버튼 */}
-                        <span className="inline-flex items-center text-[#8e44ad] text-xs font-medium hover:underline cursor-pointer">
-                          Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" />
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center p-8 bg-white rounded-xl shadow-sm col-span-full">
-                  <div className="w-16 h-16 bg-gradient-to-r from-[#8e44ad] to-[#9b59b6] rounded-full flex items-center justify-center mx-auto mb-4">
-                    <TrendingUp className="w-8 h-8 text-white" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-[#8e44ad] mb-2">No Related News</h3>
-                  <p className="text-gray-500 max-w-md mx-auto">
-                    No news related to this movie is currently available.
-                  </p>
-                  <p className="text-gray-400 text-sm mt-2">Check back later for updates</p>
-                </div>
-              )}
-            </div>
           </div>
-         </div>
         </div>
       </div>
     </MainLayout>

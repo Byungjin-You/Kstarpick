@@ -151,76 +151,17 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
     };
 
     const handleRouteChangeComplete = () => {
-      const currentPath = router.pathname;
+      // 모든 페이지 이동 시 무조건 최상단으로 스크롤
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
 
-      // 로고 클릭 플래그 확인
-      const wasLogoClick = sessionStorage.getItem('logoClicked') === 'true';
-
-      // 뉴스 페이지로 이동한 경우 - 스크롤 최상단 유지
-      if (currentPath.startsWith('/news/')) {
-        // 뒤로가기로 뉴스 상세 페이지에 돌아온 경우는 스크롤 복원을 방해하지 않음
-        const isBackToNewsDetail = sessionStorage.getItem('isBackToNewsDetail') === 'true';
-        if (!isBackToNewsDetail) {
-          window.scrollTo(0, 0);
-          requestAnimationFrame(() => {
-            window.scrollTo(0, 0);
-          });
-        }
-      }
-      // 홈 페이지로 돌아온 경우
-      else if (currentPath === '/') {
-        // 로고를 클릭한 경우 - 무조건 최상단으로
-        if (wasLogoClick) {
-          window.scrollTo(0, 0);
-          sessionStorage.removeItem('logoClicked');
-          sessionStorage.removeItem('isBackToHome');
-          sessionStorage.removeItem('homeScrollPosition');
-          return;
-        }
-
-        const savedScroll = sessionStorage.getItem('homeScrollPosition');
-        const homeScrollPosition = savedScroll ? parseInt(savedScroll, 10) : 0;
-        const backToHomeFlag = sessionStorage.getItem('isBackToHome') === 'true';
-
-        // 뒤로가기로 홈에 온 경우 - 스크롤 복원
-        // savedScroll이 존재하면 복원 (값이 0이어도 복원)
-        if (backToHomeFlag && savedScroll !== null) {
-          // 스크롤 복원 함수
-          const restoreHomeScroll = () => {
-            window.scrollTo(0, homeScrollPosition);
-            document.documentElement.scrollTop = homeScrollPosition;
-            document.body.scrollTop = homeScrollPosition;
-          };
-
-          // 1차: 즉시 복원 시도
-          restoreHomeScroll();
-
-          // 2차: DOM 렌더링 직후 (RAF 2번 중첩으로 레이아웃 재계산 대기)
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              restoreHomeScroll();
-            });
-          });
-
-          // 3차: 이미지 로딩 등을 고려한 지연 복원
-          setTimeout(() => restoreHomeScroll(), 100);
-
-          // 최종: 확실한 복원 및 플래그 제거 (깊은 스크롤 위치 대응)
-          setTimeout(() => {
-            restoreHomeScroll();
-            sessionStorage.removeItem('isBackToHome');
-          }, 300);
-        }
-        // 직접 접근 또는 새로고침 - 최상단
-        else {
-          window.scrollTo(0, 0);
-          sessionStorage.removeItem('isBackToHome');
-        }
-      }
-      // 다른 페이지는 최상단
-      else {
+      // requestAnimationFrame으로 확실하게 최상단 유지
+      requestAnimationFrame(() => {
         window.scrollTo(0, 0);
-      }
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+      });
 
       // 네비게이션 완료 후 중복 저장 방지 플래그 리셋
       hasScrollSaved = false;
@@ -237,14 +178,272 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       router.events.off('routeChangeComplete', handleRouteChangeComplete);
     };
   }, [router]);
-  
-  
+
+  // Pull-to-refresh 기능
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let touchStartY = 0;
+    let touchCurrentY = 0;
+    let isPulling = false;
+    let pullContainer = null;
+    let refreshIcon = null;
+    let isAtTop = false;
+    let canPull = false;
+    let initialScrollY = 0;
+
+    const getScrollY = () => {
+      return window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    };
+
+    const handleTouchStart = (e) => {
+      const scrollY = getScrollY();
+      initialScrollY = scrollY;
+
+      // scrollY가 정확히 0일 때만 pull-to-refresh 허용
+      if (scrollY === 0) {
+        isAtTop = true;
+        touchStartY = e.touches[0].clientY;
+        canPull = false;
+        isPulling = false;
+        // iOS overscroll 방지
+        document.body.style.overscrollBehavior = 'none';
+      } else {
+        isAtTop = false;
+        canPull = false;
+        isPulling = false;
+      }
+    };
+
+    const handleTouchMove = (e) => {
+      // 최상단에서 시작하지 않았으면 아무것도 안함
+      if (!isAtTop) return;
+
+      const scrollY = getScrollY();
+      touchCurrentY = e.touches[0].clientY;
+      const pullDistance = touchCurrentY - touchStartY;
+
+      // 스크롤이 발생했거나, 처음 스크롤 위치가 0이 아니었으면 차단
+      if (scrollY !== 0 || initialScrollY !== 0) {
+        isAtTop = false;
+        canPull = false;
+        isPulling = false;
+        if (pullContainer && pullContainer.parentNode) {
+          pullContainer.style.height = '0';
+          document.body.style.paddingTop = '0';
+          setTimeout(() => {
+            if (pullContainer && pullContainer.parentNode) {
+              pullContainer.parentNode.removeChild(pullContainer);
+            }
+            pullContainer = null;
+            refreshIcon = null;
+          }, 200);
+        }
+        return;
+      }
+
+      // 위로 당기면(음수) 즉시 중단
+      if (pullDistance < 0) {
+        isAtTop = false;
+        canPull = false;
+        isPulling = false;
+        return;
+      }
+
+      // 아래로 당기기 시작 (양수) - 5px 이상만 당기면 canPull = true
+      if (pullDistance > 5 && scrollY === 0 && initialScrollY === 0) {
+        canPull = true;
+        isPulling = true;
+      }
+
+      // canPull이 true이고, 아래로 당기고, 스크롤이 정확히 0일 때만
+      if (canPull && pullDistance > 0 && scrollY === 0) {
+        // 브라우저 기본 동작 방지 (iOS에서 즉시 방지)
+        e.preventDefault();
+
+        // Pull container 생성 (없으면)
+        if (!pullContainer) {
+          pullContainer = document.createElement('div');
+          pullContainer.id = 'pull-to-refresh-container';
+
+          // 헤더 찾기
+          const header = document.querySelector('header');
+          const headerHeight = header ? header.offsetHeight : 0;
+
+          pullContainer.style.cssText = `
+            position: fixed;
+            top: ${headerHeight}px;
+            left: 0;
+            right: 0;
+            height: 0;
+            background: #ffffff;
+            z-index: 9998;
+            overflow: hidden;
+            transition: height 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          `;
+          document.body.insertBefore(pullContainer, document.body.firstChild);
+
+          // 새로고침 아이콘 (별 아이콘)
+          refreshIcon = document.createElement('div');
+          refreshIcon.innerHTML = `
+            <div style="position: relative; width: 32px; height: 32px;">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="#233cfa" stroke="#233cfa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 3px 8px rgba(35, 60, 250, 0.4)); transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="#233cfa" fill-opacity="0.9"/>
+              </svg>
+            </div>
+          `;
+          pullContainer.appendChild(refreshIcon);
+        }
+
+        // Pull distance에 따라 컨테이너 높이 조정 (최대 100px)
+        const maxPull = 100;
+        const containerHeight = Math.min(pullDistance * 0.8, maxPull);
+        pullContainer.style.height = `${containerHeight}px`;
+
+        // Body에 padding-top 적용하여 공간 생성
+        document.body.style.paddingTop = `${containerHeight}px`;
+        document.body.style.transition = 'padding-top 0.2s ease';
+
+        // 아이콘 회전 + 스케일 효과 (더 감각적으로)
+        const progress = Math.min(pullDistance / maxPull, 1);
+        const rotation = progress * 120; // 180도 → 120도로 더 천천히
+        const scale = 0.8 + (progress * 0.4); // 0.8에서 1.2로 커짐
+        const opacity = 0.5 + (progress * 0.5); // 0.5에서 1로 선명해짐
+
+        if (refreshIcon) {
+          const svg = refreshIcon.querySelector('svg');
+          if (svg) {
+            svg.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+            svg.style.opacity = opacity;
+          }
+        }
+      } else {
+        // 조건이 맞지 않으면 중단
+        isAtTop = false;
+        canPull = false;
+        isPulling = false;
+      }
+    };
+
+    const handleTouchEnd = (e) => {
+      // 최상단이 아니면 즉시 중단
+      const scrollY = getScrollY();
+
+      if (!isPulling || !isAtTop || !canPull || scrollY !== 0 || initialScrollY !== 0) {
+        // Pull container 정리
+        if (pullContainer && pullContainer.parentNode) {
+          pullContainer.style.height = '0';
+          document.body.style.paddingTop = '0';
+          setTimeout(() => {
+            if (pullContainer && pullContainer.parentNode) {
+              pullContainer.parentNode.removeChild(pullContainer);
+            }
+            pullContainer = null;
+            refreshIcon = null;
+            document.body.style.paddingTop = '';
+          }, 200);
+        }
+        isAtTop = false;
+        canPull = false;
+        isPulling = false;
+        touchStartY = 0;
+        touchCurrentY = 0;
+        initialScrollY = 0;
+        return;
+      }
+
+      // touchend에서는 changedTouches 사용 (touches는 비어있음)
+      const endY = e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientY : touchCurrentY;
+      const pullDistance = endY - touchStartY;
+      const threshold = 100;
+
+      // 오직 아래로 당겼고(양수), 스크롤이 정확히 0이고, 처음부터 0이었을 때만
+      if (pullDistance > threshold && pullDistance > 0 && scrollY === 0 && initialScrollY === 0) {
+        // 새로고침 실행
+        if (pullContainer) {
+          pullContainer.style.transition = 'height 0.3s ease';
+          pullContainer.style.height = '80px';
+          document.body.style.paddingTop = '80px';
+
+          // 아이콘을 스피너로 변경
+          if (refreshIcon) {
+            refreshIcon.innerHTML = `
+              <div style="width: 28px; height: 28px; border: 2.5px solid #f0f0f0; border-top: 2.5px solid #233cfa; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+              <style>
+                @keyframes spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+              </style>
+            `;
+          }
+        }
+
+        setTimeout(() => {
+          window.location.reload();
+        }, 400);
+      } else {
+        // Pull container와 padding 제거
+        if (pullContainer) {
+          pullContainer.style.transition = 'height 0.3s ease';
+          pullContainer.style.height = '0';
+          document.body.style.transition = 'padding-top 0.3s ease';
+          document.body.style.paddingTop = '0';
+
+          setTimeout(() => {
+            if (pullContainer && pullContainer.parentNode) {
+              pullContainer.parentNode.removeChild(pullContainer);
+            }
+            pullContainer = null;
+            refreshIcon = null;
+            document.body.style.paddingTop = '';
+            document.body.style.transition = '';
+          }, 300);
+        }
+      }
+
+      // 모든 상태 초기화
+      isAtTop = false;
+      canPull = false;
+      isPulling = false;
+      touchStartY = 0;
+      touchCurrentY = 0;
+      initialScrollY = 0;
+      // iOS overscroll 복구
+      document.body.style.overscrollBehavior = '';
+    };
+
+    // 터치 이벤트 리스너 등록
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+
+      // Pull container 정리
+      if (pullContainer && pullContainer.parentNode) {
+        pullContainer.parentNode.removeChild(pullContainer);
+      }
+      document.body.style.paddingTop = '';
+    };
+  }, []);
+
+
   return (
     <Fragment>
       <Head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#ffffff" />
+        <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+        <meta httpEquiv="Pragma" content="no-cache" />
+        <meta httpEquiv="Expires" content="0" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <Analytics />
