@@ -399,9 +399,20 @@ export default function EditContent() {
       if (!response.ok) {
         throw new Error(data.message || '콘텐츠 수정 중 오류가 발생했습니다.');
       }
-      
+
       showToast('콘텐츠가 성공적으로 수정되었습니다.', 'success');
-      setTimeout(() => router.push('/admin/content'), 1500);
+
+      // 콘텐츠 타입에 따라 다른 페이지로 이동
+      const contentType = formData.category || formData.contentType;
+      let redirectPath = '/admin/content';
+
+      if (contentType === 'drama') {
+        redirectPath = '/admin/drama';
+      } else if (contentType === 'movie') {
+        redirectPath = '/admin/tvfilm';
+      }
+
+      setTimeout(() => router.push(redirectPath), 1500);
     } catch (err) {
       console.error('Error updating content:', err);
       showToast(err.message, 'error');
@@ -532,193 +543,8 @@ export default function EditContent() {
       ...prev,
       reviews: updatedReviews
     }));
-    
+
     showToast('대표 리뷰가 설정되었습니다.', 'success');
-  };
-
-  // 에피소드 관련 상태 추가
-  const [episodeNumber, setEpisodeNumber] = useState('');
-  const [episodeTitle, setEpisodeTitle] = useState('');
-  const [episodeAirDate, setEpisodeAirDate] = useState('');
-  const [episodeSummary, setEpisodeSummary] = useState('');
-  const [episodeRuntime, setEpisodeRuntime] = useState('');
-  const [episodeRating, setEpisodeRating] = useState('');
-  const [episodeViewerRating, setEpisodeViewerRating] = useState('');
-  const [episodeImage, setEpisodeImage] = useState('');
-  const [episodeMdlUrl, setEpisodeMdlUrl] = useState('');
-  const [showEpisodeForm, setShowEpisodeForm] = useState(false);
-
-  // 에피소드 추가 함수
-  const addEpisode = () => {
-    if (!episodeNumber) {
-      showToast('에피소드 번호를 입력해주세요.', 'error');
-      return;
-    }
-
-    const newEpisode = {
-      number: parseInt(episodeNumber),
-      title: episodeTitle,
-      airDate: episodeAirDate ? new Date(episodeAirDate) : null,
-      summary: episodeSummary,
-      runtime: episodeRuntime ? parseInt(episodeRuntime) : null,
-      rating: episodeRating ? parseFloat(episodeRating) : null,
-      viewerRating: episodeViewerRating ? parseFloat(episodeViewerRating) : null,
-      image: episodeImage,
-      mdlUrl: episodeMdlUrl
-    };
-
-    setFormData(prev => ({
-      ...prev,
-      episodeList: [...(prev.episodeList || []), newEpisode]
-    }));
-
-    // 입력 폼 초기화
-    resetEpisodeForm();
-    setShowEpisodeForm(false);
-    showToast('에피소드가 추가되었습니다.', 'success');
-  };
-
-  // 에피소드 수정 함수
-  const editEpisode = (index) => {
-    const episode = formData.episodeList[index];
-    setEpisodeNumber(episode.number.toString());
-    setEpisodeTitle(episode.title || '');
-    setEpisodeAirDate(episode.airDate ? new Date(episode.airDate).toISOString().split('T')[0] : '');
-    setEpisodeSummary(episode.summary || '');
-    setEpisodeRuntime(episode.runtime ? episode.runtime.toString() : '');
-    setEpisodeRating(episode.rating ? episode.rating.toString() : '');
-    setEpisodeViewerRating(episode.viewerRating ? episode.viewerRating.toString() : '');
-    setEpisodeImage(episode.image || '');
-    setEpisodeMdlUrl(episode.mdlUrl || '');
-    
-    // 현재 수정 중인 에피소드 인덱스 저장
-    setFormData(prev => ({
-      ...prev,
-      _editingEpisodeIndex: index
-    }));
-    
-    setShowEpisodeForm(true);
-  };
-
-  // 에피소드 삭제 함수
-  const removeEpisode = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      episodeList: prev.episodeList.filter((_, i) => i !== index)
-    }));
-    showToast('에피소드가 삭제되었습니다.', 'info');
-  };
-
-  // 에피소드 폼 초기화 함수
-  const resetEpisodeForm = () => {
-    setEpisodeNumber('');
-    setEpisodeTitle('');
-    setEpisodeAirDate('');
-    setEpisodeSummary('');
-    setEpisodeRuntime('');
-    setEpisodeRating('');
-    setEpisodeViewerRating('');
-    setEpisodeImage('');
-    setEpisodeMdlUrl('');
-    
-    // 에피소드 수정 모드 해제
-    setFormData(prev => {
-      const { _editingEpisodeIndex, ...rest } = prev;
-      return rest;
-    });
-  };
-
-  // 에피소드 저장 함수 (추가 또는 수정)
-  const saveEpisode = () => {
-    if (!episodeNumber) {
-      showToast('에피소드 번호를 입력해주세요.', 'error');
-      return;
-    }
-    
-    const episodeData = {
-      number: parseInt(episodeNumber),
-      title: episodeTitle,
-      airDate: episodeAirDate ? new Date(episodeAirDate) : null,
-      summary: episodeSummary,
-      runtime: episodeRuntime ? parseInt(episodeRuntime) : null,
-      rating: episodeRating ? parseFloat(episodeRating) : null,
-      viewerRating: episodeViewerRating ? parseFloat(episodeViewerRating) : null,
-      image: episodeImage,
-      mdlUrl: episodeMdlUrl
-    };
-    
-    setFormData(prev => {
-      // 에피소드 목록이 없으면 새로 생성
-      if (!prev.episodeList) {
-        return { ...prev, episodeList: [episodeData] };
-      }
-      
-      // 수정 모드인 경우
-      if (prev._editingEpisodeIndex !== undefined) {
-        const updatedList = [...prev.episodeList];
-        updatedList[prev._editingEpisodeIndex] = episodeData;
-        
-        // 수정 모드 해제 및 업데이트된 목록 반환
-        const { _editingEpisodeIndex, ...rest } = prev;
-        return { ...rest, episodeList: updatedList };
-      }
-      
-      // 추가 모드인 경우
-      return { ...prev, episodeList: [...prev.episodeList, episodeData] };
-    });
-    
-    // 폼 초기화 및 숨기기
-    resetEpisodeForm();
-    setShowEpisodeForm(false);
-    showToast('에피소드가 저장되었습니다.', 'success');
-  };
-
-  // 에피소드 크롤링 함수
-  const crawlEpisodes = async () => {
-    if (!formData.mdlUrl) {
-      showToast('MyDramaList URL이 필요합니다.', 'error');
-      return;
-    }
-    
-    try {
-      setIsSubmitting(true);
-      showToast('에피소드 정보를 크롤링 중입니다...', 'info');
-      
-      // 기본 URL에서 /episodes 페이지 URL 생성
-      const episodesUrl = `${formData.mdlUrl}/episodes`;
-      
-      const response = await fetch('/api/crawler/stealth-crawler', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          url: episodesUrl,
-          mode: 'episodes' 
-        }),
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.message || '에피소드 크롤링 중 오류가 발생했습니다.');
-      }
-      
-      if (result.data && result.data.episodes && result.data.episodes.length > 0) {
-        setFormData(prev => ({
-          ...prev,
-          episodeList: result.data.episodes
-        }));
-        showToast(`${result.data.episodes.length}개의 에피소드를 가져왔습니다.`, 'success');
-      } else {
-        showToast('에피소드 정보를 찾을 수 없습니다.', 'warning');
-      }
-    } catch (error) {
-      console.error('에피소드 크롤링 중 오류:', error);
-      showToast(error.message, 'error');
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   // "Where to Watch" 정보를 크롤링하는 함수
@@ -823,13 +649,15 @@ export default function EditContent() {
 
   // 리뷰 크롤링 처리
   const handleReviewCrawling = async () => {
-    if (!reviewCrawlingUrl) {
+    const urlToUse = reviewCrawlingUrl || formData.mdlUrl;
+
+    if (!urlToUse) {
       showToast('리뷰 URL을 입력해주세요.', 'error');
       return;
     }
 
     // 입력된 URL이 유효한지 확인
-    let validUrl = reviewCrawlingUrl;
+    let validUrl = urlToUse;
     if (!validUrl.includes('mydramalist.com')) {
       showToast('올바른 MyDramalist URL을 입력해주세요.', 'error');
       return;
@@ -1036,18 +864,9 @@ export default function EditContent() {
                 </div>
                 <span className="ml-2">리뷰</span>
               </div>
-              <div className="h-1 w-8 bg-gray-200"></div>
-              <div className={`flex items-center ${completedTabs.episodes ? 'text-green-600' : 'text-gray-400'}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  completedTabs.episodes ? 'bg-green-100' : 'bg-gray-100'
-                }`}>
-                  {completedTabs.episodes ? <Check size={20} /> : <span>4</span>}
-                </div>
-                <span className="ml-2">에피소드</span>
-              </div>
             </div>
             <div className="text-sm text-gray-500">
-              {Object.values(completedTabs).filter(Boolean).length}/4 단계 완료
+              {Object.values(completedTabs).filter(Boolean).length}/3 단계 완료
             </div>
           </div>
         </div>
@@ -1087,17 +906,6 @@ export default function EditContent() {
             >
               <span className="mr-2">리뷰</span>
               {completedTabs.reviews && <Check size={16} className="text-green-500" />}
-            </button>
-            <button
-              className={`py-3 px-4 font-medium text-sm whitespace-nowrap flex items-center ${
-                activeTab === 'episodes'
-                  ? 'bg-white text-blue-600 border-b-2 border-blue-500 rounded-t-lg shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg'
-              }`}
-              onClick={() => setActiveTab('episodes')}
-            >
-              <span className="mr-2">에피소드</span>
-              {completedTabs.episodes && <Check size={16} className="text-green-500" />}
             </button>
           </nav>
         </div>
@@ -1997,96 +1805,79 @@ export default function EditContent() {
                   리뷰는 콘텐츠에 대한 사용자의 개인적인 의견을 나타내는 섹션입니다.
                 </p>
               </div>
-              
-              {/* 리뷰 크롤링 섹션 추가 */}
+
+              {/* 리뷰 크롤링 섹션 */}
               <div className="border border-gray-200 rounded-lg p-5 bg-white mb-6">
-                <h3 className="text-md font-semibold text-gray-900 mb-3">리뷰 크롤링</h3>
-                <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
+                <h3 className="text-lg font-semibold mb-2">리뷰 크롤링</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  MyDramalist에서 리뷰를 자동으로 수집합니다.
+                  드라마 URL을 입력하면 /reviews가 없는 경우 자동으로 추가됩니다.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 mb-2">
+                  <div>
+                    <label className="block text-gray-700 text-sm font-medium mb-1">MyDramalist URL</label>
                     <input
                       type="text"
-                      className="form-input flex-1 rounded-md border-gray-300"
-                      placeholder="MyDramalist 리뷰 URL (예: https://mydramalist.com/123-drama-title/reviews)"
-                      value={reviewCrawlingUrl}
+                      value={reviewCrawlingUrl || formData.mdlUrl || ''}
                       onChange={(e) => setReviewCrawlingUrl(e.target.value)}
+                      placeholder="https://mydramalist.com/드라마ID-드라마제목"
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      disabled={isReviewCrawling}
                     />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 text-sm font-medium mb-1">&nbsp;</label>
                     <button
                       onClick={handleReviewCrawling}
-                      disabled={isReviewCrawling || !reviewCrawlingUrl}
-                      className={`px-4 py-2 rounded-md flex items-center justify-center ${
-                        isReviewCrawling || !reviewCrawlingUrl
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : 'bg-blue-600 text-white hover:bg-blue-700'
-                      }`}
+                      disabled={isReviewCrawling || !(reviewCrawlingUrl || formData.mdlUrl)}
+                      className={`w-full md:w-auto px-6 py-2 rounded-md ${
+                        isReviewCrawling
+                          ? 'bg-gray-400 cursor-not-allowed'
+                          : !(reviewCrawlingUrl || formData.mdlUrl)
+                            ? 'bg-gray-400 cursor-not-allowed'
+                            : 'bg-blue-600 hover:bg-blue-700'
+                      } text-white font-medium transition-colors whitespace-nowrap`}
                     >
                       {isReviewCrawling ? (
                         <>
-                          <div className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-white rounded-full"></div>
-                          크롤링 중...
+                          <span className="inline-block animate-spin mr-1">⟳</span> 크롤링 중...
                         </>
                       ) : (
-                        <>크롤링 시작</>
+                        '리뷰 크롤링'
                       )}
                     </button>
                   </div>
-                  
-                  {/* 스텔스 모드 토글 */}
-                  <div className="flex items-center">
-                    <label className="inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={useStealthCrawler}
-                        onChange={() => setUseStealthCrawler(!useStealthCrawler)}
-                      />
-                      <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                      <span className="ms-3 text-sm font-medium text-gray-900">스텔스 모드 사용 {useStealthCrawler ? '(활성화)' : '(비활성화)'}</span>
-                    </label>
-                    <span className="ml-2 text-xs text-gray-500">{useStealthCrawler ? '(Cloudflare 보호 우회)' : ''}</span>
-                  </div>
-                  
-                  {/* 크롤링 진행 상태 표시 */}
-                  {reviewCrawlingProgress && (
-                    <div className="mt-2 text-sm text-gray-600">
-                      <div className="flex items-center">
-                        <div className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-blue-500 rounded-full"></div>
-                        <span>{reviewCrawlingProgress}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 크롤링 오류 표시 */}
-                  {reviewCrawlingError && (
-                    <div className="mt-2 text-sm text-red-600 p-2 bg-red-50 rounded">
-                      <p className="font-medium">오류 발생:</p>
-                      <p>{reviewCrawlingError}</p>
-                    </div>
-                  )}
-
-                  {/* 크롤링 결과 요약 */}
-                  {reviewCrawlingResult && (
-                    <div className="mt-2 text-sm text-green-600 p-2 bg-green-50 rounded">
-                      <p className="font-medium">크롤링 완료:</p>
-                      <p>총 {reviewCrawlingResult.reviews?.length || 0}개의 리뷰를 가져왔습니다.</p>
-                      <p>평균 평점: {reviewCrawlingResult.averageRating?.toFixed(1) || 'N/A'}</p>
-                    </div>
-                  )}
-                  
-                  {/* 다시 가져오기 버튼 */}
-                  <div className="mt-4">
-                    <button
-                      onClick={fetchReviews}
-                      className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      리뷰 다시 불러오기
-                    </button>
-                  </div>
                 </div>
+
+                {/* 크롤링 진행 상태 */}
+                {(isReviewCrawling || reviewCrawlingProgress) && (
+                  <div className="mt-2 mb-3">
+                    <div className="flex items-center">
+                      <div className={`w-3 h-3 rounded-full mr-2 ${isReviewCrawling ? 'bg-blue-500 animate-pulse' : 'bg-green-500'}`}></div>
+                      <span className="text-sm text-gray-700">{isReviewCrawling ? '크롤링 진행 중...' : reviewCrawlingProgress}</span>
+                    </div>
+                    {isReviewCrawling && (
+                      <div className="mt-2 w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-600 rounded-full animate-progress"></div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 에러 메시지 */}
+                {reviewCrawlingError && (
+                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md text-red-800 text-sm">
+                    <p className="font-medium">크롤링 오류 발생:</p>
+                    <p>{reviewCrawlingError}</p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      URL이 올바른지 확인하고 다시 시도해보세요. Cloudflare 보호가 활성화되어 있을 수 있습니다.
+                    </p>
+                  </div>
+                )}
+
               </div>
-              
+
               {/* 리뷰 목록 (DB에서 가져온 데이터) */}
               <div className="border border-gray-200 rounded-lg p-5 bg-white mb-6">
                 <div className="flex items-center justify-between mb-4">
@@ -2184,90 +1975,9 @@ export default function EditContent() {
                   </div>
                 )}
               </div>
-              
+
               <div className="border border-gray-200 rounded-lg p-5 bg-white mb-6">
                 <div className="space-y-5">
-                  {formData.reviews && formData.reviews.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {formData.reviews.map((review, index) => (
-                        <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all duration-300 hover:border-pink-200 group relative">
-                          {/* Decorative accent */}
-                          <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-pink-100 to-transparent rounded-tr-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                          
-                          <div className="flex justify-between items-start mb-2 relative">
-                            <div className="flex items-center">
-                              <div className="h-9 w-9 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center text-white font-bold text-sm shadow-sm group-hover:shadow-md transition-all duration-300">
-                                {review.rating}
-                              </div>
-                              <div className="ml-2">
-                                <div className="text-sm font-semibold text-gray-800 group-hover:text-pink-600 transition-colors duration-300">
-                                  {review.authorName}
-                                </div>
-                                <div className="flex mt-0.5">
-                                  {[1, 2, 3, 4, 5].map(star => (
-                                    <Star
-                                      key={star}
-                                      className={`w-3 h-3 ${
-                                        star <= Math.floor(review.rating / 2)
-                                          ? 'text-yellow-400 fill-yellow-400'
-                                          : 'text-gray-300'
-                                      }`}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => {
-                                const updatedReviews = [...formData.reviews];
-                                updatedReviews.splice(index, 1);
-                                setFormData(prev => ({
-                                  ...prev,
-                                  reviews: updatedReviews
-                                }));
-                              }}
-                              className="text-gray-400 hover:text-red-500 transition-colors"
-                            >
-                              <XCircle size={20} />
-                            </button>
-                          </div>
-                          
-                          <h4 className="font-medium text-gray-900 mb-2">{review.title}</h4>
-                          <p className="text-sm text-gray-600 whitespace-pre-wrap mb-3">{review.content}</p>
-                          
-                          <div className="flex justify-between items-center">
-                            <div className="flex flex-wrap gap-1">
-                              {review.tags && review.tags.length > 0 ? (
-                                review.tags.map((tag, i) => (
-                                  <span key={i} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full group-hover:bg-pink-50 group-hover:text-pink-600 transition-colors duration-300">
-                                    {tag}
-                                  </span>
-                                ))
-                              ) : (
-                                <span className="text-xs px-2 py-0.5 bg-pink-50 text-pink-600 rounded-full">Review</span>
-                              )}
-                            </div>
-                            <button
-                              onClick={() => handleSetFeaturedReview(index)}
-                              className={`px-3 py-1 rounded-md text-sm ${
-                                review.featured
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                              }`}
-                            >
-                              {review.featured ? '대표 리뷰로 설정됨' : '대표 리뷰로 설정'}
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-10">
-                      <Star className="mx-auto h-12 w-12 text-gray-400" />
-                      <p className="mt-2 text-sm text-gray-500">추가된 리뷰가 없습니다.</p>
-                    </div>
-                  )}
-                  
                   <div className="border-t border-gray-200 pt-5">
                     <div className="space-y-4">
                       <div>
@@ -2401,414 +2111,6 @@ export default function EditContent() {
             </div>
           )}
           
-          {activeTab === 'episodes' && (
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">에피소드 관리</h2>
-                <div className="flex space-x-2">
-                  <button
-                    type="button"
-                    onClick={() => crawlEpisodes()}
-                    disabled={isSubmitting}
-                    className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    <Play size={18} className="mr-1" />
-                    에피소드 크롤링
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      resetEpisodeForm();
-                      setShowEpisodeForm(true);
-                    }}
-                    className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                  >
-                    <Plus size={18} className="mr-1" />
-                    에피소드 추가
-                  </button>
-                </div>
-              </div>
-              
-              {/* 에피소드 입력 폼 */}
-              {showEpisodeForm && (
-                <div className="bg-gray-50 p-4 mb-4 border rounded-lg">
-                  <h3 className="text-lg font-medium mb-3">
-                    {formData._editingEpisodeIndex !== undefined ? '에피소드 수정' : '새 에피소드 추가'}
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        에피소드 번호*
-                      </label>
-                      <input
-                        type="number"
-                        value={episodeNumber}
-                        onChange={(e) => setEpisodeNumber(e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        min="1"
-                        required
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        제목
-                      </label>
-                      <input
-                        type="text"
-                        value={episodeTitle}
-                        onChange={(e) => setEpisodeTitle(e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        placeholder="에피소드 제목"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        방영일
-                      </label>
-                      <input
-                        type="date"
-                        value={episodeAirDate}
-                        onChange={(e) => setEpisodeAirDate(e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        런타임 (분)
-                      </label>
-                      <input
-                        type="number"
-                        value={episodeRuntime}
-                        onChange={(e) => setEpisodeRuntime(e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        min="1"
-                        placeholder="60"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        평점 (0-10)
-                      </label>
-                      <input
-                        type="number"
-                        value={episodeRating}
-                        onChange={(e) => setEpisodeRating(e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        min="0"
-                        max="10"
-                        step="0.1"
-                        placeholder="0.0"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        시청률 (%)
-                      </label>
-                      <input
-                        type="number"
-                        value={episodeViewerRating}
-                        onChange={(e) => setEpisodeViewerRating(e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        min="0"
-                        max="100"
-                        step="0.1"
-                        placeholder="0.0"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        이미지 URL
-                      </label>
-                      <input
-                        type="text"
-                        value={episodeImage}
-                        onChange={(e) => setEpisodeImage(e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        placeholder="https://example.com/image.jpg"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        MDL URL
-                      </label>
-                      <input
-                        type="text"
-                        value={episodeMdlUrl}
-                        onChange={(e) => setEpisodeMdlUrl(e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        placeholder="https://mydramalist.com/..."
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      줄거리
-                    </label>
-                    <textarea
-                      value={episodeSummary}
-                      onChange={(e) => setEpisodeSummary(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg"
-                      rows="3"
-                      placeholder="에피소드 줄거리..."
-                    ></textarea>
-                  </div>
-                  
-                  <div className="flex justify-end space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        resetEpisodeForm();
-                        setShowEpisodeForm(false);
-                      }}
-                      className="px-4 py-2 border rounded-lg hover:bg-gray-100"
-                    >
-                      취소
-                    </button>
-                    <button
-                      type="button"
-                      onClick={saveEpisode}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                    >
-                      저장
-                    </button>
-                  </div>
-                </div>
-              )}
-              
-              {/* 에피소드 목록 */}
-              {formData.episodeList && formData.episodeList.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">번호</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">제목</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">방영일</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">평점</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">시청률</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">액션</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {formData.episodeList.sort((a, b) => a.number - b.number).map((episode, index) => (
-                        <tr key={index} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">{episode.number}</td>
-                          <td className="px-6 py-4">
-                            <div className="text-sm font-medium text-gray-900">{episode.title || `에피소드 ${episode.number}`}</div>
-                            {episode.summary && (
-                              <div className="text-sm text-gray-500 truncate max-w-xs">{episode.summary}</div>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {episode.airDate ? new Date(episode.airDate).toLocaleDateString() : '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {episode.rating ? (
-                              <div className="flex items-center">
-                                <Star size={16} className="text-yellow-400 mr-1" />
-                                <span>{episode.rating.toFixed(1)}</span>
-                              </div>
-                            ) : '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {episode.viewerRating ? `${episode.viewerRating.toFixed(1)}%` : '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button
-                              type="button"
-                              onClick={() => editEpisode(index)}
-                              className="text-blue-600 hover:text-blue-900 mr-3"
-                            >
-                              수정
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeEpisode(index)}
-                              className="text-red-600 hover:text-red-900"
-                            >
-                              삭제
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="bg-gray-50 p-8 text-center rounded-lg border">
-                  <p className="text-gray-500 mb-4">등록된 에피소드가 없습니다.</p>
-                  <p className="text-sm text-gray-400">
-                    오른쪽 상단의 버튼을 클릭하여 에피소드를 추가하거나 크롤링할 수 있습니다.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        
-        {/* 기타 정보 섹션 */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-bold mb-4">기타 정보</h2>
-          
-          {/* ... existing code ... */}
-          
-          {/* 리뷰 크롤링 섹션 */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <h3 className="text-lg font-semibold mb-2">리뷰 크롤링</h3>
-            <p className="text-sm text-gray-600 mb-2">
-              MyDramalist에서 리뷰를 자동으로 수집합니다.
-              드라마 URL을 입력하면 /reviews가 없는 경우 자동으로 추가됩니다.
-            </p>
-            
-            <div className="flex items-end space-x-2 mb-2">
-              <div className="flex-grow">
-                <label className="block text-gray-700 text-sm font-medium mb-1">MyDramalist URL</label>
-                <input
-                  type="text"
-                  value={reviewCrawlingUrl}
-                  onChange={(e) => setReviewCrawlingUrl(e.target.value)}
-                  placeholder="https://mydramalist.com/드라마ID-드라마제목"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  disabled={isReviewCrawling}
-                />
-                {formData.mdlUrl && !reviewCrawlingUrl && (
-                  <button
-                    type="button"
-                    onClick={() => setReviewCrawlingUrl(formData.mdlUrl)}
-                    className="mt-1 text-sm text-blue-600 hover:text-blue-800"
-                  >
-                    기존 MDL URL 사용하기
-                  </button>
-                )}
-              </div>
-              <button
-                onClick={handleReviewCrawling}
-                disabled={isReviewCrawling || !reviewCrawlingUrl}
-                className={`px-4 py-2 rounded-md ${
-                  isReviewCrawling
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : !reviewCrawlingUrl
-                      ? 'bg-gray-400 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-700'
-                } text-white font-medium transition-colors`}
-              >
-                {isReviewCrawling ? (
-                  <>
-                    <span className="inline-block animate-spin mr-1">⟳</span> 크롤링 중...
-                  </>
-                ) : (
-                  '리뷰 크롤링'
-                )}
-              </button>
-            </div>
-            
-            {/* 크롤링 진행 상태 */}
-            {(isReviewCrawling || reviewCrawlingProgress) && (
-              <div className="mt-2 mb-3">
-                <div className="flex items-center">
-                  <div className={`w-3 h-3 rounded-full mr-2 ${isReviewCrawling ? 'bg-blue-500 animate-pulse' : 'bg-green-500'}`}></div>
-                  <span className="text-sm text-gray-700">{isReviewCrawling ? '크롤링 진행 중...' : reviewCrawlingProgress}</span>
-                </div>
-                {isReviewCrawling && (
-                  <div className="mt-2 w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-600 rounded-full animate-progress"></div>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* 에러 메시지 */}
-            {reviewCrawlingError && (
-              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md text-red-800 text-sm">
-                <p className="font-medium">크롤링 오류 발생:</p>
-                <p>{reviewCrawlingError}</p>
-                <p className="mt-1 text-xs text-gray-500">
-                  URL이 올바른지 확인하고 다시 시도해보세요. Cloudflare 보호가 활성화되어 있을 수 있습니다.
-                </p>
-              </div>
-            )}
-            
-            {/* 리뷰 크롤링 결과 */}
-            {reviewCrawlingResult && (
-              <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
-                <p className="text-green-800 font-medium">
-                  {reviewCrawlingResult.reviews.length}개의 리뷰를 성공적으로 수집했습니다.
-                </p>
-                <div className="mt-3 space-y-2">
-                  {reviewCrawlingResult.reviews.slice(0, 5).map((review, idx) => (
-                    <div key={idx} className="flex items-center">
-                      <div className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center text-pink-600 font-bold mr-2">
-                        {review.rating}
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium">{review.username}</div>
-                        <div className="flex">
-                          {[...Array(5)].map((_, i) => (
-                            <span
-                              key={i}
-                              className={`text-sm ${
-                                i < Math.round(review.rating / 2)
-                                  ? 'text-yellow-400'
-                                  : 'text-gray-300'
-                              }`}
-                            >
-                              ★
-                            </span>
-                          ))}
-                          <span className="text-xs text-gray-500 ml-2">
-                            ({new Date(review.createdAt).toLocaleDateString()})
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {reviewCrawlingResult.reviews.length > 5 && (
-                    <div className="pt-2 mt-2 border-t border-green-100 text-gray-500 text-sm">
-                      ...외 {reviewCrawlingResult.reviews.length - 5}개
-                    </div>
-                  )}
-                </div>
-                
-                {/* 전체 평점 정보 표시 */}
-                {reviewCrawlingResult.reviews.length > 0 && (
-                  <div className="mt-4 pt-3 border-t border-green-200">
-                    <h4 className="font-medium text-green-800 mb-2">리뷰 요약</h4>
-                    <div className="flex items-center">
-                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center text-white font-bold text-xl shadow-sm mr-4">
-                        {(reviewCrawlingResult.reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCrawlingResult.reviews.length).toFixed(1)}
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-green-700">평균 평점 (Overall)</div>
-                        <div className="flex mt-1">
-                          {[1, 2, 3, 4, 5].map(star => (
-                            <Star
-                              key={star}
-                              className={`w-5 h-5 ${
-                                star <= Math.round(reviewCrawlingResult.reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCrawlingResult.reviews.length / 2)
-                                  ? 'text-yellow-400 fill-yellow-400'
-                                  : 'text-gray-300'
-                              }`}
-                            />
-                          ))}
-                        </div>
-                        <div className="text-xs text-green-700 mt-1">
-                          {reviewCrawlingResult.reviews.length}개 리뷰 기준
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
         </div>
       </div>
       
