@@ -135,12 +135,9 @@ function Home({ initialData }) {
   const [showMovieThumbnail, setShowMovieThumbnail] = useState(true);
   const [showMusicThumbnail, setShowMusicThumbnail] = useState(true);
   const [showCelebThumbnail, setShowCelebThumbnail] = useState(true);
-  // 즉시 SSR 데이터로 초기화하여 슬라이더가 바로 표시되도록 함
-  const [topStoriesData, setTopStoriesData] = useState(
-    initialData?.featuredArticles?.slice(0, 6) ||
-    initialData?.newsArticles?.slice(0, 6) ||
-    []
-  );
+  // 빈 배열로 초기화하여 깜빡임 방지
+  const [topStoriesData, setTopStoriesData] = useState([]);
+  const [isTopStoriesLoading, setIsTopStoriesLoading] = useState(true);
   const [todayRankingNews, setTodayRankingNews] = useState([]);
 
   // 뉴스 데이터가 없으면 빈 배열을 사용 - useMemo로 메모이제이션하여 불필요한 재렌더링 방지
@@ -161,6 +158,39 @@ function Home({ initialData }) {
 
   // 이제 SSR로 데이터를 받으므로 클라이언트 사이드 로딩 불필요
 
+  // 스크롤 위치 복원 로직 - 뉴스 페이지에서 뒤로가기 시
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const isBackToHome = sessionStorage.getItem('isBackToHome');
+    const savedScrollPosition = sessionStorage.getItem('homeScrollPosition');
+
+    if (isBackToHome === 'true' && savedScrollPosition) {
+      const scrollPos = parseInt(savedScrollPosition, 10);
+
+      const restoreScroll = () => {
+        window.scrollTo(0, scrollPos);
+        document.documentElement.scrollTop = scrollPos;
+        document.body.scrollTop = scrollPos;
+      };
+
+      // 여러 시도로 동적 콘텐츠 로딩을 고려
+      setTimeout(restoreScroll, 50);
+      setTimeout(restoreScroll, 100);
+      setTimeout(restoreScroll, 200);
+      setTimeout(restoreScroll, 300);
+      setTimeout(restoreScroll, 500);
+
+      requestAnimationFrame(() => {
+        setTimeout(restoreScroll, 100);
+        setTimeout(restoreScroll, 300);
+      });
+
+      // 플래그 제거
+      sessionStorage.removeItem('isBackToHome');
+    }
+  }, []);
+
   // 🔧 무한 새로고침 방지: logoClicked 플래그 강제 제거
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -178,6 +208,7 @@ function Home({ initialData }) {
       // Today 랭킹 뉴스에서 최대 6개를 선택
       const topNews = todayRankingNews.slice(0, 6);
       setTopStoriesData(topNews);
+      setIsTopStoriesLoading(false);
     }
   }, [todayRankingNews]);
 
@@ -547,11 +578,11 @@ function Home({ initialData }) {
 
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-0 md:gap-8 relative z-10">
                 {/* 콘텐츠 영역 - 왼쪽 */}
-                <div className="lg:col-span-3 p-4 md:p-16 flex items-center">
+                <div className="lg:col-span-3 p-4 md:pt-16 md:pb-16 md:pl-0 md:pr-8">
                   <div className="max-w-2xl">
                     {/* Latest Updates 라벨 - md 이상에서만 보임 */}
                     <div className="hidden md:flex items-center space-x-3 mb-4 md:mb-6">
-                      <div className="bg-purple-100 px-4 py-1.5 rounded-full text-purple-800 text-sm font-medium inline-flex items-center">
+                      <div className="px-4 py-1.5 rounded-full text-sm font-medium inline-flex items-center" style={{ backgroundColor: '#E8EDFF', color: '#233CFA' }}>
                         <span className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
                         Latest Updates
                       </div>
@@ -561,7 +592,7 @@ function Home({ initialData }) {
                     {/* 헤드라인과 설명 텍스트 - 모바일에서는 숨김 */}
                     <div className="hidden md:block">
                       <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-3 md:mb-6 leading-tight">
-                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-600">
+                        <span className="text-gray-900">
                           Your K-POP News Hub
                         </span>
                       </h1>
@@ -572,22 +603,30 @@ function Home({ initialData }) {
                     </div>
 
                     {/* 카테고리 빠른 링크 - 모바일에서 숨김, 데스크탑에서만 표시 */}
-                    <div className="hidden md:flex flex-wrap gap-2 md:gap-3 mt-4">
-                      <a href="/music" onClick={(e) => navigateToPage('/music', e)} className="bg-purple-100 hover:bg-purple-200 px-4 py-2 rounded-full text-purple-800 text-sm font-medium transition-all duration-200 flex items-center">
-                        <MusicIcon size={16} className="mr-2" />
-                        Music
+                    <div className="hidden md:grid grid-cols-4 gap-3 mt-4">
+                      <a href="/music" onClick={(e) => navigateToPage('/music', e)} className="flex flex-col items-center justify-center py-3 bg-white rounded-xl transition-all hover:shadow-md">
+                        <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center mb-2">
+                          <img src="/images/icons8-playlist-94.png" alt="Music" className="w-11 h-11" />
+                        </div>
+                        <span className="text-xs font-medium text-gray-800">Music</span>
                       </a>
-                      <a href="/drama" onClick={(e) => navigateToPage('/drama', e)} className="bg-purple-100 hover:bg-purple-200 px-4 py-2 rounded-full text-purple-800 text-sm font-medium transition-all duration-200 flex items-center">
-                        <Tv size={16} className="mr-2" />
-                        Drama
+                      <a href="/drama" onClick={(e) => navigateToPage('/drama', e)} className="flex flex-col items-center justify-center py-3 bg-white rounded-xl transition-all hover:shadow-md">
+                        <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center mb-2">
+                          <img src="/images/icons8-circled-play-button-50.png" alt="Drama" className="w-11 h-11" />
+                        </div>
+                        <span className="text-xs font-medium text-gray-800">Drama</span>
                       </a>
-                      <a href="/celeb" onClick={(e) => navigateToPage('/celeb', e)} className="bg-purple-100 hover:bg-purple-200 px-4 py-2 rounded-full text-purple-800 text-sm font-medium transition-all duration-200 flex items-center">
-                        <Users size={16} className="mr-2" />
-                        Celebs
+                      <a href="/celeb" onClick={(e) => navigateToPage('/celeb', e)} className="flex flex-col items-center justify-center py-3 bg-white rounded-xl transition-all hover:shadow-md">
+                        <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center mb-2">
+                          <img src="/images/icons8-profile-94.png" alt="Celebs" className="w-11 h-11" />
+                        </div>
+                        <span className="text-xs font-medium text-gray-800">Celebs</span>
                       </a>
-                      <a href="/tvfilm" onClick={(e) => navigateToPage('/tvfilm', e)} className="bg-purple-100 hover:bg-purple-200 px-4 py-2 rounded-full text-purple-800 text-sm font-medium transition-all duration-200 flex items-center">
-                        <Clapperboard size={16} className="mr-2" />
-                        TV/Film
+                      <a href="/tvfilm" onClick={(e) => navigateToPage('/tvfilm', e)} className="flex flex-col items-center justify-center py-3 bg-white rounded-xl transition-all hover:shadow-md">
+                        <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center mb-2">
+                          <img src="/images/icons8-clapperboard-50.png" alt="TV/Film" className="w-11 h-11" />
+                        </div>
+                        <span className="text-xs font-medium text-gray-800">TV/Film</span>
                       </a>
                     </div>
                   </div>
@@ -600,7 +639,10 @@ function Home({ initialData }) {
                       <div className="w-full flex justify-between items-center mb-4 hidden md:flex">
                         <h3 className="text-gray-900 font-bold text-lg">Today's Top Stories</h3>
                         <div
-                          className="text-purple-600 hover:text-purple-800 text-sm font-medium flex items-center transition-colors cursor-pointer"
+                          className="text-sm font-medium flex items-center transition-colors cursor-pointer"
+                          style={{ color: '#233CFA' }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = '#1a2db8'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = '#233CFA'}
                           onClick={() => {
                             navigateToPage('/ranking');
                           }}
@@ -636,47 +678,46 @@ function Home({ initialData }) {
                                   navigateToPage(`/news/${item._id || item.id}`, e);
                                 }}
                               >
-                                <div className="w-full transform transition-all duration-500 hover:scale-[1.02] animate-fadeIn">
-                                  <div className="bg-white rounded-lg overflow-hidden border-0 transition-all group cursor-pointer">
-                                    <div className="relative h-72 md:h-64 overflow-hidden rounded-md">
-                                      {item.coverImage && (
-                                        <img
-                                          src={item.coverImage}
-                                          alt={item.title}
-                                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 animate-fadeIn rounded-md"
-                                          style={{ animation: "fadeIn 0.5s ease-in-out" }}
-                                          onError={(e) => {
-                                            e.target.onerror = null;
-                                            e.target.src = "/images/placeholder.jpg";
-                                          }}
-                                        />
-                                      )}
-                                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent md:block hidden"></div>
-                                      <div className="absolute bottom-2 md:bottom-6 left-4 right-4 md:left-6 md:right-6 hidden md:block">
-                                        <h3 className="text-white font-extrabold text-2xl md:text-4xl line-clamp-3 animate-fadeIn" style={{ animation: "fadeIn 0.5s ease-in-out" }}>{item.title}</h3>
-                                      </div>
-                                    </div>
-                                    {/* 모바일 제목과 내용 - 이미지 하단 외부 */}
-                                    <div className="md:hidden px-4 py-3 bg-white">
-                                      <h3 className="text-gray-900 font-extrabold text-2xl line-clamp-3 mb-2">{item.title}</h3>
-                                      <p className="text-gray-600 text-sm line-clamp-2 mb-2">
-                                        {item.content
-                                          ? item.content.replace(/<[^>]*>/g, '').slice(0, 100)
-                                          : item.summary}
-                                      </p>
-                                      {/* 날짜 배지 */}
+                                <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">
+                                  <div className="h-64 overflow-hidden relative rounded-md">
+                                    {/* 이미지 */}
+                                    {item.coverImage && (
+                                      <img
+                                        src={item.coverImage}
+                                        alt={item.title}
+                                        className="w-full h-full object-cover transition-transform duration-500"
+                                        onError={(e) => {
+                                          e.target.onerror = null;
+                                          e.target.src = "/images/placeholder.jpg";
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+
+                                  <div className="p-4">
+                                    <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#006fff] transition-colors">
+                                      {item.title}
+                                    </h3>
+
+                                    <p className="text-gray-600 text-xs line-clamp-2 mb-3">
+                                      {item.content && item.content.trim()
+                                        ? item.content.replace(/<[^>]*>/g, '').slice(0, 120) + '...'
+                                        : item.summary
+                                          ? item.summary.slice(0, 120) + '...'
+                                          : 'No content available'}
+                                    </p>
+
+                                    <div className="flex justify-between items-end">
+                                      {/* 시간 배지 */}
                                       <div className="flex items-center text-gray-500 text-xs">
                                         <Clock size={12} className="mr-1 text-gray-500" />
                                         <span>{new Date(item.createdAt || item.date).toLocaleDateString()}</span>
                                       </div>
-                                    </div>
-                                    {/* 데스크탑 설명 */}
-                                    <div className="hidden md:block p-2 md:p-6">
-                                      <p className={`text-white/70 line-clamp-2 mb-2 md:mb-4 text-xs md:text-sm animate-fadeIn pl-2 md:pl-0`} style={{ animation: "fadeIn 0.5s ease-in-out" }}>
-                                        {item.content
-                                          ? item.content.replace(/<[^>]*>/g, '').slice(0, 150) + '...'
-                                          : item.summary}
-                                      </p>
+
+                                      {/* Read more 버튼 */}
+                                      <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#233CFA' }}>
+                                        Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" style={{ color: '#233CFA' }} />
+                                      </span>
                                     </div>
                                   </div>
                                 </div>
@@ -684,18 +725,6 @@ function Home({ initialData }) {
                             </SwiperSlide>
                           ))}
                         </Swiper>
-                        <div className="pagination-wrapper mt-4">
-                          <div className="flex justify-center">
-                            {/* 모바일에서는 숨기고 데스크탑에서만 표시 */}
-                            <div className="story-indicator hidden md:flex items-center justify-center">
-                              <div className="text-gray-600 text-xs font-medium flex items-center">
-                                <ChevronLeft size={14} className="mr-1 animate-pulse" />
-                                Swipe for more stories
-                                <ChevronRight size={14} className="ml-1 animate-pulse" />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
                       </div>
                     </>
                   )}
@@ -704,7 +733,7 @@ function Home({ initialData }) {
             </div>
 
             {/* 모바일 전용 카테고리 필터 - 슬라이더 하단에 배치 */}
-            <div className="block md:hidden w-full -mt-2 mb-6 px-4">
+            <div className="block md:hidden w-full mt-2 mb-4 px-4">
               <div className="grid grid-cols-4 gap-2">
                 <a href="/music" onClick={(e) => navigateToPage('/music', e)} className="flex flex-col items-center justify-center py-3 bg-white rounded-xl transition-all">
                   <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center mb-2">
@@ -734,7 +763,7 @@ function Home({ initialData }) {
             </div>
 
             {/* 모바일 전용 카테고리 필터 - featured news 위에 배치 */}
-            <div className="mt-16 md:mt-16">
+            <div className="mt-8 md:mt-16">
               <CardNews
                 cards={articles}
                 featured={featured}

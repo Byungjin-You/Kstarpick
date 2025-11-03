@@ -41,27 +41,30 @@ if (!fs.existsSync(uploadDir)) {
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
 
 export default async function handler(req, res) {
-  // SSR 내부 호출인지 확인
-  const isInternalSSR = req.headers['x-internal-ssr'] === 'true';
-  
-  // SSR 내부 호출이 아닌 경우에만 인증 확인
-  if (!isInternalSSR) {
-    try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      if (!token) {
-        return res.status(401).json({ success: false, message: '인증 토큰이 필요합니다.' });
-      }
+  const { method } = req;
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      if (!decoded.isAdmin) {
-        return res.status(403).json({ success: false, message: '관리자 권한이 필요합니다.' });
+  // GET 요청은 공개 API이므로 인증 불필요
+  if (method !== 'GET') {
+    // SSR 내부 호출인지 확인
+    const isInternalSSR = req.headers['x-internal-ssr'] === 'true';
+
+    // SSR 내부 호출이 아닌 경우에만 인증 확인 (POST, DELETE 등)
+    if (!isInternalSSR) {
+      try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) {
+          return res.status(401).json({ success: false, message: '인증 토큰이 필요합니다.' });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (!decoded.isAdmin) {
+          return res.status(403).json({ success: false, message: '관리자 권한이 필요합니다.' });
+        }
+      } catch (error) {
+        return res.status(401).json({ success: false, message: '유효하지 않은 토큰입니다.' });
       }
-    } catch (error) {
-      return res.status(401).json({ success: false, message: '유효하지 않은 토큰입니다.' });
     }
   }
-
-  const { method } = req;
 
   await dbConnect();
 
