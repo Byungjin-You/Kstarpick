@@ -68,17 +68,8 @@ export default async function handler(req, res) {
       // 로그 추가
       console.log('[드라마 API] 검색 쿼리:', JSON.stringify(query));
       console.log('[드라마 API] 정렬:', sortBy, sortOrder);
-      
-      // 정렬 설정
-      const sort = {};
-      sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
-      
-      // orderNumber가 정렬 기준인 경우 보조 정렬 추가
-      if (sortBy === 'orderNumber') {
-        sort['updatedAt'] = -1; // orderNumber가 같은 경우 최신순
-      }
-      
-      // 필요한 필드만 가져오기
+
+      // 필요한 필드만 가져오기 (orderNumber 정렬 전에 선언)
       let projection = {};
       if (includeAllFields !== 'true') {
         projection = {
@@ -98,11 +89,58 @@ export default async function handler(req, res) {
           reviewRating: 1,
           orderNumber: 1,
           previousOrderNumber: 1,
-          description: 1,  // 시놉시스 필드 추가
-          summary: 1      // 시놉시스 필드 추가
+          description: 1,
+          summary: 1
         };
       }
-      
+
+      // 정렬 설정
+      const sort = {};
+
+      // orderNumber로 정렬할 때는 orderNumber가 없는 항목들을 뒤로 보내기
+      if (sortBy === 'orderNumber') {
+        // MongoDB aggregation을 사용하여 orderNumber가 없는 경우 맨 뒤로
+        const pipeline = [
+          { $match: query },
+          {
+            $addFields: {
+              // orderNumber가 없으면 999999로 설정하여 맨 뒤로
+              sortOrder: {
+                $cond: {
+                  if: { $gt: ['$orderNumber', null] },
+                  then: '$orderNumber',
+                  else: 999999
+                }
+              }
+            }
+          },
+          { $sort: { sortOrder: sortOrder === 'asc' ? 1 : -1, updatedAt: -1 } },
+          { $skip: skip },
+          { $limit: limitNum }
+        ];
+
+        if (Object.keys(projection).length > 0) {
+          pipeline.push({ $project: projection });
+        }
+
+        const dramas = await db.collection('dramas').aggregate(pipeline).toArray();
+        const total = await db.collection('dramas').countDocuments(query);
+
+        return res.status(200).json({
+          success: true,
+          data: dramas,
+          pagination: {
+            total,
+            page: pageNum,
+            limit: limitNum,
+            pages: Math.ceil(total / limitNum)
+          }
+        });
+      }
+
+      // 다른 정렬 기준일 경우 기존 로직 사용
+      sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
       // 드라마 가져오기
       const dramas = await db
         .collection('dramas')
@@ -159,34 +197,215 @@ export default async function handler(req, res) {
         });
       }
       
+      // 필드 이름 매핑 (크롤러 필드명 -> UI 필드명)
+      // synopsis -> summary
+      if (dramaData.synopsis && !dramaData.summary) {
+        dramaData.summary = dramaData.synopsis;
+      }
+
+      // posterImage -> coverImage
+      if (dramaData.posterImage && !dramaData.coverImage) {
+        dramaData.coverImage = dramaData.posterImage;
+      }
+
+      // nativeTitle -> originalTitle
+      if (dramaData.nativeTitle && !dramaData.originalTitle) {
+        dramaData.originalTitle = dramaData.nativeTitle;
+      }
+
+      // airsInfo -> releaseDate
+      if (dramaData.airsInfo && !dramaData.releaseDate) {
+        dramaData.releaseDate = dramaData.airsInfo;
+      }
+
+      // contentRating -> ageRating
+      if (dramaData.contentRating && !dramaData.ageRating) {
+        dramaData.ageRating = dramaData.contentRating;
+      }
+
+      // backgroundImage -> bannerImage
+      if (dramaData.backgroundImage && !dramaData.bannerImage) {
+        dramaData.bannerImage = dramaData.backgroundImage;
+      }
+
+      // whereToWatch/streamingServices -> watchProviders
+      if (!dramaData.watchProviders || dramaData.watchProviders.length === 0) {
+        if (dramaData.whereToWatch && dramaData.whereToWatch.length > 0) {
+          dramaData.watchProviders = dramaData.whereToWatch;
+        } else if (dramaData.streamingServices && dramaData.streamingServices.length > 0) {
+          // streamingServices를 watchProviders 형식으로 변환
+          dramaData.watchProviders = dramaData.streamingServices.map(service => ({
+            name: service.name,
+            link: service.url,
+            imageUrl: service.logo,
+            type: service.type
+          }));
+        } else if (dramaData.credits?.watchProviders && dramaData.credits.watchProviders.length > 0) {
+          // credits.watchProviders 매핑
+          dramaData.watchProviders = dramaData.credits.watchProviders;
+        }
+      }
+
+      // credits.directors -> director/directors 매핑
+      if (dramaData.credits?.directors && dramaData.credits.directors.length > 0) {
+        if (!dramaData.directors || dramaData.directors.length === 0) {
+          dramaData.directors = dramaData.credits.directors;
+        }
+        if (!dramaData.director) {
+          dramaData.director = dramaData.credits.directors[0]?.name || '';
+        }
+      }
+
+      // credits.writers -> screenwriters 매핑
+      if (dramaData.credits?.writers && dramaData.credits.writers.length > 0) {
+        if (!dramaData.screenwriters || dramaData.screenwriters.length === 0) {
+          dramaData.screenwriters = dramaData.credits.writers.map(writer => ({
+            name: writer.name,
+            image: writer.image || ''
+          }));
+        }
+      }
+
+      // credits.mainCast + credits.supportCast -> cast 매핑
+      if (!dramaData.cast || (!dramaData.cast.mainRoles && !dramaData.cast.supportRoles)) {
+        const mainRoles = dramaData.credits?.mainCast?.map(actor => ({
+          name: actor.name,
+          role: actor.role,
+          image: actor.image
+        })) || [];
+
+        const supportRoles = dramaData.credits?.supportCast?.map(actor => ({
+          name: actor.name,
+          role: actor.role,
+          image: actor.image
+        })) || [];
+
+        if (mainRoles.length > 0 || supportRoles.length > 0) {
+          dramaData.cast = {
+            mainRoles,
+            supportRoles
+          };
+        }
+      }
+
+      // status 필드 생성 (airsInfo 기반)
+      if (!dramaData.status && dramaData.airsInfo) {
+        const airsInfo = dramaData.airsInfo.toLowerCase();
+        const currentDate = new Date();
+
+        if (airsInfo.includes('upcoming') || (dramaData.startDate && new Date(dramaData.startDate) > currentDate)) {
+          dramaData.status = 'Upcoming';
+        } else if (airsInfo.includes('airing') || airsInfo.includes('ongoing') ||
+                   (dramaData.startDate && new Date(dramaData.startDate) <= currentDate &&
+                    (!dramaData.endDate || new Date(dramaData.endDate) >= currentDate))) {
+          dramaData.status = 'Airing';
+        } else if (dramaData.endDate && new Date(dramaData.endDate) < currentDate) {
+          dramaData.status = 'Completed';
+        } else {
+          dramaData.status = 'Completed'; // 기본값
+        }
+
+        console.log(`[드라마 API] 상태 자동 설정: ${dramaData.status} (airsInfo: ${dramaData.airsInfo})`);
+      }
+
       // 타임스탬프 추가
       const now = new Date();
       dramaData.createdAt = now;
       dramaData.updatedAt = now;
-      
-      // 슬러그 생성 (없는 경우)
-      if (!dramaData.slug) {
-        const baseSlug = dramaData.title
-          .toLowerCase()
-          .replace(/[^a-z0-9ㄱ-ㅎㅏ-ㅣ가-힣]+/g, '-')
-          .replace(/^-|-$/g, '');
-        const timestamp = Date.now().toString().slice(-6);
-        dramaData.slug = `${baseSlug}-${timestamp}`;
+
+      // 중복 체크 (고유 식별자 우선순위: url > mdlUrl > id > title)
+      let query = {};
+
+      if (dramaData.url) {
+        query.url = dramaData.url;
+      } else if (dramaData.mdlUrl) {
+        query.mdlUrl = dramaData.mdlUrl;
+      } else if (dramaData.id) {
+        query.id = dramaData.id;
+      } else if (dramaData.title) {
+        query.title = dramaData.title;
       }
-      
-      console.log('[드라마 API] 데이터베이스 저장 시도:', {
-        title: dramaData.title,
-        slug: dramaData.slug,
-        hasContent: !!dramaData.content
-      });
-      
-      // 드라마 저장
-      const result = await db.collection('dramas').insertOne(dramaData);
-      
-      console.log('[드라마 API] 저장 성공:', {
-        insertedId: result.insertedId,
-        acknowledged: result.acknowledged
-      });
+
+      console.log('[드라마 API] 중복 체크 조건:', query);
+
+      // 기존 항목 검색
+      const existingItem = await db.collection('dramas').findOne(query);
+
+      let result;
+
+      if (existingItem) {
+        console.log(`[드라마 API] 기존 항목 발견: ${existingItem.title} (ID: ${existingItem._id})`);
+        console.log('[드라마 API] 중복 항목이므로 업데이트합니다.');
+
+        // 기존 데이터와 새 데이터 병합
+        const mergedData = {
+          ...dramaData,
+          _id: existingItem._id,
+          createdAt: existingItem.createdAt || new Date(),
+          updatedAt: new Date(),
+        };
+
+        // slug 보존
+        if (existingItem.slug) {
+          mergedData.slug = existingItem.slug;
+        } else if (!mergedData.slug) {
+          const baseSlug = dramaData.title
+            .toLowerCase()
+            .replace(/[^a-z0-9ㄱ-ㅎㅏ-ㅣ가-힣]+/g, '-')
+            .replace(/^-|-$/g, '');
+          const timestamp = Date.now().toString().slice(-6);
+          mergedData.slug = `${baseSlug}-${timestamp}`;
+        }
+
+        // 업데이트
+        result = await db.collection('dramas').replaceOne(
+          { _id: existingItem._id },
+          mergedData
+        );
+
+        console.log('[드라마 API] 업데이트 성공:', {
+          matchedCount: result.matchedCount,
+          modifiedCount: result.modifiedCount
+        });
+
+        return res.status(200).json({
+          success: true,
+          message: '기존 항목이 업데이트되었습니다.',
+          data: {
+            _id: existingItem._id,
+            title: mergedData.title,
+            slug: mergedData.slug,
+            isUpdate: true
+          }
+        });
+      } else {
+        // 새 항목 생성
+        console.log('[드라마 API] 새 항목 생성');
+
+        // 슬러그 생성 (없는 경우)
+        if (!dramaData.slug) {
+          const baseSlug = dramaData.title
+            .toLowerCase()
+            .replace(/[^a-z0-9ㄱ-ㅎㅏ-ㅣ가-힣]+/g, '-')
+            .replace(/^-|-$/g, '');
+          const timestamp = Date.now().toString().slice(-6);
+          dramaData.slug = `${baseSlug}-${timestamp}`;
+        }
+
+        console.log('[드라마 API] 데이터베이스 저장 시도:', {
+          title: dramaData.title,
+          slug: dramaData.slug,
+          hasContent: !!dramaData.content
+        });
+
+        // 드라마 저장
+        result = await db.collection('dramas').insertOne(dramaData);
+
+        console.log('[드라마 API] 저장 성공:', {
+          insertedId: result.insertedId,
+          acknowledged: result.acknowledged
+        });
+      }
       
       return res.status(201).json({
         success: true,

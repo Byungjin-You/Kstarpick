@@ -137,12 +137,12 @@ async function getNews(req, res) {
     const db = client.db(MONGODB_DB);
     
     // 파라미터 추출
-    const { 
-      page = 1, 
-      limit = 10, 
-      category, 
-      featured, 
-      sort = 'createdAt', 
+    const {
+      page = 1,
+      limit = 10,
+      category,
+      featured,
+      sort = 'publishedAt',
       order = 'desc',
       fields,
       title,

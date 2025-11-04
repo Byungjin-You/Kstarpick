@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Cache</title>
+</head>
+<body>
+    <h1>Clearing Cache...</h1>
+    <script>
+        // 세션 스토리지 완전 삭제
+        sessionStorage.clear();
+        
+        // 로컬 스토리지도 삭제
+        localStorage.clear();
+        
+        alert('캐시가 모두 삭제되었습니다. 홈페이지로 이동합니다.');
+        
+        // 홈으로 리다이렉트
+        window.location.href = '/';
+    </script>
+</body>
+</html>

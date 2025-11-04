@@ -92,11 +92,39 @@ export default function Drama({ dramas, dramaNews, newsPagination }) {
     }
   }, [currentPage, dramasPerPage]);
   
+  // 스크롤 복원 useEffect - 뉴스에서 돌아왔을 때
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const isBackToDrama = sessionStorage.getItem('isBackToDrama');
+    const savedScrollPosition = sessionStorage.getItem('dramaScrollPosition');
+
+    if (isBackToDrama === 'true' && savedScrollPosition) {
+      const scrollPos = parseInt(savedScrollPosition, 10);
+
+      // 스크롤 복원을 위한 타이머
+      const restoreScroll = () => {
+        window.scrollTo(0, scrollPos);
+        document.documentElement.scrollTop = scrollPos;
+        document.body.scrollTop = scrollPos;
+      };
+
+      // 페이지가 완전히 로드된 후 스크롤 복원
+      setTimeout(restoreScroll, 50);
+      requestAnimationFrame(() => {
+        setTimeout(restoreScroll, 100);
+      });
+
+      // 플래그 제거 (한 번만 사용)
+      sessionStorage.removeItem('isBackToDrama');
+    }
+  }, []);
+
   // 페이지 로드 시 초기화
   useEffect(() => {
     if (dramas && dramas.length > 0) {
       setIsLoading(false);
-      
+
       // 정렬 및 표시
       const sorted = [...dramas].sort((a, b) => {
         if (sortBy === 'year' && a.year && b.year) {
@@ -112,35 +140,35 @@ export default function Drama({ dramas, dramaNews, newsPagination }) {
           return (b.viewCount || 0) - (a.viewCount || 0);
         }
           });
-          
+
       // 전체 데이터 저장
       setAllDramas(sorted);
-      
+
       // 전체 페이지 수 계산
       setTotalPages(Math.ceil(sorted.length / dramasPerPage));
-        
+
       // 먼저 모바일 상태 확인
       const isMobileView = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
       setIsMobile(isMobileView);
-        
+
       // 디바이스에 따라 적절한 초기 상태 설정
       updateDisplayedDramasForMobile(isMobileView, false, sorted);
-      
+
       // 축소된 카드 상태 초기화
       initializeCollapsedCards(sorted);
-  
+
       // 스크롤 이벤트 리스너 등록 - 스로틀링 적용
       const handleScrollThrottled = throttle(handleScroll, 200);
       window.addEventListener('scroll', handleScrollThrottled);
-        
+
       // 리사이즈 이벤트 리스너 등록 - 디바운싱 적용
       const handleResizeDebounced = debounce(handleResize, 300);
       window.addEventListener('resize', handleResizeDebounced);
-      
+
       return () => {
         window.removeEventListener('scroll', handleScrollThrottled);
         window.removeEventListener('resize', handleResizeDebounced);
-        
+
         if (resizeTimerRef.current) {
           clearTimeout(resizeTimerRef.current);
         }
@@ -552,7 +580,7 @@ export default function Drama({ dramas, dramaNews, newsPagination }) {
                         
                         {/* 제목과 정보 - 너비 제한 추가 */}
                         <div className="flex-grow min-w-0">
-                          <Link href={`/drama/${drama._id}`} className="block">
+                          <Link href={`/drama/${drama.slug || drama._id}`} className="block">
                             <h3 className="text-base font-semibold text-gray-800 hover:text-[#009efc] transition-colors line-clamp-1 truncate">
                               {drama.title}
                             </h3>
@@ -605,7 +633,7 @@ export default function Drama({ dramas, dramaNews, newsPagination }) {
                     </div>
                   ) : (
                     // 펼쳐진 상태 - 기존 카드 UI
-                    <Link href={`/drama/${drama._id}`} className="block h-full">
+                    <Link href={`/drama/${drama.slug || drama._id}`} className="block h-full">
                       <div
                         className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 h-full transform hover:-translate-y-1"
                         style={isMobile ? {
@@ -852,7 +880,7 @@ export async function getServerSideProps(context) {
     
     // 병렬로 핵심 데이터만 가져오기 (실시간 데이터 로딩)
     const [dramaResponse, dramaNewsResponse] = await Promise.all([
-      fetch(`${baseUrl}/api/dramas?category=drama&limit=50`, {
+      fetch(`${baseUrl}/api/dramas?category=drama&limit=50&sortBy=orderNumber&sortOrder=asc`, {
         headers: {
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache'

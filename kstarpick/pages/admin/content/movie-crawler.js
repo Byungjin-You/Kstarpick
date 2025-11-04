@@ -36,6 +36,7 @@ export default function MovieCrawler() {
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsCount, setReviewsCount] = useState(0);
   const [movieDetailModal, setMovieDetailModal] = useState({ open: false, movie: null });
+  const [pageCount, setPageCount] = useState(1);
 
   // 세션 체크
   useEffect(() => {
@@ -862,22 +863,12 @@ export default function MovieCrawler() {
               </button>
               
               <button
-                onClick={() => crawlMovieReviews(movieDetailModal.movie._id, movieDetailModal.movie.url)}
-                disabled={reviewsLoading}
-                className="px-4 py-2 bg-purple-600 rounded text-white hover:bg-purple-700 text-sm flex items-center gap-1 disabled:bg-purple-400"
-              >
-                {reviewsLoading ? (
-                  <RefreshCw className="animate-spin h-4 w-4" />
-                ) : (
-                  <MessageCircle className="h-4 w-4" />
-                )}
-                리뷰 크롤링
-              </button>
-              
-              <button
                 onClick={() => saveMovieToDatabase(movieDetailModal.movie)}
                 disabled={loading || savingMovies[movieDetailModal.movie.mdlId] === 'saving' || savingMovies[movieDetailModal.movie.mdlId] === 'saved'}
-                className="px-4 py-2 bg-blue-600 rounded text-white hover:bg-blue-700 text-sm flex items-center gap-1 disabled:bg-blue-400"
+                className="px-4 py-2 rounded text-white text-sm flex items-center gap-1"
+                style={{
+                  backgroundColor: (loading || savingMovies[movieDetailModal.movie.mdlId] === 'saving' || savingMovies[movieDetailModal.movie.mdlId] === 'saved') ? '#93b4ff' : '#233cfa'
+                }}
               >
                 {savingMovies[movieDetailModal.movie.mdlId] === 'saving' ? (
                   <RefreshCw className="animate-spin h-4 w-4" />
@@ -896,42 +887,41 @@ export default function MovieCrawler() {
   return (
     <AdminLayout>
       <div className="container px-4 py-6 mx-auto">
-        <h1 className="text-2xl font-bold mb-6">영화 크롤러</h1>
-        
-        {/* 크롤링 URL 입력 */}
+        <h1 className="text-2xl font-bold mb-6">영화 정보 등록</h1>
+
+        {/* 크롤링 컨트롤 */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <h2 className="text-lg font-semibold mb-4">MyDramaList 영화 크롤링</h2>
-          
-          <div className="flex flex-col md:flex-row gap-3 mb-4">
-            <div className="flex-grow">
-              <label htmlFor="url" className="block text-sm font-medium text-gray-700 mb-1">
-                크롤링 URL
-              </label>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-gray-700 text-sm font-medium mb-1">최대 페이지 수</label>
               <input
-                type="text"
-                id="url"
-                value={url}
-                onChange={handleUrlChange}
-                className="block w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                placeholder="https://mydramalist.com/search?adv=titles&ty=77&co=3&so=newest&or=asc&page=1"
+                type="number"
+                min="1"
+                max="10"
+                value={pageCount}
+                onChange={(e) => setPageCount(parseInt(e.target.value) || 1)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2"
+                disabled={loading}
               />
-              <p className="text-xs text-gray-500 mt-1">
-                MyDramaList 영화 검색 결과 페이지 URL을 입력하세요. (ty=77은 영화를 의미)
-              </p>
             </div>
-            
             <div className="flex items-end">
               <button
                 onClick={handleStealthCrawlingClick}
                 disabled={loading}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center gap-2 whitespace-nowrap disabled:bg-blue-400"
+                className="w-full px-4 py-2 rounded-md flex items-center justify-center"
+                style={{
+                  backgroundColor: loading ? '#93b4ff' : '#233cfa',
+                  color: 'white'
+                }}
               >
-                {loading ? <RefreshCw className="animate-spin h-4 w-4" /> : <Download className="h-4 w-4" />}
-                스텔스 크롤링
+                {loading ? <RefreshCw className="animate-spin h-4 w-4 mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+                스텔스 크롤링 시작
               </button>
             </div>
           </div>
-          
+
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded text-sm mb-4">
               {error}
@@ -954,20 +944,14 @@ export default function MovieCrawler() {
                   전체 선택/해제
                 </button>
                 
-                <button
-                  onClick={saveSelectedMovies}
-                  disabled={loading || Object.keys(selectedMovies).filter(id => selectedMovies[id]).length === 0}
-                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm flex items-center gap-1 disabled:bg-green-400"
-                >
-                  <Save className="h-4 w-4" />
-                  선택 저장
-                </button>
-                
                 {nextPage && (
                   <button
                     onClick={crawlNextPageWithStealth}
                     disabled={loading}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm flex items-center gap-1 disabled:bg-blue-400"
+                    className="px-3 py-1 rounded text-sm flex items-center gap-1 text-white"
+                    style={{
+                      backgroundColor: loading ? '#93b4ff' : '#233cfa'
+                    }}
                   >
                     {loading ? <RefreshCw className="animate-spin h-4 w-4" /> : <FileText className="h-4 w-4" />}
                     다음 페이지
@@ -1062,22 +1046,30 @@ export default function MovieCrawler() {
                           <button
                             onClick={() => fetchMovieDetail(movie)}
                             disabled={loading}
-                            className="text-blue-600 hover:text-blue-900 text-xs flex items-center gap-1"
+                            className="text-xs flex items-center gap-1"
+                            style={{ color: '#233cfa' }}
                           >
                             상세정보
                           </button>
-                          <button
-                            onClick={async () => {
-                              await fetchMovieDetail(movie);
-                              if (currentMovie) {
-                                await saveMovieToDatabase(currentMovie);
-                              }
-                            }}
-                            disabled={loading || savingMovies[movie.id] === 'saving' || savingMovies[movie.id] === 'saved'}
-                            className="text-green-600 hover:text-green-900 text-xs flex items-center gap-1"
-                          >
-                            저장
-                          </button>
+                          {savingMovies[movie.id] === 'saved' ? (
+                            <span className="text-green-600 text-xs">✓ 저장됨</span>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                await fetchMovieDetail(movie);
+                                if (currentMovie) {
+                                  await saveMovieToDatabase(currentMovie);
+                                }
+                              }}
+                              disabled={loading || savingMovies[movie.id] === 'saving'}
+                              className="text-xs flex items-center gap-1"
+                              style={{
+                                color: (loading || savingMovies[movie.id] === 'saving') ? '#93b4ff' : '#233cfa'
+                              }}
+                            >
+                              {savingMovies[movie.id] === 'saving' ? '저장 중...' : '저장'}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

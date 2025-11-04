@@ -62,7 +62,7 @@ export default async function handler(req, res) {
     
     const db = client.db(MONGODB_DB);
     
-    const { page = 1, limit = 12, sort = 'createdAt', order = 'desc' } = req.query;
+    const { page = 1, limit = 12, sort = 'publishedAt', order = 'desc' } = req.query;
     
     // 페이지와 제한 개수를 숫자로 변환
     const pageNum = parseInt(page);

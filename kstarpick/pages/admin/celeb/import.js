@@ -28,12 +28,17 @@ export default function ImportCelebrities() {
       const data = await response.json();
       
       if (data.success && data.data) {
-        // 예상치 못한 데이터 필터링 (FAQ 항목 등)
-        const filteredData = data.data.filter(artist => 
-          artist.name && 
-          artist.id && 
+        // 예상치 못한 데이터 필터링 (메뉴 항목, FAQ 등)
+        const filteredData = data.data.filter(artist =>
+          artist.name &&
+          artist.id &&
           !artist.id.includes('faq') &&
-          !artist.id.includes('#')
+          !artist.id.includes('#') &&
+          !artist.id.includes('viewcount') &&
+          !artist.id.includes('artistList') &&
+          !artist.id.includes('brief') &&
+          !artist.id.includes('contact') &&
+          !artist.id.includes('dashboard')
         );
         
         setFetchedData({

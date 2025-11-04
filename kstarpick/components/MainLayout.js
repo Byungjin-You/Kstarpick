@@ -33,7 +33,7 @@ const MainLayout = ({ children }) => {
       document.removeEventListener('scroll', checkScroll);
       clearInterval(interval);
     };
-  }, []);
+  }, [router.pathname]);
 
   // 맨 위로 스크롤 함수
   const scrollToTop = () => {

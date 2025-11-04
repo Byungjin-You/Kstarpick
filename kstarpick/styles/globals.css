@@ -95,7 +95,7 @@ body {
     -webkit-mask-image: none !important;
     background: transparent !important;
   }
-  
+
   /* 스크롤 컨테이너 가장자리 그라데이션 제거 */
   .hide-scrollbar::after,
   .hide-scrollbar::before,
@@ -129,6 +129,11 @@ body {
     margin-left: 0 !important;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     box-sizing: border-box;
+  }
+
+  /* 셀럽 페이지 카드는 그림자 제거 */
+  .hide-scrollbar > a {
+    box-shadow: none !important;
   }
   
   .hide-scrollbar > *:first-child {
@@ -376,66 +381,61 @@ body {
   display: none !important;
 }
 
-/* blockquote 스타일링 - 검정색 따옴표, 흰색 배경 (소셜 미디어 임베드 제외) */
+/* blockquote 스타일링 - 배경 워터마크 스타일 (소셜 미디어 임베드 제외) */
 .prose blockquote:not(.instagram-media):not(.twitter-tweet),
 .article-content blockquote:not(.instagram-media):not(.twitter-tweet),
 .ql-editor blockquote:not(.instagram-media):not(.twitter-tweet) {
   position: relative;
   margin: 2em 0 !important;
-  padding: 2em 2.5em 1.5em 2.5em !important;
+  padding: 3em 2.5em 2em 2.5em !important;
   background: #ffffff !important;
   border: none !important;
-  border-radius: 12px !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
-  font-style: italic !important;
-  color: #4b5563 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+  font-style: normal !important;
+  color: #2c3e50 !important;
   line-height: 1.8 !important;
-  font-size: 1.1em !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
+  font-size: 1.05em !important;
+  overflow: hidden;
 }
 
-/* 시작 따옴표 (왼쪽 상단) - 소셜 미디어 임베드 제외 */
+/* 시작 따옴표 (왼쪽 상단 워터마크) - 소셜 미디어 임베드 제외 */
 .prose blockquote:not(.instagram-media):not(.twitter-tweet)::before,
 .article-content blockquote:not(.instagram-media):not(.twitter-tweet)::before,
 .ql-editor blockquote:not(.instagram-media):not(.twitter-tweet)::before {
-  content: '"';
+  content: '';
   position: absolute;
-  top: 0.2em;
-  left: 0.3em;
-  font-size: 4em;
-  font-weight: 700;
-  line-height: 1;
-  background: linear-gradient(135deg, #ec4899, #f43f5e);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  color: transparent;
-  opacity: 0.9;
-  font-family: 'Georgia', serif;
-  z-index: 1;
+  top: 10px;
+  left: 10px;
+  width: 80px;
+  height: 80px;
+  background-image: url('/images/quote.svg');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0.15;
+  z-index: 0;
+  pointer-events: none;
 }
 
-/* 끝 따옴표 (오른쪽 하단) - 소셜 미디어 임베드 제외 */
+/* 끝 따옴표 (오른쪽 하단 워터마크) - 소셜 미디어 임베드 제외 */
 .prose blockquote:not(.instagram-media):not(.twitter-tweet)::after,
 .article-content blockquote:not(.instagram-media):not(.twitter-tweet)::after,
 .ql-editor blockquote:not(.instagram-media):not(.twitter-tweet)::after {
-  content: '"';
+  content: '';
   position: absolute;
-  bottom: -0.2em;
-  right: 0.3em;
-  font-size: 4em;
-  font-weight: 700;
-  line-height: 1;
-  background: linear-gradient(135deg, #ec4899, #f43f5e);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  color: transparent;
-  opacity: 0.9;
-  font-family: 'Georgia', serif;
+  bottom: 10px;
+  right: 10px;
+  width: 80px;
+  height: 80px;
+  background-image: url('/images/quote.svg');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0.15;
   transform: rotate(180deg);
-  z-index: 1;
+  z-index: 0;
+  pointer-events: none;
 }
 
 /* blockquote 내부 텍스트 스타일링 - 소셜 미디어 임베드 제외 */
@@ -477,20 +477,22 @@ body {
     font-size: 1em !important;
   }
   
-  .prose blockquote:not(.instagram-media):not(.twitter-tweet)::before, 
-  .article-content blockquote:not(.instagram-media):not(.twitter-tweet)::before, 
+  .prose blockquote:not(.instagram-media):not(.twitter-tweet)::before,
+  .article-content blockquote:not(.instagram-media):not(.twitter-tweet)::before,
   .ql-editor blockquote:not(.instagram-media):not(.twitter-tweet)::before {
-    font-size: 3em;
-    top: 0.1em;
-    left: 0.2em;
+    width: 60px;
+    height: 60px;
+    top: 5px;
+    left: 5px;
   }
-  
-  .prose blockquote:not(.instagram-media):not(.twitter-tweet)::after, 
-  .article-content blockquote:not(.instagram-media):not(.twitter-tweet)::after, 
+
+  .prose blockquote:not(.instagram-media):not(.twitter-tweet)::after,
+  .article-content blockquote:not(.instagram-media):not(.twitter-tweet)::after,
   .ql-editor blockquote:not(.instagram-media):not(.twitter-tweet)::after {
-    font-size: 3em;
-    bottom: -0.1em;
-    right: 0.2em;
+    width: 60px;
+    height: 60px;
+    bottom: 5px;
+    right: 5px;
   }
 }
 

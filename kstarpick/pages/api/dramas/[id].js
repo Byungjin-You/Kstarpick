@@ -97,9 +97,19 @@ export default async function handler(req, res) {
       case 'GET':
         // GET 요청은 공개 접근 허용
         console.log(`[API] GET /api/dramas/${id} 요청 받음, view=${view}`);
-        
-        let drama = await dramas.findOne({ _id: new ObjectId(id) });
-        
+
+        // slug 또는 ObjectId로 조회 시도
+        let drama;
+        if (ObjectId.isValid(id)) {
+          // ObjectId 형식이면 먼저 ID로 조회
+          drama = await dramas.findOne({ _id: new ObjectId(id) });
+        }
+
+        // ID로 찾지 못했거나 ID가 유효하지 않으면 slug로 조회
+        if (!drama) {
+          drama = await dramas.findOne({ slug: id });
+        }
+
         if (!drama) {
           return res.status(404).json({
             success: false,
@@ -110,12 +120,12 @@ export default async function handler(req, res) {
         // 조회수 증가 (view=true 쿼리 파라미터가 있는 경우)
         if (view === 'true') {
           await dramas.updateOne(
-            { _id: new ObjectId(id) },
+            { _id: drama._id },
             { $inc: { viewCount: 1 } }
           );
-          
+
           // 업데이트된 조회수를 포함한 최신 데이터를 가져옴
-          drama = await dramas.findOne({ _id: new ObjectId(id) });
+          drama = await dramas.findOne({ _id: drama._id });
         }
         
         // 리뷰 컬렉션에서 해당 드라마의 리뷰 조회 (여러 방식으로 시도)

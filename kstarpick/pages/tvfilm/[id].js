@@ -25,42 +25,35 @@ const fetcher = url => axios.get(url).then(res => res.data);
 
 // 이미지 URL 오류 처리 함수
 const ensureLocalImage = (imageUrl) => {
-  // 디버깅용 로그
-  console.log(`Processing image URL: ${imageUrl}`);
-  
   // 이미지가 없거나 undefined, null인 경우
   if (!imageUrl || imageUrl === 'undefined' || imageUrl === 'null') {
-    console.log('Image URL is empty, using placeholder');
     return '/images/placeholder-tvfilm.jpg';
   }
-  
+
   // 애플 TV+ 로고 특별 처리 (기존 로고 URL도 새 SVG로 변환)
   if (imageUrl && (
-    imageUrl.includes('Apple_TV_Plus_logo.png') || 
+    imageUrl.includes('Apple_TV_Plus_logo.png') ||
     imageUrl.includes('apple') && imageUrl.includes('tv') && imageUrl.includes('logo') ||
     imageUrl.includes('favicon') && imageUrl.includes('apple')
   )) {
-    console.log('Converting Apple TV+ logo to SVG URL');
     return 'https://upload.wikimedia.org/wikipedia/commons/3/39/Apple_TV.svg';
   }
-  
+
   // 상대 경로가 잘못된 경우(public/ 포함)
   if (imageUrl.startsWith('public/')) {
-    console.log(`Fixing relative path: ${imageUrl}`);
     return imageUrl.replace('public/', '/');
   }
-  
+
   // 이미 절대 경로로 되어 있는 경우 그대로 사용
   if (imageUrl.startsWith('/')) {
-    console.log(`Using local path: ${imageUrl}`);
     return imageUrl;
   }
-  
+
   // 외부 URL (http, https)인 경우 그대로 사용
   if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
     // 외부 URL은 그대로 반환 (안전한 도메인인 경우)
     const safeDomains = [
-      'i.imgur.com', 'imgur.com', 
+      'i.imgur.com', 'imgur.com',
       'images.unsplash.com', 'unsplash.com',
       'mydramalist.com', 'i.mydramalist.com',
       'via.placeholder.com', 'placeholder.com',
@@ -68,43 +61,37 @@ const ensureLocalImage = (imageUrl) => {
       'upload.wikimedia.org', 'wikimedia.org',
       'images.justwatch.com', 'justwatch.com'
     ];
-    
+
     try {
       const url = new URL(imageUrl, 'https://example.com');
       const domain = url.hostname;
-      
+
       // JustWatch 이미지 특별 처리
       if (domain.includes('justwatch.com')) {
-        console.log(`✅ JustWatch 이미지 URL 허용: ${imageUrl}`);
         // 이미지 URL이 http:// 로 시작하면 https:// 로 변경
         if (imageUrl.startsWith('http://')) {
           imageUrl = imageUrl.replace('http://', 'https://');
-          console.log(`JustWatch 이미지 URL을 HTTPS로 변환: ${imageUrl}`);
         }
         return imageUrl;
       }
-      
+
       if (safeDomains.some(safeDomain => domain.includes(safeDomain))) {
-        console.log(`안전한 외부 이미지 URL 사용: ${imageUrl}`);
         return imageUrl;
       }
     } catch (error) {
       console.error('URL 파싱 오류:', error);
       return '/images/placeholder-tvfilm.jpg';
     }
-    
-    console.log(`안전하지 않은 외부 이미지 URL 발견: ${imageUrl}, 로컬 이미지로 대체`);
+
     return '/images/placeholder-tvfilm.jpg';
   }
-  
+
   // 그 외의 경우에는 상대 경로로 간주하고 /images/ 접두사 추가
   if (!imageUrl.startsWith('/images/')) {
-    console.log(`Adding /images/ prefix to: ${imageUrl}`);
     return `/images/${imageUrl}`;
   }
-  
+
   // 그 외의 경우에는 기존 URL 사용
-  console.log(`Using original URL: ${imageUrl}`);
   return imageUrl;
 };
 
@@ -129,20 +116,18 @@ const renderImage = (imageUrl, alt, className = "object-cover", width = 0, heigh
   
   // Apple TV+ 로고 특별 처리 (항상 SVG 사용)
   if (alt && alt.toLowerCase().includes('apple') && type === 'logo') {
-    console.log('🍎 Special handling for Apple TV+ logo');
     imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/3/39/Apple_TV.svg';
   }
-  
+
   // JustWatch 이미지 여부 확인
   const isJustWatchImage = imageUrl.includes('justwatch.com');
-  
+
   const imgProps = {
     src: imageUrl,
     alt: alt || "Image",
     className: className,
     unoptimized: isJustWatchImage ? false : true,  // JustWatch 이미지는 최적화 활성화
     onError: (e) => {
-      console.log(`이미지 로드 에러: ${imageUrl}, 로컬 이미지로 대체`);
       e.target.onerror = null; // 무한 루프 방지
       // 이미지 타입에 따라 다른 플레이스홀더 사용
       if (type === 'logo') {
@@ -152,14 +137,9 @@ const renderImage = (imageUrl, alt, className = "object-cover", width = 0, heigh
       }
     }
   };
-  
+
   if (priority) {
     imgProps.priority = true;
-  }
-  
-  // JustWatch 이미지인 경우 로깅
-  if (isJustWatchImage) {
-    console.log(`🖼️ Rendering JustWatch image: ${imageUrl}`);
   }
   
   // width, height가 제공된 경우 (예: 로고 이미지)
@@ -172,14 +152,22 @@ const renderImage = (imageUrl, alt, className = "object-cover", width = 0, heigh
       />
     );
   }
-  
-  // fill 모드 (예: 커버 이미지)
-  return (
-    <Image
-      {...imgProps}
-      fill
-    />
-  );
+
+  // 로고 타입이지만 width, height가 제공되지 않은 경우
+  if (type === 'logo') {
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <Image
+          {...imgProps}
+          width={150}
+          height={70}
+        />
+      </div>
+    );
+  }
+
+  // width, height가 제공되지 않은 경우 (일반 이미지)
+  return <Image {...imgProps} fill sizes="100vw" />;
 };
 
 export default function TVFilmDetail({ tvfilm, relatedNews }) {
@@ -235,40 +223,68 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
     return (match && match[2].length === 11) ? match[2] : null;
   };
 
+  // 스크롤 위치 복원 로직 - tvfilm 페이지에서 뒤로가기 시
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const isBackToTvfilm = sessionStorage.getItem('isBackToTvfilm');
+    const savedScrollPosition = sessionStorage.getItem('tvfilmDetailScrollPosition');
+
+    if (isBackToTvfilm === 'true' && savedScrollPosition) {
+      const scrollPos = parseInt(savedScrollPosition, 10);
+
+      const restoreScroll = () => {
+        // body에 직접 스크롤 설정
+        document.body.scrollTop = scrollPos;
+        document.documentElement.scrollTop = scrollPos;
+        window.scrollTo(0, scrollPos);
+      };
+
+      // 여러 시도로 동적 콘텐츠 로딩을 고려
+      setTimeout(restoreScroll, 0);
+      setTimeout(restoreScroll, 50);
+      setTimeout(restoreScroll, 100);
+      setTimeout(restoreScroll, 200);
+      setTimeout(restoreScroll, 300);
+      setTimeout(restoreScroll, 500);
+      setTimeout(restoreScroll, 800);
+
+      requestAnimationFrame(() => {
+        setTimeout(restoreScroll, 100);
+        setTimeout(restoreScroll, 300);
+        setTimeout(restoreScroll, 500);
+      });
+
+      // 플래그 제거
+      setTimeout(() => {
+        sessionStorage.removeItem('isBackToTvfilm');
+        sessionStorage.removeItem('tvfilmDetailScrollPosition');
+      }, 1000);
+    }
+  }, [router.asPath]);
+
   useEffect(() => {
     if (data?.data || tvfilm) {
-      // API 응답 데이터를 자세히 로깅
-      console.log("TV/Film detail API response:", data?.data || tvfilm);
-      
       // 데이터가 있는 경우 이미지 URL 수정 및 보강
       const updatedData = { ...(data?.data || tvfilm) };
-      
-      // 이미지 URL 확인
-      console.log("원본 커버 이미지 URL:", updatedData.coverImage);
-      console.log("원본 배너 이미지 URL:", updatedData.bannerImage);
-      if (updatedData.watchProviders && Array.isArray(updatedData.watchProviders)) {
-        updatedData.watchProviders.forEach((provider, index) => {
-          console.log(`원본 Watch Provider[${index}] 로고 URL:`, provider.logo);
-        });
-      }
-      
+
       // 이미지 URL 수정
       // 썸네일 이미지 확인 및 처리
       updatedData.coverImage = ensureLocalImage(updatedData.coverImage);
-      console.log("처리 후 커버 이미지 URL:", updatedData.coverImage);
-      
+
       // 배너 이미지 확인 및 처리
       updatedData.bannerImage = ensureLocalImage(updatedData.bannerImage);
-      console.log("처리 후 배너 이미지 URL:", updatedData.bannerImage);
-      
+
       // watchProviders 배열의 모든 항목에 대해 로고 URL을 내부 이미지로 변경
       if (updatedData.watchProviders && Array.isArray(updatedData.watchProviders)) {
         updatedData.watchProviders = updatedData.watchProviders.map(provider => {
-          const processedLogo = provider.logo ? ensureLocalImage(provider.logo) : '/images/placeholder-image.jpg';
-          console.log(`Provider ${provider.name} 로고 처리 전: ${provider.logo}, 처리 후: ${processedLogo}`);
+          // logo 또는 imageUrl 필드 확인
+          const logoUrl = provider.logo || provider.imageUrl || '';
+          const processedLogo = logoUrl ? ensureLocalImage(logoUrl) : '/images/placeholder-image.jpg';
           return {
             ...provider,
-            logo: processedLogo
+            logo: processedLogo,
+            imageUrl: processedLogo // 양쪽 필드 모두 설정
           };
         });
       }
@@ -364,11 +380,25 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
           { id: 3, name: 'Actor 3', role: 'Role 3', image: '/images/placeholder-tvfilm.jpg' },
         ]);
       } else {
+        // cast가 배열인지 객체인지 확인
+        let castArray = [];
+
+        if (Array.isArray(data.data.cast)) {
+          // 배열 형식 (영화 크롤러의 cast 배열)
+          castArray = data.data.cast;
+        } else if (data.data.cast.mainRoles || data.data.cast.supportRoles) {
+          // 객체 형식 (드라마 크롤러의 {mainRoles: [], supportRoles: []} 형식)
+          castArray = [
+            ...(data.data.cast.mainRoles || []),
+            ...(data.data.cast.supportRoles || [])
+          ];
+        }
+
         // 각 배우 이미지 URL 확인 및 수정
-        const processedCast = data.data.cast.map(actor => {
+        const processedCast = castArray.map(actor => {
           // API에서는 profileImage 필드를 사용하므로 이를 직접 사용
           const imageUrl = actor.profileImage || actor.image || '';
-          
+
           return {
             ...actor,
             name: actor.name || 'Unknown Actor',
@@ -414,17 +444,10 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
 
   useEffect(() => {
     if (tvfilmData) {
-      console.log("TVFilm data loaded:", tvfilmData);
-      console.log("Watch Providers:", tvfilmData.watchProviders);
-      console.log("Related News count:", relatedNews?.length || 0);
-      console.log("Related News data:", relatedNews);
-      
       // Set page title
       if (tvfilmData.title) {
         document.title = `${tvfilmData.title} - KDrama&Movie`;
       }
-      
-      // No need to fetch related items here as it's already done in the previous useEffect
     }
   }, [tvfilmData, relatedNews]);
 
@@ -447,7 +470,18 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
   // Format date
   const formatDate = (dateString) => {
     if (!dateString) return null;
+
+    // 날짜 범위인 경우 (예: "Oct 10, 2025 - Nov 15, 2025")
+    if (dateString.includes(' - ')) {
+      return dateString; // 원본 그대로 반환
+    }
+
+    // 단일 날짜인 경우
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      // 파싱 실패 시 원본 문자열 반환
+      return dateString;
+    }
     return `${date.toLocaleDateString()}`;
   };
 
@@ -1064,7 +1098,65 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
         
         {/* 모바일 전용 상단 정보 영역 */}
         <div className="sm:hidden pt-4 pb-2 px-4 bg-gradient-to-br from-gray-50 via-white to-purple-50/30">
-          {/* 영화 정보 카드 - 현대적 디자인 */}
+          {/* 첫 번째 트레일러 영상 섹션 */}
+          {currentTVFilm.videos && currentTVFilm.videos.length > 0 && (
+            <div className="mt-8 mb-4">
+              <div className="relative rounded-2xl overflow-hidden shadow-xl border-2 border-white/50 bg-black">
+                {/* 영상 썸네일 */}
+                <div className="relative aspect-video">
+                  {(() => {
+                    const firstVideo = currentTVFilm.videos[0];
+                    const videoId = getYoutubeIdFromUrl(firstVideo.url);
+                    return videoId ? (
+                      <Image
+                        src={`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
+                        alt={firstVideo.title || "Trailer"}
+                        fill
+                        className="object-cover"
+                        unoptimized={true}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+                        }}
+                      />
+                    ) : null;
+                  })()}
+
+                  {/* 그라데이션 오버레이 */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20"></div>
+
+                  {/* 재생 버튼 */}
+                  <button
+                    onClick={() => {
+                      const firstVideo = currentTVFilm.videos[0];
+                      const videoId = getYoutubeIdFromUrl(firstVideo.url);
+                      setSelectedVideoId(videoId);
+                      setTrailerTitle(firstVideo.title || "Official Trailer");
+                      setShowTrailer(true);
+                    }}
+                    className="absolute inset-0 flex items-center justify-center group"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center transform opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300 shadow-2xl">
+                      <Play className="w-6 h-6 text-[#233cfa] ml-1" />
+                    </div>
+                  </button>
+
+                  {/* 영상 제목 - 하단 */}
+                  <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
+                    <div className="flex items-center">
+                      <div className="w-6 h-6 rounded-full bg-[#233cfa] flex items-center justify-center mr-2">
+                        <Play className="w-3 h-3 text-white ml-0.5" />
+                      </div>
+                      <h4 className="text-white text-sm font-semibold line-clamp-1">
+                        {currentTVFilm.videos[0].title || "Official Trailer"}
+                      </h4>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="bg-gradient-to-br from-white via-purple-50/20 to-pink-50/20 rounded-3xl overflow-hidden shadow-xl border border-purple-100/50 mb-4 relative">
             {/* 배경 장식 요소 */}
             <div className="absolute -top-8 -right-8 w-24 h-24 bg-gradient-to-br from-pink-200/30 to-purple-200/30 rounded-full blur-2xl"></div>
@@ -1084,7 +1176,7 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                       </p>
                     )}
                   </div>
-                  <div className="px-3 py-2 rounded-2xl shadow-lg" style={{ backgroundColor: '#233cfa' }}>
+                  <div className="flex items-center px-3 py-2 rounded-2xl shadow-lg" style={{ backgroundColor: '#233cfa' }}>
                     <div className="h-7 w-7 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-bold text-sm mr-2 shadow-md">
                       {currentTVFilm.reviewRating != null && currentTVFilm.reviewRating !== undefined && parseFloat(currentTVFilm.reviewRating) > 0
                         ? parseFloat(currentTVFilm.reviewRating) === 10
@@ -1171,22 +1263,28 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                     currentTVFilm.genres.map((genre, index) => (
                       <span
                         key={index}
-                        className="px-3 py-1.5 rounded-full text-xs font-semibold border shadow-sm transition-all"
+                        className="px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm transition-colors cursor-pointer"
                         style={{
                           backgroundColor: '#f3f4f6',
-                          color: '#1f2937',
-                          borderColor: '#e5e7eb',
-                          cursor: 'pointer'
+                          color: '#1f2937'
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor = '#009efc';
                           e.currentTarget.style.color = 'white';
-                          e.currentTarget.style.borderColor = '#009efc';
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.backgroundColor = '#f3f4f6';
                           e.currentTarget.style.color = '#1f2937';
-                          e.currentTarget.style.borderColor = '#e5e7eb';
+                        }}
+                        onTouchStart={(e) => {
+                          e.currentTarget.style.backgroundColor = '#009efc';
+                          e.currentTarget.style.color = 'white';
+                        }}
+                        onTouchEnd={(e) => {
+                          setTimeout(() => {
+                            e.currentTarget.style.backgroundColor = '#f3f4f6';
+                            e.currentTarget.style.color = '#1f2937';
+                          }, 200);
                         }}
                       >
                         {genre}
@@ -1197,92 +1295,71 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                   )}
                 </div>
               </div>
-              
-              {/* 트레일러 버튼 - 개선된 디자인 */}
-              <div className="px-6 pb-6">
-                <button
-                  onClick={() => setShowTrailer(true)}
-                  className="text-white w-full py-3.5 rounded-2xl flex items-center justify-center font-semibold text-sm shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] relative overflow-hidden"
-                  style={{ backgroundColor: '#233cfa' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1d31cb'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#233cfa'}
-                  onTouchStart={(e) => e.currentTarget.style.backgroundColor = '#1d31cb'}
-                  onTouchEnd={(e) => e.currentTarget.style.backgroundColor = '#233cfa'}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300"></div>
-                  <div className="relative flex items-center">
-                    <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center mr-3 shadow-md">
-                      <Play className="w-4 h-4 text-white" />
+
+              {/* 리뷰 평가 점수 (모���일 전용) */}
+              {currentTVFilm.reviewCount > 0 && (
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-1">
+                  <h3 className="text-sm font-bold text-gray-800 mb-2 flex items-center">
+                    <img src="/images/icons8-star-94.png" alt="Star" className="w-4 h-4 mr-1.5" />
+                    Viewer Ratings
+                  </h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">Acting/Cast</span>
+                      <div className="flex items-center">
+                        <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${(currentTVFilm.reviewStats?.castRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
+                          ></div>
+                        </div>
+                        <span className="text-xs font-medium text-gray-800 w-8 text-right">{currentTVFilm.reviewStats?.castRating || 8.0}</span>
+                      </div>
                     </div>
-                    <span>Watch Trailer</span>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">Story</span>
+                      <div className="flex items-center">
+                        <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${(currentTVFilm.reviewStats?.storyRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
+                          ></div>
+                        </div>
+                        <span className="text-xs font-medium text-gray-800 w-8 text-right">{currentTVFilm.reviewStats?.storyRating || 8.0}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">Music</span>
+                      <div className="flex items-center">
+                        <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${(currentTVFilm.reviewStats?.musicRating || 7.5) * 10}%`, backgroundColor: '#233cfa' }}
+                          ></div>
+                        </div>
+                        <span className="text-xs font-medium text-gray-800 w-8 text-right">{currentTVFilm.reviewStats?.musicRating || 7.5}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">Rewatch Value</span>
+                      <div className="flex items-center">
+                        <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${(currentTVFilm.reviewStats?.rewatchRating || 7.0) * 10}%`, backgroundColor: '#233cfa' }}
+                          ></div>
+                        </div>
+                        <span className="text-xs font-medium text-gray-800 w-8 text-right">{currentTVFilm.reviewStats?.rewatchRating || 7.0}</span>
+                      </div>
+                    </div>
                   </div>
-                </button>
-              </div>
+                </div>
+              )}
             </div>
           </div>
-          
-          {/* 리뷰 평가 점수 (모바일 전용) */}
-          {currentTVFilm.reviewCount > 0 && (
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-1">
-              <h3 className="text-sm font-bold text-gray-800 mb-2 flex items-center">
-                <img src="/images/icons8-star-94.png" alt="Star" className="w-4 h-4 mr-1.5" />
-                Viewer Ratings
-              </h3>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">Acting/Cast</span>
-                  <div className="flex items-center">
-                    <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${(currentTVFilm.reviewStats?.castRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
-                      ></div>
-                    </div>
-                    <span className="text-xs font-medium text-gray-800">{currentTVFilm.reviewStats?.castRating || 8.0}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">Story</span>
-                  <div className="flex items-center">
-                    <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${(currentTVFilm.reviewStats?.storyRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
-                      ></div>
-                    </div>
-                    <span className="text-xs font-medium text-gray-800">{currentTVFilm.reviewStats?.storyRating || 8.0}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">Music</span>
-                  <div className="flex items-center">
-                    <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${(currentTVFilm.reviewStats?.musicRating || 7.5) * 10}%`, backgroundColor: '#233cfa' }}
-                      ></div>
-                    </div>
-                    <span className="text-xs font-medium text-gray-800">{currentTVFilm.reviewStats?.musicRating || 7.5}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">Rewatch Value</span>
-                  <div className="flex items-center">
-                    <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${(currentTVFilm.reviewStats?.rewatchRating || 7.0) * 10}%`, backgroundColor: '#233cfa' }}
-                      ></div>
-                    </div>
-                    <span className="text-xs font-medium text-gray-800">{currentTVFilm.reviewStats?.rewatchRating || 7.0}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
         
         {/* Trailer Modal */}
@@ -1617,67 +1694,52 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                       filteredWatchProviders.map((provider, index) => (
                         <div
                           key={index}
-                          className="rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:translate-y-[-3px] shadow-sm relative group"
+                          className="rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:translate-y-[-3px] border border-gray-100 shadow-sm relative group"
                           style={{ backgroundColor: '#1d1a27' }}
                         >
-                          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'linear-gradient(to right, rgba(35, 60, 250, 0.1), rgba(0, 158, 252, 0.1))' }}></div>
+                          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'linear-gradient(to right, rgba(0, 158, 252, 0.1), rgba(0, 158, 252, 0.05))' }}></div>
                           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 sm:p-5 relative">
                             <div className="flex items-center w-full sm:w-auto">
                               {/* Watch Provider logo */}
-                              <div className={`${provider.logo ? 'bg-white' : 'bg-gray-100'} h-12 w-24 sm:h-14 sm:w-32 flex items-center justify-center overflow-hidden shadow-md transition-colors duration-300`}
-                                style={{ borderRadius: '12px' }}>
-                                {provider.logo ?
-                                  renderImage(provider.logo, provider.name, "object-contain", 100, 50, false, 'logo') :
-                                  <span className="text-gray-800 font-bold text-base sm:text-lg">{provider.name}</span>
+                              <div className="h-12 w-24 sm:h-14 sm:w-32 flex items-center justify-center rounded-xl overflow-hidden">
+                                {provider.logo || provider.imageUrl ?
+                                  renderImage(provider.imageUrl || provider.logo, provider.name, "object-contain w-full h-full rounded-xl", 0, 0, false, 'logo') :
+                                  <span className="text-white font-bold text-base sm:text-lg">{provider.name}</span>
                                 }
                               </div>
                               <div className="ml-3 sm:ml-4">
-                                <h3
-                                  className="text-base font-semibold transition-colors duration-300"
-                                  style={{ color: 'white' }}
-                                  onMouseEnter={(e) => e.currentTarget.style.color = '#009efc'}
-                                  onMouseLeave={(e) => e.currentTarget.style.color = 'white'}
-                                >
-                                  {provider.name}
-                                </h3>
+                                <h3 className="text-base font-semibold transition-colors duration-300" style={{ color: 'white' }} onMouseEnter={(e) => e.currentTarget.style.color = '#009efc'} onMouseLeave={(e) => e.currentTarget.style.color = 'white'}>{provider.name}</h3>
                                 <div className="flex flex-wrap gap-1.5 mt-2">
                                   {provider.quality && provider.quality.map((quality, qIndex) => (
-                                    <div key={qIndex} className="text-xs px-2.5 py-1 rounded-full font-medium transition-all duration-300"
-                                      style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', color: 'rgba(255, 255, 255, 0.8)' }}>
-                                      {quality}
-                                    </div>
+                                    <div
+                                      key={qIndex}
+                                      className="text-xs px-2.5 py-1 rounded-full font-medium border transition-all duration-300"
+                                      style={{ backgroundColor: '#f9fafb', color: '#4b5563', borderColor: '#f3f4f6' }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#e0f2fe';
+                                        e.currentTarget.style.color = '#009efc';
+                                        e.currentTarget.style.borderColor = '#009efc';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#f9fafb';
+                                        e.currentTarget.style.color = '#4b5563';
+                                        e.currentTarget.style.borderColor = '#f3f4f6';
+                                      }}
+                                    >{quality}</div>
                                   ))}
                                 </div>
                               </div>
                             </div>
-                            <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto mt-4 sm:mt-0 border-t sm:border-t-0 pt-3 sm:pt-0 mt-3 sm:mt-0" style={{ borderColor: 'rgba(255, 255, 255, 0.1)' }}>
-                              <div className="sm:mr-6 text-left sm:text-right">
-                                <div className="font-semibold text-sm sm:text-base" style={{ color: 'white' }}>
-                                  {provider.type.charAt(0).toUpperCase() + provider.type.slice(1)}
+                            {/* 데스크탑에서만 보이는 타입 영역 */}
+                            <div className="hidden sm:flex items-center justify-end w-full sm:w-auto mt-4 sm:mt-0 border-t sm:border-t-0 pt-3 sm:pt-0 mt-3 sm:mt-0">
+                              <div className="text-left sm:text-right">
+                                <div className="text-white font-semibold text-sm sm:text-base">
+                                  {provider?.type ? provider.type.charAt(0).toUpperCase() + provider.type.slice(1) : 'Unknown'}
                                 </div>
                                 {provider.price && (
                                   <div className="text-xs sm:text-sm font-medium" style={{ color: '#009efc' }}>{provider.price}</div>
                                 )}
                               </div>
-                              {provider.url ? (
-                                <a
-                                  href={provider.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full flex items-center font-medium text-sm shadow-md hover:shadow-lg transition-all group-hover:scale-105 duration-300"
-                                  style={{ backgroundColor: '#233cfa' }}
-                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1d31cb'}
-                                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#233cfa'}
-                                >
-                                  <Play className="w-4 h-4 mr-1.5 sm:mr-2" />
-                                  <span>Watch Now</span>
-                                </a>
-                              ) : (
-                                <button className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 sm:px-6 py-2.5 sm:py-3 rounded-full flex items-center font-medium text-sm shadow-sm hover:shadow transition-all">
-                                  <Play className="w-4 h-4 mr-1.5 sm:mr-2" />
-                                  <span>Watch Now</span>
-                                </button>
-                              )}
                             </div>
                           </div>
                         </div>
@@ -1766,8 +1828,6 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                                 ? Math.round((count / currentTVFilm.reviewCount) * 100)
                                 : 0;
                               
-                              // For debugging - log the values
-                              console.log(`TVFilm Rating ${ratingNumber}: count=${count}, percentage=${percentage}%, reviewCount=${currentTVFilm.reviewCount}`);
                               
                               return (
                                 <div key={ratingNumber} className="flex flex-col items-center group">
@@ -2156,30 +2216,34 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                   <div className="border-t border-gray-100">
                     <div className="p-5 space-y-3">
                       {/* Director */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
-                            <img src="/images/icons8-documentary-94.png" alt="Director" className="w-5 h-5" />
+                      {currentTVFilm.director && (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
+                              <img src="/images/icons8-documentary-94.png" alt="Director" className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-sm text-gray-500 font-medium">Director</h4>
                           </div>
-                          <h4 className="text-sm text-gray-500 font-medium">Director</h4>
+                          <div className="text-right">
+                            <span className="text-gray-900 font-semibold text-sm">
+                              {currentTVFilm.director}
+                            </span>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <span className="text-gray-900 font-semibold text-sm">
-                            {currentTVFilm.director || "Bong Joon-ho"}
-                          </span>
-                        </div>
-                      </div>
+                      )}
 
                       {/* Runtime */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
-                            <img src="/images/icons8-clock-24.png" alt="Runtime" className="w-5 h-5" />
+                      {currentTVFilm.runtime && (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
+                              <img src="/images/icons8-clock-24.png" alt="Runtime" className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-sm text-gray-500 font-medium">Runtime</h4>
                           </div>
-                          <h4 className="text-sm text-gray-500 font-medium">Runtime</h4>
+                          <span className="text-gray-900 font-semibold text-sm">{currentTVFilm.runtime}</span>
                         </div>
-                        <span className="text-gray-900 font-semibold text-sm">{currentTVFilm.runtime || "2h 17min"}</span>
-                      </div>
+                      )}
 
                       {/* Age Rating */}
                       <div className="flex items-center justify-between">
@@ -2215,14 +2279,14 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
 
                       {/* Release Date */}
                       {currentTVFilm.releaseDate && (
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center flex-shrink-0">
                             <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
                               <img src="/images/icons8-calendar-94.png" alt="Release Date" className="w-5 h-5" />
                             </div>
                             <h4 className="text-sm text-gray-500 font-medium">Release Date</h4>
                           </div>
-                          <span className="text-gray-900 font-semibold text-sm">
+                          <span className="text-gray-900 font-semibold text-sm text-right break-words">
                             {formatDate(currentTVFilm.releaseDate)}
                           </span>
                         </div>
@@ -2250,7 +2314,7 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                                   style={{ width: `${(currentTVFilm.reviewStats?.castRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
                                 ></div>
                               </div>
-                              <span className="text-sm font-medium text-gray-800">{currentTVFilm.reviewStats?.castRating || 8.0}</span>
+                              <span className="text-sm font-medium text-gray-800 w-8 text-right">{currentTVFilm.reviewStats?.castRating || 8.0}</span>
                             </div>
                           </div>
 
@@ -2263,7 +2327,7 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                                   style={{ width: `${(currentTVFilm.reviewStats?.storyRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
                                 ></div>
                               </div>
-                              <span className="text-sm font-medium text-gray-800">{currentTVFilm.reviewStats?.storyRating || 8.0}</span>
+                              <span className="text-sm font-medium text-gray-800 w-8 text-right">{currentTVFilm.reviewStats?.storyRating || 8.0}</span>
                             </div>
                           </div>
 
@@ -2276,7 +2340,7 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                                   style={{ width: `${(currentTVFilm.reviewStats?.musicRating || 7.5) * 10}%`, backgroundColor: '#233cfa' }}
                                 ></div>
                               </div>
-                              <span className="text-sm font-medium text-gray-800">{currentTVFilm.reviewStats?.musicRating || 7.5}</span>
+                              <span className="text-sm font-medium text-gray-800 w-8 text-right">{currentTVFilm.reviewStats?.musicRating || 7.5}</span>
                             </div>
                           </div>
 
@@ -2289,7 +2353,7 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                                   style={{ width: `${(currentTVFilm.reviewStats?.rewatchRating || 7.0) * 10}%`, backgroundColor: '#233cfa' }}
                                 ></div>
                               </div>
-                              <span className="text-sm font-medium text-gray-800">{currentTVFilm.reviewStats?.rewatchRating || 7.0}</span>
+                              <span className="text-sm font-medium text-gray-800 w-8 text-right">{currentTVFilm.reviewStats?.rewatchRating || 7.0}</span>
                             </div>
                           </div>
                         </div>
@@ -2331,6 +2395,14 @@ export default function TVFilmDetail({ tvfilm, relatedNews }) {
                       key={index}
                       href={`/news/${news._id}`}
                       passHref
+                      onClick={() => {
+                        // 현재 스크롤 위치 저장
+                        if (typeof window !== 'undefined') {
+                          const scrollPosition = document.body.scrollTop || window.pageYOffset || document.documentElement.scrollTop;
+                          sessionStorage.setItem('tvfilmDetailScrollPosition', scrollPosition.toString());
+                          sessionStorage.setItem('isBackToTvfilm', 'true');
+                        }
+                      }}
                     >
                       <div className="block cursor-pointer">
                         <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">

@@ -535,14 +535,18 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
           return;
         }
         
-        // 뉴스 중복 제거 및 정렬 (생성일 기준 내림차순)
+        // 뉴스 중복 제거 및 정렬 (발행일 우선, 없으면 생성일 기준 내림차순)
         const uniqueNewsIds = new Set();
         const uniqueNews = allReceivedNews.filter(news => {
           const id = news._id || news.id;
           if (!id || uniqueNewsIds.has(id)) return false;
           uniqueNewsIds.add(id);
           return true;
-        }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        }).sort((a, b) => {
+          const dateA = new Date(a.publishedAt || a.createdAt);
+          const dateB = new Date(b.publishedAt || b.createdAt);
+          return dateB - dateA;
+        });
         
         // 현재 로드된 ID들을 Set으로 구성 (중복 체크용)
         const existingIds = new Set();

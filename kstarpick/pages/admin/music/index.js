@@ -15,8 +15,11 @@ export default function AdminMusicList() {
   const [totalPages, setTotalPages] = useState(1);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteItemId, setDeleteItemId] = useState(null);
-  const [limit] = useState(10);
+  const [limit, setLimit] = useState(20);
   const [updatedMusicIds, setUpdatedMusicIds] = useState([]);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showMultiDeleteModal, setShowMultiDeleteModal] = useState(false);
   
   // 유튜브 인기 급상승 관련 상태
   const [showTrendingModal, setShowTrendingModal] = useState(false);
@@ -78,7 +81,7 @@ export default function AdminMusicList() {
           dailyViews: data.musics[0].dailyViews || data.musics[0].dailyview || data.musics[0].dailyView
         });
         
-        // 필드 정규화 처리
+        // 필드 정���� 처리
         const formattedMusics = data.musics.map(item => {
           // 숫자로 변환
           const ensureNumber = (value, defaultValue = 0) => {
@@ -128,7 +131,7 @@ export default function AdminMusicList() {
   // 컴포넌트 마운트 시 음악 데이터 가져오기
   useEffect(() => {
     fetchMusic();
-  }, [currentPage]);
+  }, [currentPage, limit]);
 
   // 페이지 변경 핸들러
   const handlePageChange = (newPage) => {
@@ -183,7 +186,7 @@ export default function AdminMusicList() {
       });
       
       if (!response.ok) {
-        throw new Error('음악 삭제에 실패했습니다.');
+        throw new Error('음악 삭제에 실패했습니���.');
       }
       
       // 목록에서 삭제된 항목 제거
@@ -193,6 +196,65 @@ export default function AdminMusicList() {
     } catch (error) {
       console.error('음악 삭제 오류:', error);
       setError('음악 삭제 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 체크박스 개별 선택/해제
+  const handleCheckboxChange = (id) => {
+    setSelectedItems(prevSelected => {
+      if (prevSelected.includes(id)) {
+        return prevSelected.filter(itemId => itemId !== id);
+      } else {
+        return [...prevSelected, id];
+      }
+    });
+  };
+
+  // 모든 항목 선택/해제
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedItems(music.map(item => item._id));
+    } else {
+      setSelectedItems([]);
+    }
+  };
+
+  // 다중 삭제 모달 열기
+  const handleMultiDeleteClick = () => {
+    if (selectedItems.length === 0) {
+      setError('선택된 항목이 없습니다.');
+      return;
+    }
+    setShowMultiDeleteModal(true);
+  };
+
+  // 다중 삭제 실행
+  const handleMultiDeleteConfirm = async () => {
+    if (selectedItems.length === 0) return;
+
+    try {
+      setIsDeleting(true);
+      // 순차적으로 선택된 항목 삭제
+      const deletePromises = selectedItems.map(id =>
+        fetch(`/api/music/${id}`, { method: 'DELETE' })
+      );
+
+      const results = await Promise.all(deletePromises);
+      const hasError = results.some(response => !response.ok);
+
+      if (!hasError) {
+        // 성공적으로 삭제되면 상태 업데이트
+        setMusic(music.filter(item => !selectedItems.includes(item._id)));
+        setShowMultiDeleteModal(false);
+        setSelectedItems([]);
+      } else {
+        setError('일부 항목 삭제 중 오류가 발생했습니다.');
+      }
+    } catch (error) {
+      console.error('Error deleting multiple music:', error);
+      setError('음악 삭제 중 오류가 발생했습니다.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -683,108 +745,160 @@ export default function AdminMusicList() {
         <title>음악 차트 관리 | 관리자</title>
       </Head>
       
-      <div className="p-6">
-        <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">음악 차트 관리</h1>
-            <p className="text-gray-500">K-POP 차트에 표시될 음악을 관리합니다</p>
-            {error && (
-              <p className="text-red-500 mt-2">{error}</p>
-            )}
-          </div>
-          
-          <div className="mt-4 md:mt-0 flex flex-wrap gap-2">
-            <Link 
-              href="/admin/music/new"
-              className="inline-flex items-center px-4 py-2 bg-[#ff3e8e] text-white rounded-lg hover:bg-[#e02e7c] transition-colors"
-            >
-              <Plus size={18} className="mr-2" />
-              새 음악 등록
-            </Link>
+      {/* 상단 헤더 */}
+      <div className="mb-6 flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">음악 차트 관리</h1>
+        </div>
+        <div className="flex gap-2">
+          {selectedItems.length > 0 && (
             <button
-              onClick={fixPositions}
-              className="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              onClick={handleMultiDeleteClick}
+              className="bg-red-600 hover:bg-red-700 text-white border-2 border-red-600 py-2 px-4 rounded-md flex items-center"
             >
-              <Eye size={18} className="mr-2" />
-              순위 데이터 수정
+              <Trash2 className="mr-2 h-5 w-5" />
+              선택 삭제 ({selectedItems.length})
             </button>
-            <button
-              onClick={forceSort}
-              className="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-            >
-              <ArrowUp size={18} className="mr-2" />
-              강제 순위 정렬
-            </button>
-            <button
-              onClick={updateViews}
-              className="inline-flex items-center px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
-            >
-              <MusicIcon size={18} className="mr-2" />
-              조회수 및 순위 업데이트
-            </button>
-            <button
-              onClick={() => {
-                setShowTrendingModal(true);
-                fetchTrendingVideos();
-              }}
-              className="inline-flex items-center px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-            >
-              <Youtube size={18} className="mr-2" />
-              유튜브 인기 급상승
-            </button>
-            <button
-              onClick={() => {
-                setShowWeeklyModal(true);
-                fetchWeeklyVideos();
-              }}
-              className="inline-flex items-center px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-            >
-              <Youtube size={18} className="mr-2" />
-              이번주 유튜브 인기 영상
-            </button>
+          )}
+          <Link
+            href="/admin/music/new"
+            className="bg-white hover:bg-gray-50 border-2 py-2 px-4 rounded-md flex items-center"
+            style={{ borderColor: '#233cfa', color: '#233cfa' }}
+          >
+            <Plus className="mr-2 h-5 w-5" />
+            새 음악 등록
+          </Link>
+          <button
+            onClick={fixPositions}
+            className="bg-white hover:bg-gray-50 border-2 py-2 px-4 rounded-md flex items-center"
+            style={{ borderColor: '#233cfa', color: '#233cfa' }}
+          >
+            <Eye className="mr-2 h-5 w-5" />
+            순위 데이터 수정
+          </button>
+          <button
+            onClick={forceSort}
+            className="bg-white hover:bg-gray-50 border-2 py-2 px-4 rounded-md flex items-center"
+            style={{ borderColor: '#233cfa', color: '#233cfa' }}
+          >
+            <ArrowUp className="mr-2 h-5 w-5" />
+            강제 순위 정렬
+          </button>
+          <button
+            onClick={updateViews}
+            className="bg-white hover:bg-gray-50 border-2 py-2 px-4 rounded-md flex items-center"
+            style={{ borderColor: '#233cfa', color: '#233cfa' }}
+          >
+            <MusicIcon className="mr-2 h-5 w-5" />
+            조회수 업데이트
+          </button>
+          <button
+            onClick={() => {
+              setShowTrendingModal(true);
+              fetchTrendingVideos();
+            }}
+            className="bg-white hover:bg-gray-50 border-2 py-2 px-4 rounded-md flex items-center"
+            style={{ borderColor: '#233cfa', color: '#233cfa' }}
+          >
+            <Youtube className="mr-2 h-5 w-5" />
+            인기 급상승
+          </button>
+          <button
+            onClick={() => {
+              setShowWeeklyModal(true);
+              fetchWeeklyVideos();
+            }}
+            className="bg-white hover:bg-gray-50 border-2 py-2 px-4 rounded-md flex items-center"
+            style={{ borderColor: '#233cfa', color: '#233cfa' }}
+          >
+            <Youtube className="mr-2 h-5 w-5" />
+            이번주 인기 영상
+          </button>
+        </div>
+      </div>
+
+      {/* 에러 메시지 */}
+      {error && (
+        <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200">
+          <div className="flex items-start">
+            <div className="flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center bg-red-100 text-red-500">
+              <AlertCircle size={16} />
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">오류</h3>
+              <div className="mt-1 text-sm text-red-700">
+                <p>{error}</p>
+              </div>
+            </div>
           </div>
         </div>
-        
-        {/* 검색 */}
-        <div className="bg-white rounded-lg shadow-sm mb-6 p-4">
-          <form onSubmit={handleSearch} className="flex w-full md:w-auto">
-            <div className="relative flex-grow md:w-64">
+      )}
+
+      {/* 검색 및 필터 */}
+      <div className="bg-white shadow rounded-lg p-4 mb-6">
+        <div className="flex flex-wrap gap-4 items-end">
+          {/* 검색 */}
+          <div className="flex-1 flex min-w-[300px]">
+            <form onSubmit={handleSearch} className="w-full flex">
               <input
                 type="text"
-                placeholder="노래 제목 또는 아티스트 검색"
+                placeholder="노래 제목 또는 아티스트 검색..."
+                className="flex-1 border border-gray-300 rounded-l-md px-3 py-2"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#ff3e8e]/50 focus:border-[#ff3e8e]"
               />
-              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                <Search size={18} />
-              </span>
-            </div>
-            <button
-              type="submit"
-              className="ml-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              <button
+                type="submit"
+                className="bg-gray-200 hover:bg-gray-300 px-3 py-2 rounded-r-md"
+              >
+                <Search size={20} />
+              </button>
+            </form>
+          </div>
+
+          {/* 페이지 표시 개수 */}
+          <div className="flex items-center gap-2">
+            <select
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+              value={limit}
+              onChange={(e) => {
+                setLimit(Number(e.target.value));
+                setCurrentPage(1);
+              }}
             >
-              검색
-            </button>
+              <option value="10">10개씩</option>
+              <option value="20">20개씩</option>
+              <option value="50">50개씩</option>
+            </select>
+
             <button
               type="button"
               onClick={() => {
                 setSearchTerm('');
                 fetchMusic();
               }}
-              className="ml-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white hover:bg-gray-50"
             >
               초기화
             </button>
-          </form>
+          </div>
         </div>
-        
-        {/* 음악 목록 */}
-        <div className="bg-white rounded-lg shadow-sm mb-6 w-full">
+      </div>
+
+      {/* 음악 목록 */}
+      <div className="bg-white rounded-lg shadow-sm mb-6 w-full">
           <div className="overflow-x-auto w-full">
             <table className="w-full divide-y divide-gray-200 table-fixed">
               <thead className="bg-gray-50">
                 <tr>
+                  <th scope="col" className="px-2 py-3 text-center w-12">
+                    <input
+                      type="checkbox"
+                      onChange={handleSelectAll}
+                      checked={music.length > 0 && selectedItems.length === music.length}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
                     순위
                   </th>
@@ -808,7 +922,7 @@ export default function AdminMusicList() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {isLoading ? (
                   <tr>
-                    <td colSpan="6" className="px-4 py-4 text-center">
+                    <td colSpan="7" className="px-4 py-4 text-center">
                       <div className="flex justify-center">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-500"></div>
                       </div>
@@ -816,13 +930,21 @@ export default function AdminMusicList() {
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td colSpan="6" className="px-4 py-4 text-center text-red-500">
+                    <td colSpan="7" className="px-4 py-4 text-center text-red-500">
                       {error}
                     </td>
                   </tr>
                 ) : music.length > 0 ? (
                   music.map((item) => (
                     <tr key={item._id} className="hover:bg-gray-50">
+                      <td className="px-2 py-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(item._id)}
+                          onChange={() => handleCheckboxChange(item._id)}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </td>
                       <td className="px-4 py-4 whitespace-nowrap text-center">
                         <div className="text-lg font-semibold text-gray-800">
                           {typeof item.position === 'number' ? item.position : '?'}
@@ -943,7 +1065,7 @@ export default function AdminMusicList() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="6" className="px-4 py-4 text-center">
+                    <td colSpan="7" className="px-4 py-4 text-center">
                       등록된 음악이 없습니다.
                     </td>
                   </tr>
@@ -952,68 +1074,59 @@ export default function AdminMusicList() {
             </table>
           </div>
         </div>
-        
-        {/* 페이지네이션 */}
-        <div className="mt-4 flex justify-center items-center">
-          <button
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            className={`px-3 py-1 rounded-md mr-2 ${
-              currentPage === 1
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-blue-500 text-white hover:bg-blue-600'
-            }`}
-          >
-            <ChevronLeft size={18} />
-          </button>
-          
-          <div className="flex space-x-1">
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              // 현재 페이지를 중심으로 표시 (최대 5개)
-              const pageNum = currentPage <= 3 
-                ? i + 1 
-                : currentPage + i - 2 > totalPages 
-                  ? totalPages - 4 + i 
-                  : currentPage - 2 + i;
-                  
-              // 유효한 페이지 번호만 표시
-              if (pageNum > 0 && pageNum <= totalPages) {
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => handlePageChange(pageNum)}
-                    className={`px-3 py-1 rounded-md ${
-                      currentPage === pageNum
-                        ? 'bg-blue-500 text-white font-bold'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              }
-              return null;
-            })}
+
+      {/* 페이지네이션 */}
+      {!isLoading && !error && music.length > 0 && (
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+          <div className="text-sm text-gray-700">
+            총 {music.length}개
           </div>
-          
-          <button
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className={`px-3 py-1 rounded-md ml-2 ${
-              currentPage === totalPages
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-blue-500 text-white hover:bg-blue-600'
-            }`}
-          >
-            <ChevronRight size={18} />
-          </button>
-          
-          <span className="ml-4 text-sm text-gray-500">
-            {totalPages > 0 ? `${currentPage} / ${totalPages} 페이지` : '데이터 없음'}
-          </span>
+          <div className="flex space-x-2">
+            <button
+              className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50"
+              onClick={() => setCurrentPage(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft size={18} />
+            </button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              // 페이지 버튼 최대 5개 표시, 현재 페이지 중심으로
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+
+              return (
+                <button
+                  key={pageNum}
+                  className={`px-3 py-1 rounded ${
+                    currentPage === pageNum
+                      ? 'bg-blue-600 text-white'
+                      : 'border border-gray-300 hover:bg-gray-100'
+                  }`}
+                  onClick={() => setCurrentPage(pageNum)}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+            <button
+              className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50"
+              onClick={() => setCurrentPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
         </div>
-      </div>
-      
+      )}
+
       {/* 삭제 확인 모달 */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -1057,7 +1170,53 @@ export default function AdminMusicList() {
           </div>
         </div>
       )}
-      
+
+      {/* 다중 삭제 확인 모달 */}
+      {showMultiDeleteModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" onClick={() => setShowMultiDeleteModal(false)}>
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <AlertCircle size={24} className="text-red-600" />
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900">다중 삭제</h3>
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-500">
+                        선택한 {selectedItems.length}개의 음악 항목을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={handleMultiDeleteConfirm}
+                  disabled={isDeleting}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+                >
+                  {isDeleting ? '삭제 중...' : '삭제'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowMultiDeleteModal(false)}
+                  disabled={isDeleting}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 유튜브 인기 급상승 모달 */}
       {showTrendingModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto">

@@ -77,7 +77,7 @@ const AdminLayout = ({ children }) => {
   };
   
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-white">
       <div className="flex">
         {/* 사이드바 */}
         <div className="w-64 min-h-screen bg-white shadow-md">
@@ -96,30 +96,30 @@ const AdminLayout = ({ children }) => {
                 </Link>
               </li>
               <li>
-                <Link 
-                  href="/admin/content"
-                  className={`flex items-center px-4 py-2 rounded-lg ${router.pathname.startsWith('/admin/content') ? 'bg-blue-600 text-white' : 'text-gray-800 hover:bg-blue-100'}`}
+                <Link
+                  href="/admin/drama"
+                  className={`flex items-center px-4 py-2 rounded-lg ${router.pathname.startsWith('/admin/drama') ? 'bg-blue-600 text-white' : 'text-gray-800 hover:bg-blue-100'}`}
                 >
-                  <Layers className="mr-3 h-5 w-5" />
-                  콘텐츠 관리
+                  <Tv className="mr-3 h-5 w-5" />
+                  드라마 관리
                 </Link>
               </li>
               <li>
-                <Link 
+                <Link
+                  href="/admin/tvfilm"
+                  className={`flex items-center px-4 py-2 rounded-lg ${router.pathname.startsWith('/admin/tvfilm') ? 'bg-blue-600 text-white' : 'text-gray-800 hover:bg-blue-100'}`}
+                >
+                  <Film className="mr-3 h-5 w-5" />
+                  영화 관리
+                </Link>
+              </li>
+              <li>
+                <Link
                   href="/admin/news"
                   className={`flex items-center px-4 py-2 rounded-lg ${router.pathname.startsWith('/admin/news') ? 'bg-blue-600 text-white' : 'text-gray-800 hover:bg-blue-100'}`}
                 >
                   <Newspaper className="mr-3 h-5 w-5" />
                   뉴스 관리
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  href="/admin/drama"
-                  className={`flex items-center px-4 py-2 rounded-lg ${router.pathname.startsWith('/admin/drama') ? 'bg-blue-600 text-white' : 'text-gray-800 hover:bg-blue-100'}`}
-                >
-                  <Film className="mr-3 h-5 w-5" />
-                  드라마 관리
                 </Link>
               </li>
               <li>
@@ -132,21 +132,12 @@ const AdminLayout = ({ children }) => {
                 </Link>
               </li>
               <li>
-                <Link 
+                <Link
                   href="/admin/celeb"
                   className={`flex items-center px-4 py-2 rounded-lg ${router.pathname.startsWith('/admin/celeb') ? 'bg-blue-600 text-white' : 'text-gray-800 hover:bg-blue-100'}`}
                 >
                   <Star className="mr-3 h-5 w-5" />
                   셀럽 관리
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  href="/admin/users"
-                  className={`flex items-center px-4 py-2 rounded-lg ${router.pathname.startsWith('/admin/users') ? 'bg-blue-600 text-white' : 'text-gray-800 hover:bg-blue-100'}`}
-                >
-                  <Users className="mr-3 h-5 w-5" />
-                  사용자 관리
                 </Link>
               </li>
             </ul>
@@ -165,7 +156,7 @@ const AdminLayout = ({ children }) => {
         </div>
         
         {/* 메인 콘텐츠 */}
-        <div className="flex-1">
+        <div className="flex-1 p-8">
           {children}
         </div>
       </div>

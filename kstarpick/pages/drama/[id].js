@@ -39,48 +39,29 @@ const safeDomains = [
 
 // 이미지 URL 오류 처리 함수
 const ensureLocalImage = (imageUrl) => {
-  const isCastImage = imageUrl && imageUrl.toString().includes('profile');
-  if (isCastImage) {
-    console.log('⭐ Processing cast profile image:', imageUrl);
-  } else {
-    console.log('ensureLocalImage input:', imageUrl);
-  }
-  
   if (!imageUrl || imageUrl === 'undefined' || imageUrl === 'null') {
-    console.log('Image URL is empty, using placeholder');
     return '/images/placeholder-tvfilm.jpg';
   }
   // 애플 TV+ 로고 특별 처리 (기존 로고 URL도 새 SVG로 변환)
   if (imageUrl && (
-    imageUrl.includes('Apple_TV_Plus_logo.png') || 
+    imageUrl.includes('Apple_TV_Plus_logo.png') ||
     (imageUrl.includes('apple') && imageUrl.includes('tv') && imageUrl.includes('logo')) ||
     (imageUrl.includes('favicon') && imageUrl.includes('apple'))
   )) {
-    console.log('Converting Apple TV+ logo to SVG URL');
     return 'https://upload.wikimedia.org/wikipedia/commons/3/39/Apple_TV.svg';
   }
   if (imageUrl.startsWith('public/')) {
-    console.log(`Fixing relative path: ${imageUrl}`);
     return imageUrl.replace('public/', '/');
   }
   if (imageUrl.startsWith('/')) {
-    if (isCastImage) {
-      console.log(`⭐ Using local path for cast image: ${imageUrl}`);
-    } else {
-      console.log(`Using local path: ${imageUrl}`);
-    }
     return imageUrl;
   }
   if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
     try {
       const url = new URL(imageUrl);
       const domain = url.hostname;
-      console.log('Parsed domain:', domain);
       if (safeDomains.some(safeDomain => domain.includes(safeDomain))) {
-        console.log('Safe external image domain:', domain);
         return imageUrl;
-      } else {
-        console.log('Unsafe external image domain:', domain);
       }
     } catch (error) {
       console.error('URL 파싱 오류:', error, imageUrl);
@@ -89,10 +70,8 @@ const ensureLocalImage = (imageUrl) => {
     return '/images/placeholder-tvfilm.jpg';
   }
   if (!imageUrl.startsWith('/images/')) {
-    console.log(`Adding /images/ prefix to: ${imageUrl}`);
     return `/images/${imageUrl}`;
   }
-  console.log(`Using original URL: ${imageUrl}`);
   return imageUrl;
 };
 
@@ -139,33 +118,27 @@ const renderImage = (imageUrl, alt, className = "object-cover", width = 0, heigh
   if (alt && typeof alt === 'string' && type === 'logo') {
     // Wavve 로고 특별 처리
     if (alt.toLowerCase() === 'wavve') {
-      console.log('🌊 Special handling for Wavve logo');
       imageUrl = 'https://i.mydramalist.com/pgAd8_3m.jpg';
     }
-    
     // Viki 로고 특별 처리
     else if (alt.toLowerCase() === 'viki') {
-      console.log('🌟 Special handling for Viki logo');
       imageUrl = 'https://i.mydramalist.com/kEBdrm.jpg';
     }
-    
     // Apple TV+ 로고 특별 처리
     else if (alt.toLowerCase().includes('apple')) {
-      console.log('🍎 Special handling for Apple TV+ logo');
       imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/3/39/Apple_TV.svg';
     }
   }
-  
+
   // JustWatch 이미지 여부 확인
   const isJustWatchImage = imageUrl.includes('justwatch.com');
-  
+
   const imgProps = {
     src: imageUrl,
     alt: alt || "Image",
     className: className,
     unoptimized: isJustWatchImage ? false : true,  // JustWatch 이미지는 최적화 활성화
     onError: (e) => {
-      console.log(`이미지 로드 에러: ${imageUrl}, 로컬 이미지로 대체`);
       e.target.onerror = null; // 무한 루프 방지
       // 이미지 타입에 따라 다른 플레이스홀더 사용
       if (type === 'logo') {
@@ -175,14 +148,9 @@ const renderImage = (imageUrl, alt, className = "object-cover", width = 0, heigh
       }
     }
   };
-  
+
   if (priority) {
     imgProps.priority = true;
-  }
-  
-  // JustWatch 이미지인 경우 로깅
-  if (isJustWatchImage) {
-    console.log(`🖼️ Rendering JustWatch image: ${imageUrl}`);
   }
   
   // width, height가 제공된 경우 (예: 로고 이미지)
@@ -275,23 +243,60 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
   );
 
   // filteredWatchProviders useMemo 제거
-  
+
+  // 스크롤 위치 복원 로직 - drama 페이지에서 뒤로가기 시
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const isBackToDrama = sessionStorage.getItem('isBackToDrama');
+    const savedScrollPosition = sessionStorage.getItem('dramaDetailScrollPosition');
+
+    if (isBackToDrama === 'true' && savedScrollPosition) {
+      const scrollPos = parseInt(savedScrollPosition, 10);
+
+      const restoreScroll = () => {
+        // body에 직접 스크롤 설정
+        document.body.scrollTop = scrollPos;
+        document.documentElement.scrollTop = scrollPos;
+        window.scrollTo(0, scrollPos);
+      };
+
+      // 여러 시도로 동적 콘텐츠 로딩을 고려
+      setTimeout(restoreScroll, 0);
+      setTimeout(restoreScroll, 50);
+      setTimeout(restoreScroll, 100);
+      setTimeout(restoreScroll, 200);
+      setTimeout(restoreScroll, 300);
+      setTimeout(restoreScroll, 500);
+      setTimeout(restoreScroll, 800);
+
+      requestAnimationFrame(() => {
+        setTimeout(restoreScroll, 100);
+        setTimeout(restoreScroll, 300);
+        setTimeout(restoreScroll, 500);
+      });
+
+      // 플래그 제거
+      setTimeout(() => {
+        sessionStorage.removeItem('isBackToDrama');
+        sessionStorage.removeItem('dramaDetailScrollPosition');
+      }, 1000);
+    }
+  }, [router.asPath]);
+
   // 리뷰 데이터 불러오기
   useEffect(() => {
     if (!currentDrama) return;
-    
+
     const fetchReviews = async () => {
       setLoadingReviews(true);
       try {
-        console.log(`리뷰 데이터 요청: /api/reviews/by-drama/${currentDrama._id}`);
         const response = await fetch(`/api/reviews/by-drama/${currentDrama._id}`);
         const result = await response.json();
-        
+
         if (response.ok && result.success) {
-          console.log(`리뷰 데이터 로드 성공: ${result.data.length}개`);
           setReviews(result.data || []);
         } else {
-          console.error('리뷰 데이터 로드 실패:', result.message);
           setReviewsError(result.message || '리뷰를 불러오지 못했습니다.');
         }
       } catch (error) {
@@ -301,7 +306,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
         setLoadingReviews(false);
       }
     };
-    
+
     fetchReviews();
   }, [currentDrama]);
 
@@ -370,7 +375,6 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
     
     // 해당 아이템으로 스크롤
     if (scrolledItems[targetIndex]) {
-      console.log(`Scrolling to item ${targetIndex} (direction: ${direction})`);
       scrolledItems[targetIndex].scrollIntoView({
         behavior: 'smooth',
         block: 'nearest',
@@ -505,30 +509,12 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
 
   useEffect(() => {
     if (dramaData?.data) {
-      // API 응답 데이터를 자세히 로깅
-      console.log("드라마 상세 API 응답:", dramaData.data);
-      console.log("📊 리뷰 데이터 디버깅:", {
-        reviewCount: dramaData.data.reviewCount,
-        reviewRating: dramaData.data.reviewRating,
-        ratingDistribution: dramaData.data.ratingDistribution,
-      });
-      
       // 데이터가 있는 경우 이미지 URL 수정 및 보강
       const updatedData = { ...dramaData.data };
-      
-      // 이미지 URL 확인
-      console.log("원본 커버 이미지 URL:", updatedData.coverImage);
-      console.log("원본 배너 이미지 URL:", updatedData.bannerImage);
-      if (updatedData.watchProviders && Array.isArray(updatedData.watchProviders)) {
-        updatedData.watchProviders.forEach((provider, index) => {
-          console.log(`원본 Watch Provider[${index}] 로고 URL:`, provider.logo);
-        });
-      }
-      
+
       // whereToWatch 확인 및 처리
       if (updatedData.whereToWatch && Array.isArray(updatedData.whereToWatch)) {
         updatedData.whereToWatch.forEach((provider, index) => {
-          console.log(`원본 whereToWatch[${index}] 정보:`, provider);
           // 웨이브와 비키 로고 URL 특별 처리
           if (provider.name && provider.name.toLowerCase() === 'wavve') {
             provider.imageUrl = 'https://i.mydramalist.com/pgAd8_3m.jpg';
@@ -537,21 +523,18 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
           }
         });
       }
-      
+
       // 이미지 URL 수정
       // 썸네일 이미지 확인 및 처리
       updatedData.coverImage = ensureLocalImage(updatedData.coverImage);
-      console.log("처리 후 커버 이미지 URL:", updatedData.coverImage);
-      
+
       // 배너 이미지 확인 및 처리
       updatedData.bannerImage = ensureLocalImage(updatedData.bannerImage);
-      console.log("처리 후 배너 이미지 URL:", updatedData.bannerImage);
-      
+
       // watchProviders 배열의 모든 항목에 대해 로고 URL을 내부 이미지로 변경
       if (updatedData.watchProviders && Array.isArray(updatedData.watchProviders)) {
         updatedData.watchProviders = updatedData.watchProviders.map(provider => {
           const processedLogo = provider.logo ? ensureLocalImage(provider.logo) : '/images/placeholder-image.jpg';
-          console.log(`Provider ${provider.name} 로고 처리 전: ${provider.logo}, 처리 후: ${processedLogo}`);
           return {
             ...provider,
             logo: processedLogo
@@ -604,14 +587,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
           setYoutubeId(trailerVideoId);
         }
       }
-      
-      // 리뷰 관련 API 데이터 로깅
-      console.log("📊 리뷰 통계 데이터:", {
-        reviewCount: updatedData.reviewCount || 0,
-        reviewRating: updatedData.reviewRating || 0,
-        ratingDistribution: updatedData.ratingDistribution || [0,0,0,0,0,0,0,0,0,0]
-      });
-      
+
       // 리뷰 데이터의 유효성 확인
       const hasValidReviewData = 
         typeof updatedData.reviewCount === 'number' && 
@@ -674,23 +650,19 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
       } else {
         // 출연진 정보가 객체 형태로 되어 있는지 확인 (mainRoles, supportRoles 구조)
         if (dramaData.data.cast.mainRoles || dramaData.data.cast.supportRoles) {
-          console.log('Cast is in structured format with mainRoles and supportRoles');
-          
           // 메인 역할과 서포트 역할을 합친 배열 생성
           const mainActors = Array.isArray(dramaData.data.cast.mainRoles) ? dramaData.data.cast.mainRoles : [];
           const supportActors = Array.isArray(dramaData.data.cast.supportRoles) ? dramaData.data.cast.supportRoles : [];
-          
+
           // 배우 정보 처리 (이미지 URL 등 필드 표준화)
           const processedCast = [...mainActors, ...supportActors].map(actor => ({
             ...actor,
             image: actor.image || '/images/placeholder-tvfilm.jpg'
           }));
-          
-          console.log(`Combined cast: ${processedCast.length} actors (${mainActors.length} main, ${supportActors.length} support)`);
+
           setCast(processedCast);
         } else if (Array.isArray(dramaData.data.cast)) {
           // 기존 방식 지원 (단일 배열 형태인 경우)
-          console.log('Cast is in simple array format');
           const processedCast = dramaData.data.cast.map(actor => ({
             ...actor,
             image: actor.image || '/images/placeholder-tvfilm.jpg'
@@ -735,14 +707,11 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
 
   useEffect(() => {
     if (dramaData) {
-      console.log("TVFilm data loaded:", dramaData);
-      console.log("Watch Providers:", dramaData.watchProviders);
-      
       // Set page title
       if (dramaData.title) {
         document.title = `${dramaData.title} - KDrama&Movie`;
       }
-      
+
       // No need to fetch related items here as it's already done in the previous useEffect
     }
   }, [dramaData]);
@@ -768,7 +737,18 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
   // Format date
   const formatDate = (dateString) => {
     if (!dateString) return null;
+
+    // 날짜 범위인 경우 (예: "Oct 10, 2025 - Nov 15, 2025")
+    if (dateString.includes(' - ')) {
+      return dateString; // 원본 그대로 반환
+    }
+
+    // 단일 날짜인 경우
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      // 파싱 실패 시 원본 문자열 반환
+      return dateString;
+    }
     return `${date.toLocaleDateString()}`;
   };
 
@@ -948,13 +928,6 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
         setStoryRating((storyTotal / validReviews).toFixed(1));
         setMusicRating((musicTotal / validReviews).toFixed(1));
         setRewatchRating((rewatchTotal / validReviews).toFixed(1));
-        
-        console.log('세부 평점 계산 완료:', {
-          castRating: (castTotal / validReviews).toFixed(1),
-          storyRating: (storyTotal / validReviews).toFixed(1),
-          musicRating: (musicTotal / validReviews).toFixed(1),
-          rewatchRating: (rewatchTotal / validReviews).toFixed(1)
-        });
       }
     }
   }, [reviews]);
@@ -1122,7 +1095,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                               ? "NR"
                               : typeof currentDrama.ageRating === 'string' && currentDrama.ageRating.includes(' - ')
                                 ? currentDrama.ageRating.split(' - ')[0]
-                                : currentDrama.ageRating || "15"
+                                : currentDrama.ageRating
                           }
                         </div>
                         <div className="flex flex-col">
@@ -1143,7 +1116,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     {currentDrama.runtime && (
                       <div className="flex items-center bg-black/40 backdrop-blur-sm px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-full">
                         <Clock className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" style={{ color: '#93b4ff' }} />
-                        <span className="text-white/90 text-xs sm:text-sm">{currentDrama.runtime || "2h 17min"}</span>
+                        <span className="text-white/90 text-xs sm:text-sm">{currentDrama.runtime}</span>
                       </div>
                     )}
                   </div>
@@ -1183,12 +1156,74 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
         
         {/* 모바일 전용 상단 정보 영역 */}
         <div className="sm:hidden pt-4 pb-2 px-4 bg-gradient-to-br from-gray-50 via-white to-purple-50/30">
+          {/* 첫 번째 트레일러 영상 섹션 */}
+          {currentDrama.videos && currentDrama.videos.length > 0 && (
+            <div className="mt-8 mb-4">
+              <div className="relative rounded-2xl overflow-hidden shadow-xl border-2 border-white/50 bg-black">
+                {/* 영상 썸네일 */}
+                <div className="relative aspect-video">
+                  {(() => {
+                    const firstVideo = currentDrama.videos[0];
+                    const videoId = getYoutubeIdFromUrl(firstVideo.url);
+                    return videoId ? (
+                      <Image
+                        src={`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
+                        alt={firstVideo.title || "Trailer"}
+                        fill
+                        className="object-cover"
+                        unoptimized={true}
+                        priority={true}
+                        placeholder="blur"
+                        blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNzAwIiBoZWlnaHQ9IjQ3NSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNzAwIiBoZWlnaHQ9IjQ3NSIgZmlsbD0iIzIwMjAyMCIvPjwvc3ZnPg=="
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+                        }}
+                      />
+                    ) : null;
+                  })()}
+
+                  {/* 그라데이션 오버레이 */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20"></div>
+
+                  {/* 재생 버튼 */}
+                  <button
+                    onClick={() => {
+                      const firstVideo = currentDrama.videos[0];
+                      const videoId = getYoutubeIdFromUrl(firstVideo.url);
+                      setSelectedVideoId(videoId);
+                      setTrailerTitle(firstVideo.title || "Official Trailer");
+                      setShowTrailer(true);
+                    }}
+                    className="absolute inset-0 flex items-center justify-center group"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center transform opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300 shadow-2xl">
+                      <Play className="w-6 h-6 text-[#233cfa] ml-1" />
+                    </div>
+                  </button>
+
+                  {/* 영상 제목 - 하단 */}
+                  <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
+                    <div className="flex items-center">
+                      <div className="w-6 h-6 rounded-full bg-[#233cfa] flex items-center justify-center mr-2">
+                        <Play className="w-3 h-3 text-white ml-0.5" />
+                      </div>
+                      <h4 className="text-white text-sm font-semibold line-clamp-1">
+                        {currentDrama.videos[0].title || "Official Trailer"}
+                      </h4>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 영화 정보 카드 - 현대적 디자인 */}
           <div className="bg-gradient-to-br from-white via-purple-50/20 to-pink-50/20 rounded-3xl overflow-hidden shadow-xl border border-purple-100/50 mb-4 relative">
             {/* 배경 장식 요소 */}
             <div className="absolute -top-8 -right-8 w-24 h-24 bg-gradient-to-br from-pink-200/30 to-purple-200/30 rounded-full blur-2xl"></div>
             <div className="absolute -bottom-6 -left-6 w-20 h-20 bg-gradient-to-tr from-purple-200/30 to-pink-200/30 rounded-full blur-2xl"></div>
-            
+
             <div className="relative z-10">
               {/* 헤더 영역 - 개선된 디자인 */}
               <div className="pt-6 px-6 pb-5 border-b border-gradient-to-r from-purple-100/50 to-pink-100/50">
@@ -1216,7 +1251,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                   </div>
                 </div>
               </div>
-              
+
               {/* 포스터와 기본 정보 - 개선된 레이아웃 */}
               <div className="p-6">
                 <div className="flex items-start">
@@ -1258,7 +1293,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                              currentDrama.ageRating === '18' || currentDrama.ageRating?.includes('18+') ? 'Adults only' :
                              currentDrama.ageRating === 'ALL' ? 'All ages' :
                              currentDrama.ageRating === 'Not Rated' ? 'Not Rated' :
-                             currentDrama.ageRating || 'Not rated'}
+                             currentDrama.ageRating}
                           </span>
                         </div>
                       )}
@@ -1277,7 +1312,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                           <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-2.5 shadow-sm" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
                             <img src="/images/icons8-globe-94.png" alt="Country" className="w-5 h-5" />
                           </div>
-                          <span className="text-xs font-medium text-gray-700">{currentDrama.country || "South Korea"}</span>
+                          <span className="text-xs font-medium text-gray-700">{currentDrama.country}</span>
                         </div>
                       )}
                     </div>
@@ -1322,27 +1357,6 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                   )}
                 </div>
                </div>
-              
-              {/* 트레일러 버튼 - 개선된 디자인 */}
-              <div className="px-6 pb-6">
-                <button
-                  onClick={() => setShowTrailer(true)}
-                  className="text-white w-full py-3.5 rounded-2xl flex items-center justify-center font-semibold text-sm shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] relative overflow-hidden"
-                  style={{ backgroundColor: '#233cfa' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1d31cb'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#233cfa'}
-                  onTouchStart={(e) => e.currentTarget.style.backgroundColor = '#1d31cb'}
-                  onTouchEnd={(e) => e.currentTarget.style.backgroundColor = '#233cfa'}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300"></div>
-                  <div className="relative flex items-center">
-                    <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center mr-3 shadow-md">
-                      <Play className="w-4 h-4 text-white" />
-                    </div>
-                    <span>Watch Trailer</span>
-                  </div>
-                </button>
-              </div>
             </div>
           </div>
           
@@ -1360,10 +1374,10 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
                       <div
                         className="h-full rounded-full"
-                        style={{ width: `${(castRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
+                        style={{ width: `${(currentDrama?.reviewStats?.castRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
                       ></div>
                     </div>
-                    <span className="text-xs font-medium text-gray-800">{castRating || 8.0}</span>
+                    <span className="text-xs font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.castRating || 8.0}</span>
                   </div>
                 </div>
 
@@ -1373,10 +1387,10 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
                       <div
                         className="h-full rounded-full"
-                        style={{ width: `${(storyRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
+                        style={{ width: `${(currentDrama?.reviewStats?.storyRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
                       ></div>
                     </div>
-                    <span className="text-xs font-medium text-gray-800">{storyRating || 8.0}</span>
+                    <span className="text-xs font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.storyRating || 8.0}</span>
                   </div>
                 </div>
 
@@ -1386,10 +1400,10 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
                       <div
                         className="h-full rounded-full"
-                        style={{ width: `${(musicRating || 7.5) * 10}%`, backgroundColor: '#233cfa' }}
+                        style={{ width: `${(currentDrama?.reviewStats?.musicRating || 7.5) * 10}%`, backgroundColor: '#233cfa' }}
                       ></div>
                     </div>
-                    <span className="text-xs font-medium text-gray-800">{musicRating || 7.5}</span>
+                    <span className="text-xs font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.musicRating || 7.5}</span>
                   </div>
                 </div>
 
@@ -1399,10 +1413,10 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
                       <div
                         className="h-full rounded-full"
-                        style={{ width: `${(rewatchRating || 7.0) * 10}%`, backgroundColor: '#233cfa' }}
+                        style={{ width: `${(currentDrama?.reviewStats?.rewatchRating || 7.0) * 10}%`, backgroundColor: '#233cfa' }}
                       ></div>
                     </div>
-                    <span className="text-xs font-medium text-gray-800">{rewatchRating || 7.0}</span>
+                    <span className="text-xs font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.rewatchRating || 7.0}</span>
                   </div>
                 </div>
               </div>
@@ -1779,9 +1793,9 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                                 </div>
                               </div>
                             </div>
-                            {/* 데스크탑에서만 보이는 타입 및 버튼 영역 */}
-                            <div className="hidden sm:flex items-center justify-between sm:justify-end w-full sm:w-auto mt-4 sm:mt-0 border-t sm:border-t-0 pt-3 sm:pt-0 mt-3 sm:mt-0">
-                              <div className="sm:mr-6 text-left sm:text-right">
+                            {/* 데스크탑에서만 보이는 타입 영역 */}
+                            <div className="hidden sm:flex items-center justify-end w-full sm:w-auto mt-4 sm:mt-0 border-t sm:border-t-0 pt-3 sm:pt-0 mt-3 sm:mt-0">
+                              <div className="text-left sm:text-right">
                                 <div className="text-white font-semibold text-sm sm:text-base">
                                   {provider?.type ? provider.type.charAt(0).toUpperCase() + provider.type.slice(1) : 'Unknown'}
                                 </div>
@@ -1789,25 +1803,6 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                                   <div className="text-xs sm:text-sm font-medium" style={{ color: '#009efc' }}>{provider.price}</div>
                                 )}
                               </div>
-                              {provider.url ? (
-                                <a
-                                  href={provider.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full flex items-center font-medium text-sm shadow-md hover:shadow-lg transition-all group-hover:scale-105 duration-300"
-                                  style={{ backgroundColor: '#233cfa' }}
-                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1d31cb'}
-                                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#233cfa'}
-                                >
-                                  <Play className="w-4 h-4 mr-1.5 sm:mr-2" />
-                                  <span>Watch Now</span>
-                                </a>
-                              ) : (
-                                <button className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 sm:px-6 py-2.5 sm:py-3 rounded-full flex items-center font-medium text-sm shadow-sm hover:shadow transition-all">
-                                  <Play className="w-4 h-4 mr-1.5 sm:mr-2" />
-                                  <span>Watch Now</span>
-                                </button>
-                              )}
                             </div>
                           </div>
                         </div>
@@ -2217,7 +2212,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                           </div>
                         )}
                         
-                        {/* 왼쪽 화살표 버튼 - 왼쪽 끝이 아닐 때만 표시 */}
+                        {/* 왼쪽 화���표 버튼 - 왼쪽 끝이 아닐 때만 표시 */}
                         {showLeftArrow && (
                           <div className="absolute top-1/2 -left-2 sm:-left-4 transform -translate-y-1/2 z-10">
                             <button
@@ -2318,76 +2313,84 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                   <div className="border-t border-gray-100">
                     <div className="p-5 space-y-3">
                       {/* Director */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
-                            <img src="/images/icons8-documentary-94.png" alt="Director" className="w-5 h-5" />
+                      {currentDrama.director && (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
+                              <img src="/images/icons8-documentary-94.png" alt="Director" className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-sm text-gray-500 font-medium">Director</h4>
                           </div>
-                          <h4 className="text-sm text-gray-500 font-medium">Director</h4>
+                          <div className="text-right">
+                            <span className="text-gray-900 font-semibold text-sm">
+                              {currentDrama.director}
+                            </span>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <span className="text-gray-900 font-semibold text-sm">
-                            {currentDrama.director || "Bong Joon-ho"}
-                          </span>
-                        </div>
-              </div>
+                      )}
 
                       {/* Runtime */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
-                            <img src="/images/icons8-clock-24.png" alt="Time" className="w-5 h-5" />
+                      {currentDrama.runtime && (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
+                              <img src="/images/icons8-clock-24.png" alt="Time" className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-sm text-gray-500 font-medium">Runtime</h4>
                           </div>
-                          <h4 className="text-sm text-gray-500 font-medium">Runtime</h4>
+                          <span className="text-gray-900 font-semibold text-sm">{currentDrama.runtime}</span>
                         </div>
-                        <span className="text-gray-900 font-semibold text-sm">{currentDrama.runtime || "2h 17min"}</span>
-                      </div>
+                      )}
 
                       {/* Age Rating */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
-                            <img src="/images/icons8-warning-shield-94.png" alt="Age Rating" className="w-5 h-5" />
+                      {currentDrama.ageRating && (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
+                              <img src="/images/icons8-warning-shield-94.png" alt="Age Rating" className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-sm text-gray-500 font-medium">Age Rating</h4>
                           </div>
-                          <h4 className="text-sm text-gray-500 font-medium">Age Rating</h4>
+                          <span className="text-gray-900 font-semibold text-sm whitespace-nowrap">
+                            {currentDrama.ageRating === '15' || currentDrama.ageRating?.includes('15+') ? '15 and over' :
+                             currentDrama.ageRating === '12' || currentDrama.ageRating?.includes('12+') ? '12 and over' :
+                             currentDrama.ageRating === '18' || currentDrama.ageRating?.includes('18+') ? 'Adults only' :
+                             currentDrama.ageRating === 'ALL' ? 'All ages' :
+                             currentDrama.ageRating === 'Not Rated' || currentDrama.ageRating === 'Not Yet Rated' ? 'Not Rated' :
+                             currentDrama.ageRating}
+                          </span>
                         </div>
-                        <span className="text-gray-900 font-semibold text-sm whitespace-nowrap">
-                          {currentDrama.ageRating === '15' || currentDrama.ageRating?.includes('15+') ? '15 and over' :
-                           currentDrama.ageRating === '12' || currentDrama.ageRating?.includes('12+') ? '12 and over' :
-                           currentDrama.ageRating === '18' || currentDrama.ageRating?.includes('18+') ? 'Adults only' :
-                           currentDrama.ageRating === 'ALL' ? 'All ages' :
-                           currentDrama.ageRating === 'Not Rated' || currentDrama.ageRating === 'Not Yet Rated' ? 'Not Rated' :
-                           currentDrama.ageRating || 'Not rated'}
-                        </span>
-                      </div>
+                      )}
 
                       {/* Production Country */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
-                            <img src="/images/icons8-globe-94.png" alt="Country" className="w-5 h-5" />
+                      {currentDrama.country && (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
+                              <img src="/images/icons8-globe-94.png" alt="Country" className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-sm text-gray-500 font-medium">Country</h4>
                           </div>
-                          <h4 className="text-sm text-gray-500 font-medium">Country</h4>
+                          <div className="flex items-center text-gray-900 font-semibold">
+                            <span className="text-sm">{currentDrama.country}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center text-gray-900 font-semibold">
-                          <span className="text-sm">{currentDrama.country || "South Korea"}</span>
-                        </div>
-                      </div>
+                      )}
 
                       {/* 첫 방영 날짜 추가 */}
                       {currentDrama.releaseDate && (
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center flex-shrink-0">
                             <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
                               <img src="/images/icons8-calendar-94.png" alt="Calendar" className="w-5 h-5" />
                             </div>
                             <h4 className="text-sm text-gray-500 font-medium">Release Date</h4>
                           </div>
-                          <span className="text-gray-900 font-semibold text-sm">
+                          <span className="text-gray-900 font-semibold text-sm text-right break-words">
                             {formatDate(currentDrama.releaseDate)}
                           </span>
-                  </div>
-                )}
+                        </div>
+                      )}
 
                       {/* 에피소드 수 추가 */}
                       {currentDrama.episodes && (
@@ -2423,10 +2426,10 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                               <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
                                 <div
                                   className="h-full rounded-full"
-                                  style={{ width: `${(castRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
+                                  style={{ width: `${(currentDrama?.reviewStats?.castRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
                                 ></div>
                               </div>
-                              <span className="text-sm font-medium text-gray-800">{castRating || 8.0}</span>
+                              <span className="text-sm font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.castRating || 8.0}</span>
                             </div>
                           </div>
 
@@ -2436,10 +2439,10 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                               <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
                                 <div
                                   className="h-full rounded-full"
-                                  style={{ width: `${(storyRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
+                                  style={{ width: `${(currentDrama?.reviewStats?.storyRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
                                 ></div>
                               </div>
-                              <span className="text-sm font-medium text-gray-800">{storyRating || 8.0}</span>
+                              <span className="text-sm font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.storyRating || 8.0}</span>
                             </div>
                           </div>
 
@@ -2449,10 +2452,10 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                               <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
                                 <div
                                   className="h-full rounded-full"
-                                  style={{ width: `${(musicRating || 7.5) * 10}%`, backgroundColor: '#233cfa' }}
+                                  style={{ width: `${(currentDrama?.reviewStats?.musicRating || 7.5) * 10}%`, backgroundColor: '#233cfa' }}
                                 ></div>
                               </div>
-                              <span className="text-sm font-medium text-gray-800">{musicRating || 7.5}</span>
+                              <span className="text-sm font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.musicRating || 7.5}</span>
                             </div>
                           </div>
 
@@ -2462,10 +2465,10 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                               <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
                                 <div
                                   className="h-full rounded-full"
-                                  style={{ width: `${(rewatchRating || 7.0) * 10}%`, backgroundColor: '#233cfa' }}
+                                  style={{ width: `${(currentDrama?.reviewStats?.rewatchRating || 7.0) * 10}%`, backgroundColor: '#233cfa' }}
                                 ></div>
                               </div>
-                              <span className="text-sm font-medium text-gray-800">{rewatchRating || 7.0}</span>
+                              <span className="text-sm font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.rewatchRating || 7.0}</span>
                             </div>
                           </div>
                         </div>
@@ -2503,6 +2506,14 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                       key={index}
                       href={`/news/${news._id}`}
                       passHref
+                      onClick={() => {
+                        // 현재 스크롤 위치 저장
+                        if (typeof window !== 'undefined') {
+                          const scrollPosition = document.body.scrollTop || window.pageYOffset || document.documentElement.scrollTop;
+                          sessionStorage.setItem('dramaDetailScrollPosition', scrollPosition.toString());
+                          sessionStorage.setItem('isBackToDrama', 'true');
+                        }
+                      }}
                     >
                       <div className="block cursor-pointer">
                         <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">

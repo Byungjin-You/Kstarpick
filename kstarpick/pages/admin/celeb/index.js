@@ -2,26 +2,54 @@ import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { getSession, useSession } from 'next-auth/react';
 import AdminLayout from '../../../components/AdminLayout';
-import { Eye, Edit, Trash2, Search, Plus, Filter, ChevronLeft, ChevronRight, AlertTriangle, Star, User, RefreshCw, Instagram, Twitter, Youtube, Music } from 'lucide-react';
+import {
+  PlusCircle,
+  Edit,
+  Trash2,
+  Eye,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Star,
+  Download,
+  User,
+  Instagram,
+  Twitter,
+  Youtube,
+  Music
+} from 'lucide-react';
+import { format } from 'date-fns';
+import { ko } from 'date-fns/locale';
+import Image from 'next/image';
 
 export default function AdminCelebList() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [celebrities, setCelebrities] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [toast, setToast] = useState({ visible: false, message: '', type: '' });
+
+  // 필터링 및 페이지네이션 상태
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteItemId, setDeleteItemId] = useState(null);
-  const [limit] = useState(10);
-  const [refreshKey, setRefreshKey] = useState(0);
-  
+  const [sortField, setSortField] = useState('createdAt');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+
+  // 다중 선택 상태
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [showMultiDeleteModal, setShowMultiDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Categories for filtering
   const categories = [
-    { value: 'all', label: '전체 카테고리' },
+    { value: 'all', label: '전체' },
     { value: 'idol', label: '아이돌' },
     { value: 'actor', label: '배우(남자)' },
     { value: 'actress', label: '배우(여자)' },
@@ -31,588 +59,683 @@ export default function AdminCelebList() {
     { value: 'rookie', label: '신인' },
     { value: 'other', label: '기타' },
   ];
-  
+
+  // 인증 확인
+  useEffect(() => {
+    if (status === 'loading') return;
+
+    if (!session) {
+      router.push('/admin/login');
+    } else if (session.user?.role !== 'admin') {
+      router.push('/');
+    }
+  }, [session, status, router]);
+
+  // URL 쿼리 파라미터에서 초기 필터 상태 설정
+  useEffect(() => {
+    const { search, page, category } = router.query;
+
+    if (search) {
+      setSearchTerm(search);
+    }
+
+    if (page) {
+      setCurrentPage(parseInt(page, 10));
+    }
+
+    if (category) {
+      setSelectedCategory(category);
+    }
+  }, [router.query]);
+
   // Fetch celebrity data
-  const fetchCelebrities = async (page = 1, category = 'all', search = '') => {
+  const fetchCelebrities = async () => {
+    if (!session) return;
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
       // Build query parameters
-      let queryParams = `page=${page}&limit=${limit}`;
-      if (category !== 'all') {
-        queryParams += `&category=${category}`;
+      const queryParams = new URLSearchParams({
+        page: currentPage,
+        limit: itemsPerPage,
+        sortBy: sortField,
+        sortOrder: sortOrder
+      });
+
+      if (selectedCategory !== 'all') {
+        queryParams.append('category', selectedCategory);
       }
-      if (search) {
-        queryParams += `&search=${encodeURIComponent(search)}`;
+
+      if (searchTerm) {
+        queryParams.append('search', searchTerm);
       }
-      
+
+      console.log('API 요청 파라미터:', queryParams.toString());
+
       // Fetch data from API
-      const response = await fetch(`/api/celeb?${queryParams}`);
-      
-      // Check if response is ok
+      const response = await fetch(`/api/celeb?${queryParams.toString()}`);
+
       if (!response.ok) {
-        throw new Error('Failed to fetch celebrities');
+        throw new Error('셀럽 목록을 불러오는 중 오류가 발생했습니다.');
       }
-      
+
       const data = await response.json();
-      
+
+      console.log('API 응답 데이터:', data);
+
       if (data.success && data.data) {
         setCelebrities(data.data.celebrities || []);
-        setTotalPages(Math.ceil((data.data.pagination?.total || 0) / limit) || 1);
+        setTotalPages(data.data.pagination?.pages || 1);
+        setTotalItems(data.data.pagination?.total || 0);
       } else {
-        throw new Error('Invalid data format');
+        throw new Error('잘못된 데이터 형식입니다.');
       }
     } catch (error) {
       console.error('셀럽 데이터를 가져오는 중 오류가 발생했습니다:', error);
-      setError('셀럽 데이터를 가져오는 중 오류가 발생했습니다.');
-      // Generate mock data for demonstration
-      setCelebrities(generateMockCelebrities());
-      setTotalPages(5);
+      setError(error.message);
+      showToast(error.message, 'error');
     } finally {
       setIsLoading(false);
     }
   };
-  
-  // Generate mock celebrity data for demonstration
-  const generateMockCelebrities = () => {
-    const celebNames = ['지수', '제니', '로제', '리사', '아이유', '태연', '정국', '뷔', '지민', '윤아', '수지', '이민호', '김수현'];
-    const agencies = ['HYBE', 'SM Entertainment', 'YG Entertainment', 'JYP Entertainment', 'ADOR', 'BIGHIT Music'];
-    const roles = ['Singer', 'Rapper', 'Dancer', 'Visual', 'Actor/Actress', 'Model'];
-    const groups = ['BLACKPINK', 'BTS', 'NewJeans', 'aespa', 'IVE', 'Girls Generation', 'EXO', 'TWICE', '', ''];
-    
-    return Array(10).fill(0).map((_, index) => ({
-      _id: `mock-${index + 1 + (currentPage - 1) * 10}`,
-      name: celebNames[index % celebNames.length],
-      koreanName: celebNames[index % celebNames.length],
-      role: roles[index % roles.length],
-      category: categories[index % 7 + 1].value,
-      agency: agencies[index % agencies.length],
-      group: groups[index % groups.length],
-      followers: Math.floor(Math.random() * 10000000) + 1000000,
-      socialMediaFollowers: {
-        instagram: Math.floor(Math.random() * 5000000) + 500000,
-        twitter: Math.floor(Math.random() * 2000000) + 300000,
-        youtube: Math.floor(Math.random() * 1000000) + 100000,
-        spotify: Math.floor(Math.random() * 500000) + 50000,
-        tiktok: Math.floor(Math.random() * 3000000) + 200000,
-        fancafe: Math.floor(Math.random() * 100000) + 10000
-      },
-      profileImage: `/images/placeholder.jpg`,
-      isFeatured: index % 3 === 0,
-      isActive: true,
-      createdAt: new Date(Date.now() - Math.random() * 10000000000).toISOString(),
-    }));
-  };
-  
-  // Load data when component mounts or filters change
+
+  // 페이지 변경 시 셀럽 목록 조회
   useEffect(() => {
-    fetchCelebrities(currentPage, selectedCategory, searchTerm);
-  }, [currentPage, selectedCategory, searchTerm, refreshKey]);
-  
-  // Handle search input change
-  const handleSearchChange = (e) => {
-    setSearchTerm(e.target.value);
-  };
-  
-  // Handle search form submission
+    if (session && status === 'authenticated') {
+      fetchCelebrities();
+    }
+  }, [currentPage, itemsPerPage, sortField, sortOrder, selectedCategory, session, status]);
+
+  // 검색어 변경 시 API 호출
   const handleSearch = (e) => {
     e.preventDefault();
-    setCurrentPage(1); // Reset to first page on new search
-    fetchCelebrities(1, selectedCategory, searchTerm);
-  };
-  
-  // Handle category change
-  const handleCategoryChange = (e) => {
-    setSelectedCategory(e.target.value);
-    setCurrentPage(1); // Reset to first page on category change
-  };
-  
-  // Handle pagination
-  const handlePageChange = (page) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
+    setCurrentPage(1);
+
+    // URL 쿼리 파라미터 업데이트
+    const query = { ...router.query };
+    if (searchTerm) {
+      query.search = searchTerm;
+    } else {
+      delete query.search;
     }
+
+    delete query.page;
+
+    router.push({
+      pathname: router.pathname,
+      query
+    }, undefined, { shallow: true });
+
+    fetchCelebrities();
   };
-  
-  // Handle delete button click
-  const handleDeleteClick = (id) => {
-    setDeleteItemId(id);
-    setShowDeleteModal(true);
+
+  // 카테고리 변경
+  const handleCategoryChange = (category) => {
+    setSelectedCategory(category);
+    setCurrentPage(1);
+
+    const query = { ...router.query };
+    if (category !== 'all') {
+      query.category = category;
+    } else {
+      delete query.category;
+    }
+    delete query.page;
+
+    router.push({
+      pathname: router.pathname,
+      query
+    }, undefined, { shallow: true });
   };
-  
-  // Handle delete confirmation
-  const handleDeleteConfirm = async () => {
-    if (!deleteItemId) return;
-    
+
+  // 셀럽 삭제 처리
+  const handleDelete = async (id, name) => {
+    if (!confirm(`"${name}" 셀럽을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+      return;
+    }
+
     try {
-      const response = await fetch(`/api/celeb/${deleteItemId}`, {
-        method: 'DELETE'
+      const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+
+      const response = await fetch(`/api/celeb/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+        }
       });
-      
+
       if (!response.ok) {
-        throw new Error('Failed to delete celebrity');
+        const errorData = await response.json();
+        throw new Error(errorData.message || '셀럽 삭제 중 오류가 발생했습니다.');
       }
-      
-      // Remove item from state
-      setCelebrities(celebrities.filter(item => item._id !== deleteItemId));
-      
-      // Close modal
-      setShowDeleteModal(false);
-      setDeleteItemId(null);
-    } catch (error) {
-      console.error('Error deleting celebrity:', error);
-      setError('Failed to delete celebrity');
-      // Close modal regardless of error
-      setShowDeleteModal(false);
-      setDeleteItemId(null);
+
+      fetchCelebrities();
+      showToast('셀럽이 성공적으로 삭제되었습니다.', 'success');
+    } catch (err) {
+      console.error('Error deleting celebrity:', err);
+      showToast(err.message, 'error');
     }
   };
-  
+
+  // 체크박스 선택 처리
+  const handleCheckboxChange = (id) => {
+    setSelectedItems(prevSelected => {
+      if (prevSelected.includes(id)) {
+        return prevSelected.filter(itemId => itemId !== id);
+      } else {
+        return [...prevSelected, id];
+      }
+    });
+  };
+
+  // 모든 항목 선택/해제
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedItems(celebrities.map(item => item._id));
+    } else {
+      setSelectedItems([]);
+    }
+  };
+
+  // 다중 삭제 모달 열기
+  const handleMultiDeleteClick = () => {
+    if (selectedItems.length === 0) {
+      showToast('선택된 항목이 없습니다.', 'warning');
+      return;
+    }
+    setShowMultiDeleteModal(true);
+  };
+
+  // 다중 삭제 실행
+  const handleMultiDeleteConfirm = async () => {
+    if (selectedItems.length === 0) return;
+
+    try {
+      setIsDeleting(true);
+      const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+
+      const deletePromises = selectedItems.map(id =>
+        fetch(`/api/celeb/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+          }
+        })
+      );
+
+      const results = await Promise.all(deletePromises);
+      const hasError = results.some(response => !response.ok);
+
+      if (!hasError) {
+        fetchCelebrities();
+        setShowMultiDeleteModal(false);
+        setSelectedItems([]);
+        showToast(`${selectedItems.length}개의 셀럽이 성공적으로 삭제되었습니다.`, 'success');
+      } else {
+        showToast('일부 항목 삭제 중 오류가 발생했습니다.', 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting multiple celebrities:', error);
+      showToast('셀럽 삭제 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // 정렬 필드 변경
+  const handleSortChange = (field) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
+    }
+  };
+
+  // 토스트 메시지 표시
+  const showToast = (message, type = 'info') => {
+    setToast({ visible: true, message, type });
+    setTimeout(() => setToast({ visible: false, message: '', type: '' }), 3000);
+  };
+
   // Format followers count for display
   const formatFollowers = (count) => {
+    if (!count) return '0';
     if (count >= 1000000) {
       return (count / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
     } else if (count >= 1000) {
       return (count / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
     }
-    return count;
+    return count.toString();
   };
-  
+
   // 소셜 미디어 아이콘 렌더링
   const renderSocialIcon = (type) => {
     switch (type) {
       case 'instagram':
-        return <Instagram size={16} className="text-[#E1306C]" />;
+        return <Instagram size={14} className="text-[#E1306C]" />;
       case 'twitter':
-        return <Twitter size={16} className="text-[#1DA1F2]" />;
+        return <Twitter size={14} className="text-[#1DA1F2]" />;
       case 'youtube':
-        return <Youtube size={16} className="text-[#FF0000]" />;
+        return <Youtube size={14} className="text-[#FF0000]" />;
       case 'spotify':
-        return <Music size={16} className="text-[#1ED760]" />;
+        return <Music size={14} className="text-[#1ED760]" />;
       default:
         return null;
     }
   };
-  
-  // Format date for display
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ko-KR', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-  
+
   return (
     <AdminLayout>
       <Head>
-        <title>Celebrity Management | Admin</title>
+        <title>셀럽 관리 | Admin</title>
       </Head>
-      
-      <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
+
+      <div className="mb-6 flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">셀럽 관리</h1>
-          <p className="text-gray-500">셀럽 프로필 및 정보를 관리하세요</p>
         </div>
-        
-        <div className="mt-4 md:mt-0 flex gap-2">
-          <Link 
+        <div className="flex gap-2">
+          {selectedItems.length > 0 && (
+            <button
+              onClick={handleMultiDeleteClick}
+              className="bg-red-600 hover:bg-red-700 text-white border-2 border-red-600 py-2 px-4 rounded-md flex items-center"
+            >
+              <Trash2 className="mr-2 h-5 w-5" />
+              선택 삭제 ({selectedItems.length})
+            </button>
+          )}
+          <Link
             href="/admin/celeb/import"
-            className="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            className="bg-white hover:bg-gray-50 border-2 py-2 px-4 rounded-md flex items-center"
+            style={{ borderColor: '#233cfa', color: '#233cfa' }}
           >
-            <RefreshCw className="mr-1 h-4 w-4" />
+            <Download className="mr-2 h-5 w-5" />
             K-POP 셀럽 가져오기
           </Link>
-          <Link 
+          <Link
             href="/admin/celeb/create"
-            className="inline-flex items-center px-4 py-2 bg-[#ff3e8e] text-white rounded-lg hover:bg-[#e02e7c] transition-colors"
+            className="bg-white hover:bg-gray-50 border-2 py-2 px-4 rounded-md flex items-center"
+            style={{ borderColor: '#233cfa', color: '#233cfa' }}
           >
-            <Plus className="mr-1 h-4 w-4" />
-            셀럽 추가
+            <PlusCircle className="mr-2 h-5 w-5" />
+            신규 셀럽 등록
           </Link>
         </div>
       </div>
-      
-      {/* Filters and Search */}
-      <div className="bg-white rounded-lg shadow-sm mb-6 p-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center mb-4 md:mb-0">
-            <Filter size={18} className="text-gray-400 mr-2" />
-            <select
-              value={selectedCategory}
-              onChange={handleCategoryChange}
-              className="bg-gray-50 border border-gray-200 rounded-lg text-gray-700 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-[#ff3e8e]/50 focus:border-[#ff3e8e]"
-            >
-              {categories.map(category => (
-                <option key={category.value} value={category.value}>
-                  {category.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <form onSubmit={handleSearch} className="flex w-full md:w-auto">
-            <div className="relative flex-grow md:w-64">
-              <input
-                type="text"
-                placeholder="이름으로 검색"
-                value={searchTerm}
-                onChange={handleSearchChange}
-                className="w-full bg-gray-50 border border-gray-200 rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#ff3e8e]/50 focus:border-[#ff3e8e]"
-              />
-              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                <Search size={18} />
-              </span>
-            </div>
+
+      {/* 카테고리 탭 */}
+      <div className="bg-white shadow rounded-lg p-4 mb-6">
+        <div className="flex flex-wrap gap-2">
+          {categories.map((category) => (
             <button
-              type="submit"
-              className="ml-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              key={category.value}
+              onClick={() => handleCategoryChange(category.value)}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                selectedCategory === category.value
+                  ? 'bg-[#233cfa] text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
             >
-              검색
+              {category.label}
             </button>
-          </form>
+          ))}
         </div>
       </div>
-      
-      {/* Error message */}
-      {error && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6">
-          <div className="flex items-center">
-            <AlertTriangle size={20} className="text-red-500 mr-2" />
-            <p className="text-red-700">{error}</p>
+
+      {/* 검색 및 정렬 */}
+      <div className="bg-white shadow rounded-lg p-4 mb-6">
+        <div className="flex flex-wrap gap-4 items-end">
+          {/* 검색 */}
+          <div className="flex-1 flex min-w-[300px]">
+            <form onSubmit={handleSearch} className="w-full flex">
+              <input
+                type="text"
+                placeholder="이름으로 검색..."
+                className="flex-1 border border-gray-300 rounded-l-md px-3 py-2"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <button
+                type="submit"
+                className="bg-gray-200 hover:bg-gray-300 px-3 py-2 rounded-r-md"
+              >
+                <Search size={20} />
+              </button>
+            </form>
+          </div>
+
+          {/* 정렬 및 페이지 표시 개수 */}
+          <div className="flex items-center gap-2">
+            <select
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+              value={`${sortField}-${sortOrder}`}
+              onChange={(e) => {
+                const [field, order] = e.target.value.split('-');
+                setSortField(field);
+                setSortOrder(order);
+                setCurrentPage(1);
+              }}
+            >
+              <option value="createdAt-desc">최신순</option>
+              <option value="createdAt-asc">오래된순</option>
+              <option value="name-asc">이름 오름차순</option>
+              <option value="name-desc">이름 내림차순</option>
+              <option value="followers-desc">팔로워 많은순</option>
+              <option value="followers-asc">팔로워 적은순</option>
+            </select>
+
+            <select
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+              value={itemsPerPage}
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+            >
+              <option value="10">10개씩</option>
+              <option value="20">20개씩</option>
+              <option value="50">50개씩</option>
+            </select>
           </div>
         </div>
-      )}
-      
+      </div>
+
       {/* Celebrity List */}
-      <div className="bg-white rounded-lg shadow-sm mb-6 w-full">
-        <div className="overflow-x-auto w-full">
-          <table className="w-full divide-y divide-gray-200 table-fixed">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/12">
-                  프로필
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
-                  이름
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
-                  소속사/그룹
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/12">
-                  카테고리
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
-                  SNS 팔로워
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/12">
-                  총 팔로워
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/12">
-                  상태
-                </th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-1/12">
-                  관리
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {isLoading ? (
-                // Loading skeleton
-                Array(5).fill(0).map((_, index) => (
-                  <tr key={`skeleton-${index}`} className="animate-pulse">
-                    <td className="px-6 py-4">
-                      <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="h-8 bg-gray-200 rounded w-24 ml-auto"></div>
-                    </td>
-                  </tr>
-                ))
-              ) : celebrities.length === 0 ? (
-                // Empty state
+      <div className="bg-white shadow rounded-lg overflow-hidden">
+        {isLoading ? (
+          <div className="p-20 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-3 text-gray-600">셀럽을 불러오는 중...</p>
+          </div>
+        ) : error ? (
+          <div className="p-6 text-center text-red-600">
+            <p>{error}</p>
+            <button
+              onClick={fetchCelebrities}
+              className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              다시 시도
+            </button>
+          </div>
+        ) : celebrities.length === 0 ? (
+          <div className="p-10 text-center text-gray-600">
+            <p>셀럽이 없습니다. 새 셀럽을 등록해보세요.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <td colSpan="8" className="px-6 py-12 text-center">
-                    <User size={48} className="mx-auto text-gray-300 mb-4" />
-                    <p className="text-gray-500 text-lg">등록된 셀럽이 없습니다</p>
-                    <p className="text-gray-400 mt-1">새로운 셀럽을 추가해보세요</p>
-                  </td>
+                  <th scope="col" className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                    <input
+                      type="checkbox"
+                      onChange={handleSelectAll}
+                      checked={celebrities.length > 0 && selectedItems.length === celebrities.length}
+                      className="h-4 w-4 rounded border-gray-300 text-[#ff3e8e] focus:ring-[#ff3e8e]"
+                    />
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    프로필
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    카테고리
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    SNS 팔로워
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <button
+                      className="flex items-center"
+                      onClick={() => handleSortChange('createdAt')}
+                    >
+                      등록일
+                      {sortField === 'createdAt' && (
+                        <span className="ml-1">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </button>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    작업
+                  </th>
                 </tr>
-              ) : (
-                // Celebrity list
-                celebrities.map((celeb) => (
-                  <tr key={celeb._id} className="hover:bg-gray-50">
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {celebrities.map((celeb) => (
+                  <tr key={celeb._id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-2 py-4 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.includes(celeb._id)}
+                        onChange={() => handleCheckboxChange(celeb._id)}
+                        className="h-4 w-4 rounded border-gray-300 text-[#ff3e8e] focus:ring-[#ff3e8e]"
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="flex-shrink-0 h-12 w-12 rounded-full overflow-hidden bg-gray-100">
+                        <div className="flex-shrink-0 h-12 w-12 rounded-full overflow-hidden relative bg-gray-100">
                           {celeb.profileImage ? (
-                            <img
+                            <Image
                               src={celeb.profileImage}
                               alt={celeb.name}
-                              className="w-full h-full object-cover"
+                              layout="fill"
+                              objectFit="cover"
+                              className="rounded-full"
                               onError={(e) => {
-                                e.target.onerror = null;
                                 e.target.src = "/images/placeholder.jpg";
                               }}
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-400">
+                            <div className="h-full w-full flex items-center justify-center bg-gray-200 text-gray-400">
                               <User size={24} />
                             </div>
+                          )}
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">
+                            {celeb.name}
+                          </div>
+                          {celeb.koreanName && celeb.koreanName !== celeb.name && (
+                            <div className="text-sm text-gray-500">
+                              {celeb.koreanName}
+                            </div>
+                          )}
+                          {celeb.group && (
+                            <div className="text-xs text-gray-500">
+                              {celeb.group}
+                            </div>
+                          )}
+                          {celeb.isFeatured && (
+                            <span className="inline-flex items-center mt-1">
+                              <Star size={14} className="text-yellow-400 mr-1" />
+                              <span className="text-xs text-yellow-600">대표</span>
+                            </span>
                           )}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{celeb.name}</div>
-                      {celeb.koreanName && celeb.koreanName !== celeb.name && (
-                        <div className="text-xs text-gray-500">{celeb.koreanName}</div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {celeb.agency && (
-                        <div className="text-sm text-gray-500">{celeb.agency}</div>
-                      )}
-                      {celeb.group && (
-                        <div className="text-xs text-gray-700 font-medium">{celeb.group}</div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800">
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-pink-100 text-pink-800">
                         {categories.find(cat => cat.value === celeb.category)?.label || celeb.category}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {celeb.socialMediaFollowers ? (
-                        <div className="space-y-1.5">
+                        <div className="flex gap-3">
                           {celeb.socialMediaFollowers.instagram > 0 && (
                             <div className="flex items-center">
                               {renderSocialIcon('instagram')}
-                              <span className="ml-2 text-xs text-gray-600">{formatFollowers(celeb.socialMediaFollowers.instagram)}</span>
-                            </div>
-                          )}
-                          {celeb.socialMediaFollowers.twitter > 0 && (
-                            <div className="flex items-center">
-                              {renderSocialIcon('twitter')}
-                              <span className="ml-2 text-xs text-gray-600">{formatFollowers(celeb.socialMediaFollowers.twitter)}</span>
+                              <span className="ml-1 text-xs text-gray-600">{formatFollowers(celeb.socialMediaFollowers.instagram)}</span>
                             </div>
                           )}
                           {celeb.socialMediaFollowers.youtube > 0 && (
                             <div className="flex items-center">
                               {renderSocialIcon('youtube')}
-                              <span className="ml-2 text-xs text-gray-600">{formatFollowers(celeb.socialMediaFollowers.youtube)}</span>
+                              <span className="ml-1 text-xs text-gray-600">{formatFollowers(celeb.socialMediaFollowers.youtube)}</span>
                             </div>
                           )}
-                          {celeb.socialMediaFollowers.spotify > 0 && (
+                          {celeb.socialMediaFollowers.twitter > 0 && (
                             <div className="flex items-center">
-                              {renderSocialIcon('spotify')}
-                              <span className="ml-2 text-xs text-gray-600">{formatFollowers(celeb.socialMediaFollowers.spotify)}</span>
+                              {renderSocialIcon('twitter')}
+                              <span className="ml-1 text-xs text-gray-600">{formatFollowers(celeb.socialMediaFollowers.twitter)}</span>
                             </div>
                           )}
                           {Object.values(celeb.socialMediaFollowers).every(val => val === 0) && (
-                            <span className="text-xs text-gray-400">데이터 없음</span>
+                            <span className="text-xs text-gray-400">-</span>
                           )}
                         </div>
                       ) : (
-                        <div className="space-y-1.5">
-                          {celeb.socialMedia?.instagram && (
-                            <div className="flex items-center">
-                              {renderSocialIcon('instagram')}
-                              <span className="ml-2 text-xs text-gray-600">링크 있음</span>
-                            </div>
-                          )}
-                          {celeb.socialMedia?.twitter && (
-                            <div className="flex items-center">
-                              {renderSocialIcon('twitter')}
-                              <span className="ml-2 text-xs text-gray-600">링크 있음</span>
-                            </div>
-                          )}
-                          {celeb.socialMedia?.youtube && (
-                            <div className="flex items-center">
-                              {renderSocialIcon('youtube')}
-                              <span className="ml-2 text-xs text-gray-600">링크 있음</span>
-                            </div>
-                          )}
-                          {celeb.socialMedia?.spotify && (
-                            <div className="flex items-center">
-                              {renderSocialIcon('spotify')}
-                              <span className="ml-2 text-xs text-gray-600">링크 있음</span>
-                            </div>
-                          )}
-                          {(!celeb.socialMedia || Object.values(celeb.socialMedia).every(val => !val)) && (
-                            <span className="text-xs text-gray-400">데이터 없음</span>
-                          )}
-                        </div>
+                        <span className="text-xs text-gray-400">-</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatFollowers(celeb.followers)}
+                      {celeb.createdAt && format(new Date(celeb.createdAt), 'yyyy.MM.dd', { locale: ko })}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        {celeb.isFeatured && (
-                          <span className="inline-flex items-center mr-2">
-                            <Star size={16} className="text-yellow-400" />
-                          </span>
-                        )}
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          celeb.isActive
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {celeb.isActive ? '활성' : '비활성'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end space-x-2">
+                    <td className="px-6 py-4 whitespace-nowrap text-left text-sm font-medium">
+                      <div className="flex justify-start space-x-2">
                         <Link
                           href={`/celeb/${celeb.slug || celeb._id}`}
-                          className="text-indigo-600 hover:text-indigo-900 p-1"
-                          title="View profile"
+                          className="text-indigo-600 hover:text-indigo-900"
+                          target="_blank"
+                          rel="noopener noreferrer"
                         >
                           <Eye size={18} />
                         </Link>
                         <Link
                           href={`/admin/celeb/edit/${celeb._id}`}
-                          className="text-blue-600 hover:text-blue-900 p-1"
-                          title="Edit celebrity"
+                          className="text-blue-600 hover:text-blue-900"
                         >
                           <Edit size={18} />
                         </Link>
                         <button
-                          onClick={() => handleDeleteClick(celeb._id)}
-                          className="text-red-600 hover:text-red-900 p-1"
-                          title="Delete celebrity"
+                          className="text-red-600 hover:text-red-900"
+                          onClick={() => handleDelete(celeb._id, celeb.name)}
                         >
                           <Trash2 size={18} />
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-        
-        {/* Pagination */}
-        {!isLoading && celebrities.length > 0 && (
-          <div className="px-6 py-4 flex items-center justify-between border-t border-gray-200">
-            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm text-gray-700">
-                  총 <span className="font-medium">{totalPages * limit}</span> 개 중{' '}
-                  <span className="font-medium">{(currentPage - 1) * limit + 1}</span> -{' '}
-                  <span className="font-medium">{Math.min(currentPage * limit, totalPages * limit)}</span> 표시
-                </p>
-              </div>
-              <div>
-                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 페이지네이션 */}
+        {!isLoading && !error && celebrities.length > 0 && (
+          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+            <div className="text-sm text-gray-700">
+              {totalItems}개 중 {(currentPage - 1) * itemsPerPage + 1}-
+              {Math.min(currentPage * itemsPerPage, totalItems)}개 표시
+            </div>
+            <div className="flex space-x-2">
+              <button
+                className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50"
+                onClick={() => setCurrentPage(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft size={18} />
+              </button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+
+                return (
                   <button
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1}
-                    className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium ${
-                      currentPage === 1
-                        ? 'text-gray-300 cursor-not-allowed'
-                        : 'text-gray-500 hover:bg-gray-50'
+                    key={pageNum}
+                    className={`px-3 py-1 rounded ${
+                      currentPage === pageNum
+                        ? 'bg-blue-600 text-white'
+                        : 'border border-gray-300 hover:bg-gray-100'
                     }`}
+                    onClick={() => setCurrentPage(pageNum)}
                   >
-                    <span className="sr-only">Previous</span>
-                    <ChevronLeft size={18} />
+                    {pageNum}
                   </button>
-                  
-                  {/* Page Numbers */}
-                  {[...Array(totalPages)].map((_, i) => {
-                    const pageNum = i + 1;
-                    const show = pageNum === 1 || pageNum === totalPages || 
-                                (pageNum >= currentPage - 1 && pageNum <= currentPage + 1);
-                    
-                    if (!show) {
-                      if (pageNum === 2 || pageNum === totalPages - 1) {
-                        return (
-                          <span key={`ellipsis-${pageNum}`} className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
-                            ...
-                          </span>
-                        );
-                      }
-                      return null;
-                    }
-                    
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => handlePageChange(pageNum)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                          currentPage === pageNum
-                            ? 'bg-[#ff3e8e] text-white border-[#ff3e8e]'
-                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                  
-                  <button
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                    className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium ${
-                      currentPage === totalPages
-                        ? 'text-gray-300 cursor-not-allowed'
-                        : 'text-gray-500 hover:bg-gray-50'
-                    }`}
-                  >
-                    <span className="sr-only">Next</span>
-                    <ChevronRight size={18} />
-                  </button>
-                </nav>
-              </div>
+                );
+              })}
+              <button
+                className="px-3 py-1 rounded border border-gray-300 disabled:opacity-50"
+                onClick={() => setCurrentPage(currentPage + 1)}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight size={18} />
+              </button>
             </div>
           </div>
         )}
       </div>
-      
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && (
+
+      {/* Multi Delete Confirmation Modal */}
+      {showMultiDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">셀럽 삭제 확인</h3>
-            <p className="text-gray-600 mb-6">이 셀럽을 정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
+          <div className="bg-white rounded-lg p-8 max-w-md w-full">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">다중 삭제</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              선택한 {selectedItems.length}개의 셀럽을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+            </p>
             <div className="flex justify-end space-x-3">
               <button
-                onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+                onClick={() => setShowMultiDeleteModal(false)}
+                disabled={isDeleting}
               >
                 취소
               </button>
               <button
-                onClick={handleDeleteConfirm}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center"
+                onClick={handleMultiDeleteConfirm}
+                disabled={isDeleting}
               >
-                삭제
+                {isDeleting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    삭제 중...
+                  </>
+                ) : '삭제'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 토스트 메시지 */}
+      {toast.visible && (
+        <div className="fixed bottom-4 right-4 z-50 max-w-md animate-fade-in">
+          <div className={`flex items-center p-4 rounded-lg border ${
+            toast.type === 'success' ? 'bg-green-50 border-green-500' :
+            toast.type === 'error' ? 'bg-red-50 border-red-500' :
+            toast.type === 'warning' ? 'bg-yellow-50 border-yellow-500' :
+            'bg-blue-50 border-blue-500'
+          } shadow-md`}>
+            <div className={`flex-grow ${
+              toast.type === 'success' ? 'text-green-800' :
+              toast.type === 'error' ? 'text-red-800' :
+              toast.type === 'warning' ? 'text-yellow-800' :
+              'text-blue-800'
+            }`}>{toast.message}</div>
+            <button
+              onClick={() => setToast({ visible: false, message: '', type: '' })}
+              className="ml-4 text-gray-500 hover:text-gray-700"
+            >
+              <span className="text-xl">×</span>
+            </button>
           </div>
         </div>
       )}
@@ -622,15 +745,18 @@ export default function AdminCelebList() {
 
 // 서버 사이드에서 인증 확인
 export async function getServerSideProps(context) {
-  try {
-    // Placeholder for authentication logic
+  const session = await getSession(context);
+
+  if (!session || session.user?.role !== 'admin') {
     return {
-      props: {},
-    };
-  } catch (error) {
-    console.error('Error in getServerSideProps:', error);
-    return {
-      props: {},
+      redirect: {
+        destination: '/admin/login',
+        permanent: false,
+      },
     };
   }
-} 
+
+  return {
+    props: { session },
+  };
+}

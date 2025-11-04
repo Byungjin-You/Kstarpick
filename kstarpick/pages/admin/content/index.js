@@ -1,20 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { getSession } from 'next-auth/react';
+import { getSession, useSession } from 'next-auth/react';
 import AdminLayout from '../../../components/AdminLayout';
-import withAdminAuth from '../../../components/withAdminAuth';
-import { 
-  PlusCircle, 
-  Edit, 
-  Trash2, 
-  Eye, 
-  Search, 
-  ChevronLeft, 
+import {
+  PlusCircle,
+  Edit,
+  Trash2,
+  Eye,
+  Search,
+  ChevronLeft,
   ChevronRight,
-  Filter,
   Star,
-  Clock,
   Download,
   ArrowUp,
   ArrowDown
@@ -22,60 +19,54 @@ import {
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import Image from 'next/image';
-import { Grid, Card, CardContent, Typography, CardActions, Button } from '@mui/material';
 
 function ContentManagement() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [contents, setContents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState({ visible: false, message: '', type: '' });
-  const [debugInfo, setDebugInfo] = useState(null);
-  
+
   // 필터링 및 페이지네이션 상태
   const [contentType, setContentType] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [sortField, setSortField] = useState('createdAt');
-  const [sortOrder, setSortOrder] = useState('desc');
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  
-  // 토큰 상태 확인 함수
-  const checkTokenStatus = () => {
-    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-    const debugInfo = {
-      hasToken: !!token,
-      tokenLength: token ? token.length : 0,
-      tokenStart: token ? token.substring(0, 20) + '...' : 'None',
-      localStorage: {
-        token: !!localStorage.getItem('token'),
-        adminToken: !!localStorage.getItem('adminToken')
-      }
-    };
-    setDebugInfo(debugInfo);
-    console.log('토큰 상태:', debugInfo);
-    return debugInfo;
-  };
+  const [sortField, setSortField] = useState('orderNumber');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+
+  // 드래그 앤 드롭 상태
+  const [draggedItem, setDraggedItem] = useState(null);
+  const [dragOverItem, setDragOverItem] = useState(null);
+
+  // 인증 확인
+  useEffect(() => {
+    if (status === 'loading') return;
+
+    if (!session) {
+      router.push('/admin/login');
+    } else if (session.user?.role !== 'admin') {
+      router.push('/');
+    }
+  }, [session, status, router]);
 
   // URL 쿼리 파라미터에서 초기 필터 상태 설정
   useEffect(() => {
     const { type, search, page } = router.query;
-    
-    // 토큰 상태 확인
-    checkTokenStatus();
-    
+
     // 콘텐츠 타입 설정
     if (type) {
       setContentType(type);
     }
-    
+
     // 검색어 설정
     if (search) {
       setSearchTerm(search);
     }
-    
+
     // 페이지 설정
     if (page) {
       setCurrentPage(parseInt(page, 10));
@@ -84,9 +75,11 @@ function ContentManagement() {
   
   // 콘텐츠 목록 조회
   const fetchContents = async () => {
+    if (!session) return;
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
       // 쿼리 파라미터 구성
       const queryParams = new URLSearchParams({
@@ -95,54 +88,47 @@ function ContentManagement() {
         sortBy: sortField,
         sortOrder: sortOrder
       });
-      
+
       // contentType이 선택되었을 때만 category 파라미터 추가
       if (contentType && contentType !== 'all') {
         queryParams.append('category', contentType);
       }
-      
+
       if (searchTerm) {
         queryParams.append('title', searchTerm);
       }
-      
+
       console.log('API 요청 파라미터:', queryParams.toString());
-      
-      // 인증 토큰 가져오기
-      const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-      
+
       // 드라마 또는 영화 타입일 경우 /api/dramas를 호출
       const endpoint = '/api/dramas';
-      const response = await fetch(`${endpoint}?${queryParams.toString()}`, {
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-        }
-      });
+      const response = await fetch(`${endpoint}?${queryParams.toString()}`);
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.message || '콘텐츠 목록을 불러오는 중 오류가 발생했습니다.');
       }
-      
+
       console.log('API 응답 데이터:', data);
-      
+
       // 드라마 API와 콘텐츠 API의 응답 구조를 통일
       let normalizedData;
       const itemsWithContentType = data.data.map(item => ({
         ...item,
         contentType: item.category || contentType  // 항목의 category 필드 사용, 없으면 현재 선택된 contentType 사용
       }));
-      
+
       normalizedData = {
         data: itemsWithContentType,
         pagination: data.pagination
       };
-      
+
       if (normalizedData.data.length > 0) {
         console.log('정규화된 데이터 첫 항목:', normalizedData.data[0]); // 첫 번째 항목의 구조 로깅
       } else {
         console.log('검색 결과 없음');
       }
-      
+
       setContents(normalizedData.data);
       setTotalPages(normalizedData.pagination.pages);
       setTotalItems(normalizedData.pagination.total);
@@ -154,45 +140,13 @@ function ContentManagement() {
       setIsLoading(false);
     }
   };
-  
-  // 페이지 초기화 시 인증 체크 및 콘텐츠 목록 조회
+
+  // 페이지 변경 시 콘텐츠 목록 조회
   useEffect(() => {
-    // 클라이언트 사이드에서만 실행
-    if (typeof window !== 'undefined') {
-      // 토큰 확인 후 API 호출
-      const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-      if (token) {
-        // 토큰이 있으면 관리자 권한 확인
-        checkAdminAuth(token);
-      } else {
-        // 토큰이 없으면 로그인 페이지로 리다이렉트
-        router.push('/admin/login');
-      }
+    if (session && status === 'authenticated') {
+      fetchContents();
     }
-  }, [currentPage, itemsPerPage, sortField, sortOrder, contentType]);
-  
-  // 관리자 권한 확인 함수
-  const checkAdminAuth = async (token) => {
-    try {
-      const response = await fetch('/api/auth/check-admin', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        }
-      });
-      
-      const data = await response.json();
-      
-      if (data.isAdmin) {
-        fetchContents();
-      } else {
-        // 관리자가 아니면 로그인 페이지로 리다이렉트
-        router.push('/admin/login');
-      }
-    } catch (error) {
-      console.error('Admin auth check failed:', error);
-      router.push('/admin/login');
-    }
-  };
+  }, [currentPage, itemsPerPage, sortField, sortOrder, contentType, session, status]);
   
   // 검색어 변경 시 API 호출
   const handleSearch = (e) => {
@@ -253,12 +207,10 @@ function ContentManagement() {
       });
       
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || '콘텐츠 삭제 중 오류가 발생했습니다.');
+        const errorData = await response.json();
+        throw new Error(errorData.message || '콘텐츠 삭제 중 오류가 발생했습니다.');
       }
-      
-      const data = await response.json();
-      
+
       // 삭제 후 목록 새로고침
       fetchContents();
       showToast('콘텐츠가 성공적으로 삭제되었습니다.', 'success');
@@ -362,34 +314,6 @@ function ContentManagement() {
     }
   };
 
-  // 토큰 재생성 함수
-  const regenerateToken = async () => {
-    try {
-      const response = await fetch('/api/auth/generate-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          username: 'admin', // 실제 사용자명 필요
-          password: 'admin123' // 실제 비밀번호 필요
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        localStorage.setItem('adminToken', data.token);
-        checkTokenStatus();
-        showToast('토큰이 재생성되었습니다.', 'success');
-      } else {
-        showToast('토큰 재생성에 실패했습니다.', 'error');
-      }
-    } catch (error) {
-      console.error('토큰 재생성 오류:', error);
-      showToast('토큰 재생성 중 오류가 발생했습니다.', 'error');
-    }
-  };
-
   // 순위 변경 (위/아래)
   const movePosition = (id, direction) => {
     const index = contents.findIndex(item => item._id === id);
@@ -407,25 +331,133 @@ function ContentManagement() {
     }
   };
 
+  // 드래그 앤 드롭 핸들러
+  const handleDragStart = (e, content) => {
+    setDraggedItem(content);
+    e.dataTransfer.effectAllowed = 'move';
+    e.currentTarget.style.opacity = '0.5';
+  };
+
+  const handleDragEnd = (e) => {
+    e.currentTarget.style.opacity = '1';
+    setDraggedItem(null);
+    setDragOverItem(null);
+  };
+
+  const handleDragOver = (e, content) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    if (draggedItem && draggedItem._id !== content._id) {
+      // 같은 카테고리인지 확인
+      const draggedCategory = draggedItem.category || draggedItem.contentType;
+      const targetCategory = content.category || content.contentType;
+
+      if (draggedCategory === targetCategory) {
+        setDragOverItem(content);
+      }
+    }
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setDragOverItem(null);
+  };
+
+  const handleDrop = async (e, dropTarget) => {
+    e.preventDefault();
+
+    if (!draggedItem || draggedItem._id === dropTarget._id) {
+      setDraggedItem(null);
+      setDragOverItem(null);
+      return;
+    }
+
+    // 같은 카테고리인지 확인
+    const draggedCategory = draggedItem.category || draggedItem.contentType;
+    const targetCategory = dropTarget.category || dropTarget.contentType;
+
+    if (draggedCategory !== targetCategory) {
+      showToast('같은 카테고리 내에서만 순위를 변경할 수 있습니다.', 'warning');
+      setDraggedItem(null);
+      setDragOverItem(null);
+      return;
+    }
+
+    try {
+      // 같은 카테고리의 콘텐츠만 필터링
+      const sameCategory = contents.filter(c =>
+        (c.category || c.contentType) === draggedCategory
+      );
+
+      const draggedIndex = sameCategory.findIndex(c => c._id === draggedItem._id);
+      const targetIndex = sameCategory.findIndex(c => c._id === dropTarget._id);
+
+      if (draggedIndex === -1 || targetIndex === -1) return;
+
+      // 새로운 순서로 재정렬
+      const reorderedItems = [...sameCategory];
+      const [removed] = reorderedItems.splice(draggedIndex, 1);
+      reorderedItems.splice(targetIndex, 0, removed);
+
+      // 각 항목에 새로운 orderNumber 할당 및 업데이트
+      const updatePromises = reorderedItems.map(async (item, index) => {
+        const newPosition = index + 1;
+
+        // 모든 콘텐츠는 /api/dramas 사용 (드라마와 영화 모두)
+        const apiEndpoint = `/api/dramas/${item._id}`;
+
+        return fetch(apiEndpoint, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            ...item,
+            orderNumber: newPosition,
+            previousOrderNumber: item.orderNumber || newPosition
+          })
+        });
+      });
+
+      await Promise.all(updatePromises);
+
+      // 목록 새로고침
+      await fetchContents();
+      showToast('순위가 성공적으로 변경되었습니다.', 'success');
+    } catch (error) {
+      console.error('드래그 앤 드롭 순위 변경 오류:', error);
+      showToast('순위 변경 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setDraggedItem(null);
+      setDragOverItem(null);
+    }
+  };
+
   // 강제 순위 정렬 (최신순 기준)
   const forceSort = async () => {
     if (contents.length === 0) return;
-    
+
     try {
-      const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-      
-      // 최신순으로 정렬
-      const sortedContents = [...contents].sort((a, b) => {
+      // 카테고리별로 분리
+      const dramaContents = contents.filter(c => c.category === 'drama' || c.category === 'Drama');
+      const movieContents = contents.filter(c => c.category === 'movie' || c.category === 'Movie');
+
+      // 각 카테고리별로 최신순 정렬
+      const sortedDramas = [...dramaContents].sort((a, b) => {
         return new Date(b.createdAt || b.updatedAt) - new Date(a.createdAt || a.updatedAt);
       });
-      
-      // 순위 부여 및 업데이트
-      const updatePromises = sortedContents.map(async (item, index) => {
+
+      const sortedMovies = [...movieContents].sort((a, b) => {
+        return new Date(b.createdAt || b.updatedAt) - new Date(a.createdAt || a.updatedAt);
+      });
+
+      // 드라마 순위 업데이트
+      const dramaPromises = sortedDramas.map(async (item, index) => {
         const position = index + 1;
         return fetch(`/api/dramas/${item._id}`, {
           method: 'PUT',
           headers: {
-            'Authorization': token ? `Bearer ${token}` : '',
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
@@ -434,10 +466,25 @@ function ContentManagement() {
           })
         });
       });
-      
-      await Promise.all(updatePromises);
+
+      // 영화 순위 업데이트 (영화도 /api/dramas 사용)
+      const moviePromises = sortedMovies.map(async (item, index) => {
+        const position = index + 1;
+        return fetch(`/api/dramas/${item._id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            orderNumber: position,
+            previousOrderNumber: item.orderNumber || position
+          })
+        });
+      });
+
+      await Promise.all([...dramaPromises, ...moviePromises]);
       fetchContents();
-      showToast(`${sortedContents.length}개 콘텐츠의 순위가 최신순으로 정렬되었습니다.`, 'success');
+      showToast(`드라마 ${sortedDramas.length}개, 영화 ${sortedMovies.length}개의 순위가 최신순으로 정렬되었습니다.`, 'success');
     } catch (error) {
       console.error('순위 정렬 오류:', error);
       showToast('순위 정렬 중 오류가 발생했습니다.', 'error');
@@ -446,125 +493,47 @@ function ContentManagement() {
   
   return (
     <AdminLayout>
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">콘텐츠 관리</h1>
-            {debugInfo && (
-              <div className="text-sm text-gray-600 mt-1">
-                토큰 상태: {debugInfo.hasToken ? '✅ 있음' : '❌ 없음'} 
-                {debugInfo.hasToken && `(길이: ${debugInfo.tokenLength})`}
-                {!debugInfo.hasToken && (
-                  <button 
-                    onClick={regenerateToken}
-                    className="ml-2 text-blue-600 hover:text-blue-800 underline"
-                  >
-                    토큰 재생성
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={forceSort}
-              className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-md flex items-center"
-              disabled={isLoading}
-            >
-              <ArrowUp className="mr-2 h-5 w-5" />
-              순위 정렬
-            </button>
-            <Link 
-              href="/admin/content/movie-crawler"
-              className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md flex items-center"
-            >
-              <Download className="mr-2 h-5 w-5" />
-              영화 크롤러
-            </Link>
-            <Link 
-              href="/admin/content/reviews-crawler"
-              className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-md flex items-center"
-            >
-              <Download size={18} className="mr-1" />
-              리뷰 크롤러
-            </Link>
-            <Link 
-              href="/admin/content/crawler"
-              className="bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-md flex items-center"
-            >
-              <Download size={18} className="mr-1" />
-              드라마 크롤러
-            </Link>
-            <Link 
-              href="/admin/content/new"
-              className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md flex items-center"
-            >
-              <PlusCircle size={18} className="mr-1" />
-              신규 콘텐츠 등록
-            </Link>
-          </div>
+      <div className="mb-6 flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">콘텐츠 관리</h1>
         </div>
-        
-        {/* 크롤러 카드 UI */}
-        <Grid container spacing={3} className="mb-6">
-          {/* 드라마 크롤러 카드 */}
-          <Grid item xs={12} md={4}>
-            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <CardContent sx={{ flexGrow: 1 }}>
-                <Typography gutterBottom variant="h5" component="h2">
-                  드라마 크롤러
-                </Typography>
-                <Typography>
-                  MyDramalist에서 드라마/영화 정보와 배우 정보를 크롤링합니다.
-                </Typography>
-              </CardContent>
-              <CardActions>
-                <Link href="/admin/content/crawler" passHref>
-                  <Button size="small" variant="contained" color="secondary">크롤러 시작</Button>
-                </Link>
-              </CardActions>
-            </Card>
-          </Grid>
-          
-          {/* 리뷰 스텔스 크롤러 카드 */}
-          <Grid item xs={12} md={4}>
-            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <CardContent sx={{ flexGrow: 1 }}>
-                <Typography gutterBottom variant="h5" component="h2">
-                  리뷰 스텔스 크롤러
-                </Typography>
-                <Typography>
-                  MyDramalist 드라마/영화 리뷰를 Cloudflare 보호를 우회하여 스텔스 크롤링합니다.
-                </Typography>
-              </CardContent>
-              <CardActions>
-                <Link href="/admin/content/reviews-crawler" passHref>
-                  <Button size="small" variant="contained" color="success">크롤러 시작</Button>
-                </Link>
-              </CardActions>
-            </Card>
-          </Grid>
-          
-          {/* 콘텐츠 등록 카드 */}
-          <Grid item xs={12} md={4}>
-            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <CardContent sx={{ flexGrow: 1 }}>
-                <Typography gutterBottom variant="h5" component="h2">
-                  콘텐츠 신규 등록
-                </Typography>
-                <Typography>
-                  드라마, 영화, 예능 등 새로운 콘텐츠를 직접 등록합니다.
-                </Typography>
-              </CardContent>
-              <CardActions>
-                <Link href="/admin/content/new" passHref>
-                  <Button size="small" variant="contained" color="primary">콘텐츠 등록</Button>
-                </Link>
-              </CardActions>
-            </Card>
-          </Grid>
-        </Grid>
-        
+        <div className="flex gap-2">
+          <button
+            onClick={forceSort}
+            className="bg-white hover:bg-gray-50 border-2 py-2 px-4 rounded-md flex items-center"
+            style={{ borderColor: '#233cfa', color: '#233cfa' }}
+            disabled={isLoading}
+          >
+            <ArrowUp className="mr-2 h-5 w-5" />
+            순위 정렬
+          </button>
+          <Link
+            href="/admin/content/movie-crawler"
+            className="bg-white hover:bg-gray-50 border-2 py-2 px-4 rounded-md flex items-center"
+            style={{ borderColor: '#233cfa', color: '#233cfa' }}
+          >
+            <Download className="mr-2 h-5 w-5" />
+            영화 정보 등록
+          </Link>
+          <Link
+            href="/admin/content/crawler"
+            className="bg-white hover:bg-gray-50 border-2 py-2 px-4 rounded-md flex items-center"
+            style={{ borderColor: '#233cfa', color: '#233cfa' }}
+          >
+            <Download className="mr-2 h-5 w-5" />
+            드라마 정보 등록
+          </Link>
+          <Link
+            href="/admin/content/new"
+            className="bg-white hover:bg-gray-50 border-2 py-2 px-4 rounded-md flex items-center"
+            style={{ borderColor: '#233cfa', color: '#233cfa' }}
+          >
+            <PlusCircle className="mr-2 h-5 w-5" />
+            신규 콘텐츠 등록
+          </Link>
+        </div>
+      </div>
+
         {/* 필터링 및 검색 */}
         <div className="bg-white shadow rounded-lg p-4 mb-6">
           <div className="flex flex-wrap gap-4 items-end">
@@ -730,7 +699,18 @@ function ContentManagement() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {contents.map((content) => (
-                    <tr key={content._id} className="hover:bg-gray-50">
+                    <tr
+                      key={content._id}
+                      className={`hover:bg-gray-50 cursor-move transition-colors ${
+                        dragOverItem && dragOverItem._id === content._id ? 'bg-blue-50 border-t-2 border-b-2 border-blue-400' : ''
+                      }`}
+                      draggable="true"
+                      onDragStart={(e) => handleDragStart(e, content)}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={(e) => handleDragOver(e, content)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, content)}
+                    >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-16 w-12 relative">
@@ -786,24 +766,53 @@ function ContentManagement() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="flex items-center space-x-2">
                           <span className="text-sm font-medium text-gray-900">
-                            #{content.orderNumber || contents.indexOf(content) + 1}
+                            #{(() => {
+                              // 같은 카테고리의 콘텐츠만 필터링
+                              const sameCategory = contents.filter(c =>
+                                (c.category || c.contentType) === (content.category || content.contentType)
+                              );
+                              const categoryIndex = sameCategory.findIndex(c => c._id === content._id);
+                              return categoryIndex + 1;
+                            })()}
                           </span>
                           <div className="flex flex-col space-y-1">
-                            <button 
+                            <button
                               onClick={() => movePosition(content._id, 'up')}
                               className="text-blue-500 hover:text-blue-700 p-1"
-                              disabled={contents.indexOf(content) === 0}
+                              disabled={(() => {
+                                const sameCategory = contents.filter(c =>
+                                  (c.category || c.contentType) === (content.category || content.contentType)
+                                );
+                                return sameCategory.findIndex(c => c._id === content._id) === 0;
+                              })()}
                               title="순위 올리기"
                             >
-                              <ArrowUp size={14} className={contents.indexOf(content) === 0 ? 'text-gray-300' : ''} />
+                              <ArrowUp size={14} className={(() => {
+                                const sameCategory = contents.filter(c =>
+                                  (c.category || c.contentType) === (content.category || content.contentType)
+                                );
+                                return sameCategory.findIndex(c => c._id === content._id) === 0 ? 'text-gray-300' : '';
+                              })()} />
                             </button>
-                            <button 
+                            <button
                               onClick={() => movePosition(content._id, 'down')}
                               className="text-blue-500 hover:text-blue-700 p-1"
-                              disabled={contents.indexOf(content) === contents.length - 1}
+                              disabled={(() => {
+                                const sameCategory = contents.filter(c =>
+                                  (c.category || c.contentType) === (content.category || content.contentType)
+                                );
+                                const categoryIndex = sameCategory.findIndex(c => c._id === content._id);
+                                return categoryIndex === sameCategory.length - 1;
+                              })()}
                               title="순위 내리기"
                             >
-                              <ArrowDown size={14} className={contents.indexOf(content) === contents.length - 1 ? 'text-gray-300' : ''} />
+                              <ArrowDown size={14} className={(() => {
+                                const sameCategory = contents.filter(c =>
+                                  (c.category || c.contentType) === (content.category || content.contentType)
+                                );
+                                const categoryIndex = sameCategory.findIndex(c => c._id === content._id);
+                                return categoryIndex === sameCategory.length - 1 ? 'text-gray-300' : '';
+                              })()} />
                             </button>
                           </div>
                         </div>
@@ -823,8 +832,8 @@ function ContentManagement() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {format(new Date(content.createdAt), 'yyyy.MM.dd', { locale: ko })}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex justify-end space-x-2">
+                      <td className="px-6 py-4 whitespace-nowrap text-left text-sm font-medium">
+                        <div className="flex justify-start space-x-2">
                           <Link 
                             href={`/${content.category}/${content.slug}`}
                             className="text-indigo-600 hover:text-indigo-900"
@@ -910,8 +919,7 @@ function ContentManagement() {
             </div>
           )}
         </div>
-      </div>
-      
+
       {/* 토스트 메시지 */}
       {toast.visible && (
         <div className="fixed bottom-4 right-4 z-50 max-w-md animate-fade-in">
@@ -940,12 +948,22 @@ function ContentManagement() {
   );
 }
 
-// 클라이언트 사이드에서 인증 확인으로 변경
+// 서버 사이드에서 인증 확인
 export async function getServerSideProps(context) {
-  // 임시로 서버 사이드 인증 체크 비활성화
+  const session = await getSession(context);
+
+  if (!session || session.user?.role !== 'admin') {
+    return {
+      redirect: {
+        destination: '/admin/login',
+        permanent: false,
+      },
+    };
+  }
+
   return {
-    props: {},
+    props: { session },
   };
 }
 
-export default withAdminAuth(ContentManagement); 
+export default ContentManagement; 

@@ -1,5 +1,6 @@
 import { connectToDatabase } from '../../../utils/mongodb';
-import { isAdmin } from '../../../lib/auth';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../auth/[...nextauth]';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -7,12 +8,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 관리자 권한 확인
-    const adminCheck = await isAdmin(req);
-    if (!adminCheck) {
-      return res.status(401).json({ 
-        success: false, 
-        message: '관리자 권한이 필요합니다.' 
+    // NextAuth 세션으로 관리자 권한 확인
+    const session = await getServerSession(req, res, authOptions);
+
+    if (!session || session.user?.role !== 'admin') {
+      return res.status(401).json({
+        success: false,
+        message: '관리자 권한이 필요합니다.'
       });
     }
 
@@ -26,11 +28,11 @@ export default async function handler(req, res) {
     
     console.log(`[Analytics] 방문자 통계 조회: ${startDate.toISOString().split('T')[0]} ~ ${endDate.toISOString().split('T')[0]}`);
 
-    // 1. 드라마 조회수 통계
+    // 1. 드라마 조회수 통계 (최근 15일)
     const dramaStats = await db.collection('dramas').aggregate([
       {
         $match: {
-          updatedAt: { $gte: startDate, $lte: endDate }
+          createdAt: { $gte: startDate, $lte: endDate }
         }
       },
       {
@@ -42,7 +44,7 @@ export default async function handler(req, res) {
       }
     ]).toArray();
 
-    // 2. 뉴스 조회수 통계
+    // 2. 뉴스 조회수 통계 (최근 15일)
     const newsStats = await db.collection('news').aggregate([
       {
         $match: {
@@ -58,11 +60,11 @@ export default async function handler(req, res) {
       }
     ]).toArray();
 
-    // 3. 영화 조회수 통계
+    // 3. 영화 조회수 통계 (최근 15일)
     const movieStats = await db.collection('tvfilms').aggregate([
       {
         $match: {
-          updatedAt: { $gte: startDate, $lte: endDate }
+          createdAt: { $gte: startDate, $lte: endDate }
         }
       },
       {
@@ -74,11 +76,11 @@ export default async function handler(req, res) {
       }
     ]).toArray();
 
-    // 4. 음악 조회수 통계
+    // 4. 음악 조회수 통계 (최근 15일)
     const musicStats = await db.collection('musics').aggregate([
       {
         $match: {
-          updatedAt: { $gte: startDate, $lte: endDate }
+          createdAt: { $gte: startDate, $lte: endDate }
         }
       },
       {
@@ -128,19 +130,18 @@ export default async function handler(req, res) {
       .project({ title: 1, viewCount: 1, _id: 0 })
       .toArray();
 
-    // 통계 계산
-    const totalViews = (dramaStats[0]?.totalViews || 0) + 
-                      (newsStats[0]?.totalViews || 0) + 
-                      (movieStats[0]?.totalViews || 0) + 
-                      (musicStats[0]?.totalViews || 0);
+    // 통계 계산 - dailyTrends의 실제 일별 조회수 합산 사용
+    const totalViews = dailyNewsViews.reduce((sum, day) => sum + (day.views || 0), 0);
 
-    const totalContent = (dramaStats[0]?.totalDramas || 0) + 
-                        (newsStats[0]?.totalNews || 0) + 
-                        (movieStats[0]?.totalMovies || 0) + 
+    const totalContent = (dramaStats[0]?.totalDramas || 0) +
+                        (newsStats[0]?.totalNews || 0) +
+                        (movieStats[0]?.totalMovies || 0) +
                         (musicStats[0]?.totalMusic || 0);
 
     // 일별 평균 계산
-    const dailyAverage = Math.round(totalViews / parseInt(days));
+    const dailyAverage = dailyNewsViews.length > 0
+      ? Math.round(totalViews / dailyNewsViews.length)
+      : 0;
 
     // 응답 데이터 구성
     const response = {

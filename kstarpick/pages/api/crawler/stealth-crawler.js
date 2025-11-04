@@ -711,7 +711,12 @@ async function parseDetailHtml(html, url) {
     $('.show-detailsxss .list-item').each((_, element) => {
       const label = $(element).find('b').text().trim();
       if (label === 'Director:') {
-        director = $(element).find('a').text().trim();
+        const directors = [];
+        $(element).find('a').each((_, link) => {
+          const name = $(link).text().trim();
+          if (name) directors.push(name);
+        });
+        director = directors.join(', ');
       }
     });
     

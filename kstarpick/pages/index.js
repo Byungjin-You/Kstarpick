@@ -231,9 +231,10 @@ function Home({ initialData }) {
   // 랭킹 뉴스가 로드되면 슬라이더 데이터를 업데이트 (초기 표시 이후)
   useEffect(() => {
     if (todayRankingNews.length > 0) {
-      // Today 랭킹 뉴스에서 최대 6개를 선택
+      // Today 랭킹 뉴스 1~6위를 가져와서 랜덤으로 섞기
       const topNews = todayRankingNews.slice(0, 6);
-      setTopStoriesData(topNews);
+      const shuffledNews = shuffleArray(topNews);
+      setTopStoriesData(shuffledNews);
       setIsTopStoriesLoading(false);
     }
   }, [todayRankingNews]);
@@ -680,13 +681,13 @@ function Home({ initialData }) {
                           modules={[Pagination, Navigation]}
                           direction="horizontal"
                           className="w-full rounded-md relative"
-                          grabCursor={true}
+                          grabCursor={false}
                           touchEventsTarget="container"
                           preventInteractionOnTransition={true}
                           touchReleaseOnEdges={true}
                           touchStartPreventDefault={false}
-                          simulateTouch={true}
-                          allowTouchMove={true}
+                          simulateTouch={false}
+                          allowTouchMove={false}
                           navigation={{
                             nextEl: '.swiper-button-next',
                             prevEl: '.swiper-button-prev',

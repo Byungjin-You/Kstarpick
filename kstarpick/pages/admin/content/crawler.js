@@ -1966,78 +1966,17 @@ export default function DramaCrawler() {
     }
   };
 
-  // 백업 버튼 UI 컴포넌트
-  const BackupButton = () => (
-    <button
-      onClick={backupDramas}
-      disabled={loading}
-      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      {loading ? (
-        <>
-          <RefreshCw size={18} className="inline-block mr-2 animate-spin" />
-          백업 중...
-        </>
-      ) : (
-        <>
-          <Save size={18} className="inline-block mr-2" />
-          드라마 백업
-        </>
-      )}
-    </button>
-  );
-
   return (
     <AdminLayout>
       <div className="container mx-auto p-6">
         <div className="mb-6 flex justify-between items-center">
           <h1 className="text-2xl font-bold">MyDramalist 크롤러</h1>
-          <div className="flex space-x-2">
-            <button
-              id="debug-button"
-              onClick={() => {
-                alert("디버그 버튼 클릭됨!");
-                console.log("현재 상태:", {
-                  autoMode,
-                  puppeteerEnabled,
-                  autoCrawling
-                });
-                
-                // 수동으로 API 호출 테스트
-                fetch('/api/crawler/stealth-crawler', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    url: 'https://mydramalist.com/search?adv=titles&ty=68,83&co=3&so=newest&or=asc&page=1',
-                    mode: 'list'
-                  })
-                })
-                .then(response => {
-                  console.log('API 응답 상태:', response.status);
-                  return response.json();
-                })
-                .then(data => {
-                  console.log('API 응답 데이터:', data);
-                  alert(`API 테스트 결과: ${data.success ? '성공' : '실패'}`);
-                })
-                .catch(error => {
-                  console.error('API 오류:', error);
-                  alert(`API 테스트 오류: ${error.message}`);
-                });
-              }}
-              className="px-4 py-2 bg-purple-500 hover:bg-purple-600 rounded-md text-white"
-            >
-              디버그 테스트
-            </button>
-            <Link 
-              href="/admin/content" 
-              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-800"
-            >
-              콘텐츠 목록으로 돌아가기
-            </Link>
-          </div>
+          <Link
+            href="/admin/content"
+            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-800"
+          >
+            콘텐츠 목록으로 돌아가기
+          </Link>
         </div>
 
         {/* 디버깅 도우미 스크립트 */}
@@ -2109,27 +2048,8 @@ export default function DramaCrawler() {
             <p className="text-sm text-gray-600 mb-4">
               URL을 입력하고 페이지 수를 설정한 후 시작하면 자동으로 드라마 목록과 상세 정보를 크롤링하고 저장합니다.
             </p>
-            
-            {/* 백업 버튼 추가 */}
-            <div className="mb-4">
-              <BackupButton />
-              <p className="text-xs text-gray-500 mt-1">
-                크롤링 중 문제가 생길 경우를 대비해 데이터를 백업합니다. 크롤링 시작 전에도 자동으로 백업됩니다.
-              </p>
-            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div className="md:col-span-2">
-                <label className="block text-gray-700 text-sm font-medium mb-1">시작 URL</label>
-                <input 
-                  type="text" 
-                  value={autoUrl}
-                  onChange={(e) => setAutoUrl(e.target.value)}
-                  placeholder="https://mydramalist.com/search?..."
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  disabled={autoCrawling}
-                />
-              </div>
               <div>
                 <label className="block text-gray-700 text-sm font-medium mb-1">최대 페이지 수</label>
                 <input 
@@ -2224,7 +2144,7 @@ export default function DramaCrawler() {
                         });
                       }, 100);
                     }}
-                    className="w-full bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md flex items-center justify-center"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center justify-center"
                   >
                     <Shield size={18} className="mr-2" />
                     스텔스 크롤링 시작
@@ -2232,7 +2152,7 @@ export default function DramaCrawler() {
                 ) : (
                   <button
                     onClick={stopAutoCrawling}
-                    className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md flex items-center justify-center"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center justify-center"
                   >
                     <PauseCircle size={18} className="mr-2" />
                     크롤링 중지
@@ -2310,35 +2230,6 @@ export default function DramaCrawler() {
                 )}
               </div>
             )}
-          </div>
-        </div>
-
-        {/* HTML 입력 폼 */}
-        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-          <div className="mb-4">
-            <label className="block text-gray-700 font-medium mb-2">
-              MyDramalist HTML 코드 입력
-            </label>
-            <div className="mb-2">
-              <textarea
-                rows="10"
-                value={htmlContent}
-                onChange={handleHtmlInputChange}
-                placeholder="MyDramalist 검색 결과 페이지의 HTML 코드를 붙여넣으세요."
-                className="w-full border border-gray-300 rounded-md px-4 py-2 font-mono text-sm"
-              />
-            </div>
-            <div className="flex justify-between">
-              <p className="text-sm text-gray-500">
-                MyDramalist 사이트에서 검색 결과 페이지의 HTML 코드를 복사하여 붙여넣으세요.
-              </p>
-              <button
-                onClick={parseHtmlContent}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
-              >
-                HTML 파싱하기
-              </button>
-            </div>
           </div>
         </div>
 
@@ -2535,14 +2426,6 @@ export default function DramaCrawler() {
                           >
                             스텔스 크롤링
                           </button>
-                          {savingDramas[drama.id] === 'saved' && (
-                            <button
-                              onClick={() => registerDrama(drama)}
-                              className="ml-2 text-green-600 hover:text-green-800 text-xs hover:underline"
-                            >
-                              드라마 등록
-                            </button>
-                          )}
                           <a
                             href={drama.url}
                             target="_blank"
@@ -2560,32 +2443,6 @@ export default function DramaCrawler() {
             </div>
           </div>
         )}
-
-        {/* 설명 및 가이드 */}
-        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mt-6 rounded-md">
-          <h3 className="text-lg font-semibold text-blue-800 mb-2">사용 가이드</h3>
-          <ol className="list-decimal pl-5 text-blue-800">
-            <li className="mb-2">
-              <a 
-                href="https://mydramalist.com/search?adv=titles&ty=68,83&co=3&so=newest&or=asc&page=1" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-600 underline"
-              >
-                MyDramalist
-              </a>에서 검색 결과 페이지를 열고 웹 브라우저 개발자 도구를 엽니다 (F12 또는 마우스 우클릭 후 '검사').
-            </li>
-            <li className="mb-2">
-              결과 목록이 있는 부분 (box 클래스가 있는 요소)을 우클릭하고 '복사' &gt; 'OuterHTML'을 선택합니다.
-            </li>
-            <li className="mb-2">
-              복사한 HTML을 위의 텍스트 영역에 붙여넣고 '파싱하기' 버튼을 클릭합니다.
-            </li>
-            <li className="mb-2">
-              상세 정보를 저장하려면 드라마 상세 페이지를 열고 같은 방식으로 HTML을 복사한 후 '상세 HTML 입력' 버튼을 클릭하세요.
-            </li>
-          </ol>
-        </div>
 
         {/* 토스트 메시지 */}
         {toast.visible && (

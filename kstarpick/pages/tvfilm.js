@@ -29,7 +29,38 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
   
   const itemsPerPage = 5; // 한 페이지에 5개 아이템만 표시
 
+  // 스크롤 위치 복원 로직
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
 
+    const isBackToTvfilm = sessionStorage.getItem('isBackToTvfilm');
+    const savedScrollPosition = sessionStorage.getItem('tvfilmScrollPosition');
+
+    if (isBackToTvfilm === 'true' && savedScrollPosition) {
+      const scrollPos = parseInt(savedScrollPosition, 10);
+
+      const restoreScroll = () => {
+        window.scrollTo(0, scrollPos);
+        document.documentElement.scrollTop = scrollPos;
+        document.body.scrollTop = scrollPos;
+      };
+
+      // 여러 시도로 동적 콘텐츠 로딩을 고려
+      setTimeout(restoreScroll, 50);
+      setTimeout(restoreScroll, 100);
+      setTimeout(restoreScroll, 200);
+      setTimeout(restoreScroll, 300);
+      setTimeout(restoreScroll, 500);
+
+      requestAnimationFrame(() => {
+        setTimeout(restoreScroll, 100);
+        setTimeout(restoreScroll, 300);
+      });
+
+      // 플래그 제거
+      sessionStorage.removeItem('isBackToTvfilm');
+    }
+  }, []);
 
 
 
@@ -123,14 +154,6 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
   useEffect(() => {
     // 서버 사이드 데이터가 있으면 추가 fetch 필요 없음
     if (tvfilms.length > 0) {
-      // 시놉시스 정보 디버깅
-      console.log('영화 데이터 시놉시스 확인:');
-      tvfilms.slice(0, 3).forEach((film, index) => {
-        console.log(`${index + 1}. ${film.title}:`, 
-          'description:', film.description ? '있음' : '없음', 
-          'summary:', film.summary ? '있음' : '없음');
-      });
-      
       const enhancedTVFilms = tvfilms.map((film, index) => {
         // 기본 데이터 복사
         let enhancedFilm = { ...film };
@@ -166,7 +189,6 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
     const fetchTVFilms = async () => {
       try {
         setLoading(true);
-        console.log('Fetching TV/Films from frontend...');
         // API에서는 전체 데이터를 가져오지만 클라이언트에서 페이지네이션 처리
         const response = await axios.get(`/api/dramas`, {
           params: {
@@ -176,18 +198,8 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
           }
         });
 
-        console.log('Frontend response:', response.data);
-
         if (response.data && response.data.success) {
           const allTVFilms = response.data.data || [];
-          
-          // 시놉시스 정보 디버깅
-          console.log('클라이언트 영화 데이터 시놉시스 확인:');
-          allTVFilms.slice(0, 3).forEach((film, index) => {
-            console.log(`${index + 1}. ${film.title}:`, 
-              'description:', film.description ? '있음' : '없음', 
-              'summary:', film.summary ? '있음' : '없음');
-          });
           
           // 테스트를 위해 일부 항목에 rating 값과 시놉시스 추가
           const enhancedTVFilms = allTVFilms.map((film, index) => {
@@ -397,7 +409,6 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
 
   // 모바일에서 더 많은 영화 보기 토글 기능
   const toggleMobileView = () => {
-    console.log('토글 모바일 뷰 호출됨, 현재 상태:', showMoreMobile);
     setShowMoreMobile(!showMoreMobile);
   };
 
@@ -405,7 +416,6 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
   useEffect(() => {
     if (isMobile) {
       if (showMoreMobile && allMovies.length > 0) {
-        console.log("더 많은 영화 표시");
         // 기본 5개에 5개 더 추가 (총 10개)
         const displayCount = Math.min(10, allMovies.length);
         setMovies(allMovies.slice(0, displayCount));
@@ -415,7 +425,6 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
           setTotalPages(Math.ceil(displayCount / itemsPerPage));
         }
       } else if (allMovies.length > 0) {
-        console.log("5개 영화만 표시");
         // 첫 5개만 표시
         setMovies(allMovies.slice(0, 5));
         setCurrentPage(1); // 페이지를 1로 리셋
@@ -505,7 +514,7 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
 
                           {/* 제목과 정보 - 너비 제한 추가 */}
                           <div className="flex-grow min-w-0">
-                            <Link href={`/tvfilm/${item._id}`} className="block">
+                            <Link href={`/tvfilm/${item.slug || item._id}`} className="block">
                               <h3 className="text-base font-semibold text-gray-800 hover:text-[#009efc] transition-colors line-clamp-1 truncate">
                                 {item.title}
                               </h3>
@@ -558,7 +567,7 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
                       </div>
                     ) : (
                       // 펼쳐진 상태 - 기존 카드 UI
-                      <Link href={`/tvfilm/${item._id}`} className="block h-full">
+                      <Link href={`/tvfilm/${item.slug || item._id}`} className="block h-full">
                         <div
                           className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 h-full transform hover:-translate-y-1"
                           style={isMobile ? {
@@ -609,17 +618,17 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
                               </div>
                             </div>
                             
-                            <div className="p-4">
-                              <h3 className="text-base font-bold text-gray-800 group-hover:text-[#009efc] transition-colors flex items-center justify-between">
-                                <span className={`mr-2 ${isMobile ? 'line-clamp-1' : 'line-clamp-2'}`}>{item.title}</span>
+                            <div className="p-4 pb-3">
+                              <h3 className="text-base font-semibold text-gray-800 group-hover:text-[#009efc] transition-colors line-clamp-1 flex items-center justify-between">
+                                <span className="mr-2 truncate">{item.title}</span>
                                 {/* Rating 평점을 제목 오른쪽에 표시 (모바일용) - 별 아이콘 추가 */}
                                 {isMobile && (
                                   <div className="flex-shrink-0 flex items-center bg-gradient-to-r from-amber-50 to-amber-100 px-2 py-1 rounded-full border border-amber-200">
-                                    <Star size={12} className="text-amber-500 mr-1" fill="#f59e0b" />
+                                    <Star size={12} className="text-amber-500 mr-1 flex-shrink-0" fill="#f59e0b" />
                                     <span className="text-xs font-bold text-amber-700">
                                       {item.reviewRating != null && item.reviewRating !== undefined && parseFloat(item.reviewRating) > 0
-                                        ? parseFloat(item.reviewRating) === 10 
-                                          ? "10" 
+                                        ? parseFloat(item.reviewRating) === 10
+                                          ? "10"
                                           : parseFloat(item.reviewRating).toFixed(1)
                                         : "-"
                                       }
@@ -814,7 +823,7 @@ export async function getServerSideProps(context) {
     
     // 영화 데이터와 영화 뉴스 데이터 병렬로 가져오기
     const [moviesResponse, movieNewsResponse] = await Promise.all([
-      fetch(`${baseUrl}/api/dramas?category=movie&limit=100&includeAllFields=true`),
+      fetch(`${baseUrl}/api/dramas?category=movie&limit=100&includeAllFields=true&sortBy=orderNumber&sortOrder=asc`),
       fetch(`${baseUrl}/api/news/movie?page=1&limit=12&sort=createdAt&order=desc`)
     ]);
     

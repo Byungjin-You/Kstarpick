@@ -40,17 +40,52 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [] }) 
   const [scrollState, setScrollState] = useState({ canScrollLeft: false, canScrollRight: false }); // 스크롤 상태
   const [activeCardIndex, setActiveCardIndex] = useState(0); // 활성 카드 인덱스
   const [sortedCelebrities, setSortedCelebrities] = useState([]);
-  
+
+  // 스크롤 위치 복원 로직
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const isBackToCeleb = sessionStorage.getItem('isBackToCeleb');
+    const savedScrollPosition = sessionStorage.getItem('celebScrollPosition');
+
+    if (isBackToCeleb === 'true' && savedScrollPosition) {
+      const scrollPos = parseInt(savedScrollPosition, 10);
+
+      const restoreScroll = () => {
+        window.scrollTo(0, scrollPos);
+        document.documentElement.scrollTop = scrollPos;
+        document.body.scrollTop = scrollPos;
+      };
+
+      // 여러 시도로 동적 콘텐츠 로딩을 고려
+      setTimeout(restoreScroll, 50);
+      setTimeout(restoreScroll, 100);
+      setTimeout(restoreScroll, 200);
+      setTimeout(restoreScroll, 300);
+      setTimeout(restoreScroll, 500);
+
+      requestAnimationFrame(() => {
+        setTimeout(restoreScroll, 100);
+        setTimeout(restoreScroll, 300);
+      });
+
+      // 플래그 제거
+      sessionStorage.removeItem('isBackToCeleb');
+    }
+  }, []);
+
   // SNS 팔로워 총합 계산 함수
   const getTotalFollowers = (celeb) => {
     if (!celeb.socialMediaFollowers) return 0;
     return Object.values(celeb.socialMediaFollowers).reduce((sum, count) => sum + count, 0);
   };
 
-  // 셀럽 데이터 정렬
+  // 셀럽 데이터 정렬 - 최신 업데이트 순 (updatedAt 또는 createdAt)
   useEffect(() => {
     const sorted = [...celebrities].sort((a, b) => {
-      return getTotalFollowers(b) - getTotalFollowers(a);
+      const dateA = new Date(a.updatedAt || a.createdAt);
+      const dateB = new Date(b.updatedAt || b.createdAt);
+      return dateB - dateA;
     });
     setSortedCelebrities(sorted);
   }, [celebrities]);
@@ -241,22 +276,12 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [] }) 
         jsonLd={generateWebsiteJsonLd()}
       />
       
-      <div className="container mx-auto px-4 py-12">
-        {/* Enhanced Header with Animated Elements */}
-        <div className="mb-8 relative">
-          <div className="absolute -top-10 -left-6 w-32 h-32 bg-gradient-to-br from-pink-200 to-purple-200 rounded-full blur-3xl opacity-60"></div>
-          <div className="absolute top-12 right-20 w-40 h-40 bg-gradient-to-br from-blue-200 to-indigo-200 rounded-full blur-3xl opacity-40"></div>
-          
-          <div className="relative z-10">
-            <div className="flex items-center mb-1">
-              <div className="h-1.5 w-16 bg-gradient-to-r from-[#ff3e8e] to-[#ff8360] rounded-full mr-3"></div>
-              <Star size={20} className="text-[#ff3e8e] animate-pulse" />
-              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-[#ff3e8e] via-[#ff8360] to-[#ff61ab] text-transparent bg-clip-text ml-2">
-                K-POP Celebrities
-              </h1>
-            </div>
-            <p className="text-gray-500 text-sm mt-2">Discover the most popular K-POP artists and their social media stats</p>
-          </div>
+      <div className="container mx-auto px-4 pt-0 pb-12">
+        {/* 제목 영역 */}
+        <div className="mb-8 mt-8">
+          <h1 className="font-bold text-black" style={{ fontSize: '20px' }}>
+            <span style={{ color: '#233CFA' }}>Celebrities</span> at a Glance
+          </h1>
         </div>
         
         {/* Celebrity Grid with Navigation - PC 전용 */}
@@ -285,12 +310,15 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [] }) 
                         transform: isPageChanging ? (slideDirection === 'right' ? 'translateX(10px)' : 'translateX(-10px)') : 'translateX(0)'
                       }}
                     >
-                      <div className="relative bg-gradient-to-b from-white to-gray-50 rounded-2xl overflow-hidden shadow-sm border border-gray-100 group-hover:shadow-lg transition-all duration-500 h-full min-h-[220px] sm:min-h-[400px] transform group-hover:-translate-y-1">
-                        {/* Glass effect card border */}
-                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 z-0"></div>
-                        
+                      <div
+                        className="relative bg-white rounded-lg overflow-hidden transition-all duration-500 h-full min-h-[280px] sm:min-h-[480px]"
+                        style={{ boxShadow: 'none !important', border: 'none !important', outline: 'none' }}
+                      >
                         {/* 이미지 */}
-                        <div className="aspect-[2/3] min-h-[160px] sm:min-h-[300px] relative overflow-hidden rounded-t-2xl">
+                        <div
+                          className="min-h-[220px] sm:min-h-[380px] relative overflow-hidden rounded-md"
+                          style={{ aspectRatio: '4/5', width: '100%' }}
+                        >
                           <img 
                             src={celeb.profileImage} 
                             alt={celeb.name}
@@ -299,25 +327,19 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [] }) 
                           />
                           
                           {/* 컬러 오버레이 - Group별 컬러 스타일 */}
-                          <div 
+                          <div
                             className={`absolute inset-0 opacity-0 group-hover:opacity-80 transition-opacity duration-500 mix-blend-overlay ${
-                              isSolo 
-                                ? 'bg-gradient-to-tl from-pink-400 via-pink-500 to-transparent' 
+                              isSolo
+                                ? 'bg-gradient-to-tl from-pink-400 via-pink-500 to-transparent'
                                 : 'bg-gradient-to-tl from-purple-400 via-indigo-500 to-transparent'
                             }`}
                           ></div>
-                          
-                          {/* 셀럽 카테고리 뱃지를 썸네일 왼쪽 상단으로 이동 */}
-                          <div className="absolute top-2 left-2 sm:top-3 sm:left-3 z-10">
-                            <div className={`
-                              px-1.5 py-0.5 sm:px-2 sm:py-0.5 rounded-full text-[10px] sm:text-xs font-medium backdrop-blur-sm shadow-sm
-                              ${isSolo 
-                                ? 'bg-pink-500/70 text-white' 
-                                : 'bg-purple-500/70 text-white'
-                              }
-                            `}>
-                              {isSolo ? 'Solo' : 'Group'}
-                            </div>
+
+                          {/* 순위 번호 - 뮤직 차트 스타일 */}
+                          <div className="absolute top-0 left-0 w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center">
+                            <span className="text-white font-bold text-3xl sm:text-5xl drop-shadow-lg" style={{textShadow: '0 2px 4px rgba(0,0,0,0.5)'}}>
+                              {currentCelebPage * celebsPerPage + index + 1}
+                            </span>
                           </div>
                           
                           {/* 호버 시 나타나는 소셜 링크 - 모바일에서는 더 작게 */}
@@ -325,40 +347,43 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [] }) 
                             <div className="absolute bottom-0 left-0 right-0 p-2 sm:p-4 opacity-0 transform translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 z-10">
                               <div className="flex justify-end space-x-1 sm:space-x-2">
                                 {celeb.socialMedia.instagram && (
-                                  <a 
-                                    href={celeb.socialMedia.instagram} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      window.open(celeb.socialMedia.instagram, '_blank', 'noopener,noreferrer');
+                                    }}
                                     className="p-1.5 sm:p-2.5 bg-white/30 backdrop-blur-md hover:bg-white/50 rounded-full transform hover:scale-110 transition-all duration-300 shadow-md"
-                                    onClick={(e) => e.stopPropagation()}
                                   >
                                     <Instagram size={12} className="text-white sm:hidden" />
                                     <Instagram size={17} className="text-white hidden sm:block" />
-                                  </a>
+                                  </button>
                                 )}
                                 {celeb.socialMedia.twitter && (
-                                  <a 
-                                    href={celeb.socialMedia.twitter} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      window.open(celeb.socialMedia.twitter, '_blank', 'noopener,noreferrer');
+                                    }}
                                     className="p-1.5 sm:p-2.5 bg-white/30 backdrop-blur-md hover:bg-white/50 rounded-full transform hover:scale-110 transition-all duration-300 shadow-md"
-                                    onClick={(e) => e.stopPropagation()}
                                   >
                                     <Twitter size={12} className="text-white sm:hidden" />
                                     <Twitter size={17} className="text-white hidden sm:block" />
-                                  </a>
+                                  </button>
                                 )}
                                 {celeb.socialMedia.youtube && (
-                                  <a 
-                                    href={celeb.socialMedia.youtube} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      window.open(celeb.socialMedia.youtube, '_blank', 'noopener,noreferrer');
+                                    }}
                                     className="p-1.5 sm:p-2.5 bg-white/30 backdrop-blur-md hover:bg-white/50 rounded-full transform hover:scale-110 transition-all duration-300 shadow-md"
-                                    onClick={(e) => e.stopPropagation()}
                                   >
                                     <Youtube size={12} className="text-white sm:hidden" />
                                     <Youtube size={17} className="text-white hidden sm:block" />
-                                  </a>
+                                  </button>
                                 )}
                               </div>
                             </div>
@@ -470,58 +495,56 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [] }) 
                     .map((celeb, index) => {
                     const isSolo = celeb.category === 'solo';
                     return (
-                      <Link 
-                        href={`/celeb/${celeb.slug}`} 
-                        key={celeb._id} 
-                        className={`flex-shrink-0 w-[48%] snap-center transition-all duration-300 ${
-                          activeCardIndex === index 
-                            ? 'opacity-100 scale-100' 
+                      <Link
+                        href={`/celeb/${celeb.slug}`}
+                        key={celeb._id}
+                        className={`flex-shrink-0 w-[65%] snap-center transition-all duration-300 ${
+                          activeCardIndex === index
+                            ? 'opacity-100 scale-100'
                             : 'opacity-90 scale-95'
                         } ${index === 0 ? 'ml-6' : ''}`}
+                        style={{
+                          boxShadow: 'none !important',
+                          WebkitBoxShadow: 'none !important',
+                          MozBoxShadow: 'none !important'
+                        }}
                       >
-                        <div className="bg-white overflow-hidden transition-all duration-300 group relative h-full">
-                          <div className="aspect-[3/4] overflow-hidden relative">
-                            <img 
-                              src={celeb.profileImage} 
+                        <div
+                          className="bg-white overflow-hidden transition-all duration-300 group relative h-full rounded-lg shadow-none"
+                          style={{
+                            boxShadow: 'none !important',
+                            border: 'none !important',
+                            outline: 'none !important',
+                            WebkitBoxShadow: 'none !important',
+                            MozBoxShadow: 'none !important',
+                            filter: 'none !important'
+                          }}
+                        >
+                          <div className="aspect-[4/5] overflow-hidden relative rounded-md">
+                            <img
+                              src={celeb.profileImage}
                               alt={celeb.name}
                               className="object-cover object-top w-full h-full group-hover:scale-105 transition-transform duration-500"
                               onError={handleImageError}
                             />
-                            
-                            {/* 셀럽 카테고리 뱃지 */}
-                            <div className="absolute top-2 left-2 z-10">
-                              <div className={`
-                                px-2 py-0.5 rounded-full text-xs font-medium backdrop-blur-sm shadow-sm
-                                ${isSolo 
-                                  ? 'bg-pink-500/80 text-white' 
-                                  : 'bg-purple-500/80 text-white'
-                                }
-                              `}>
-                                {isSolo ? 'Solo' : 'Group'}
-                              </div>
+
+                            {/* 순위 번호 - 뮤직 차트 스타일 */}
+                            <div className="absolute top-0 left-0 w-16 h-16 flex items-center justify-center">
+                              <span className="text-white font-bold text-5xl drop-shadow-lg" style={{textShadow: '0 2px 4px rgba(0,0,0,0.5)'}}>
+                                {index + 1}
+                              </span>
                             </div>
                           </div>
                           
                           <div className="p-3">
-                            <h3 className="font-bold text-gray-800 text-sm mb-1 line-clamp-1">
+                            <h3 className="font-bold text-gray-800 text-lg mb-1 line-clamp-1">
                               {celeb.name}
                             </h3>
-                            
+
                             {celeb.agency && (
-                              <div className="flex items-center text-xs text-gray-500 mb-2">
+                              <div className="flex items-center text-xs text-gray-500">
                                 <Globe size={10} className="mr-1" />
                                 <span className="truncate">{celeb.agency}</span>
-                              </div>
-                            )}
-                            
-                            {celeb.socialMediaFollowers && Object.keys(celeb.socialMediaFollowers).length > 0 && (
-                              <div className="flex items-center text-xs bg-pink-50 px-2 py-1 rounded-full w-full justify-center">
-                                <Heart size={10} className="text-[#ff3e8e] mr-1" />
-                                <span className="font-semibold text-gray-600">
-                                  {formatCompactNumber(
-                                    Object.values(celeb.socialMediaFollowers).reduce((sum, count) => sum + count, 0)
-                                  )}
-                                </span>
                               </div>
                             )}
                           </div>
@@ -544,7 +567,7 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [] }) 
         )}
         
         {/* 셀럽 뉴스 영역을 MoreNews 컴포넌트로 대체 */}
-        <MoreNews category={['celeb', 'variety']} initialNews={celebNews} />
+        <MoreNews category="celeb" initialNews={celebNews} />
         
         {/* 페이지 하단 여백 조정 */}
         <div className="mb-12"></div>
@@ -579,56 +602,27 @@ export async function getServerSideProps() {
     console.log('서버에서 셀럽 API 호출 시작');
     console.log('API URL:', `${server}/api/celeb?limit=50&active=true`);
     
-    // 셀럽 데이터와 셀럽 뉴스, 버라이어티 뉴스 데이터 병렬로 가져오기
-    const [celebResponse, celebNewsResponse, varietyNewsResponse] = await Promise.all([
+    // 셀럽 데이터와 셀럽+버라이어티 뉴스 데이터 병렬로 가져오기
+    const [celebResponse, celebNewsResponse] = await Promise.all([
       fetch(`${server}/api/celeb?limit=50&active=true`),
-      fetch(`${server}/api/news/celeb?limit=100`), // 최대 100개 뉴스를 가져오도록 수정
-      fetch(`${server}/api/news?category=variety&limit=100&sort=createdAt&order=desc`) // 버라이어티 뉴스 가져오기
+      fetch(`${server}/api/news/celeb?limit=200`) // celeb + variety 뉴스를 publishedAt 기준으로 정렬된 상태로 가져옴
     ]);
-    
+
     // 셀럽 데이터 처리
     const celebData = await celebResponse.json();
     console.log('셀럽 API 응답:', celebData.success ? '성공' : '실패', '데이터 개수:', celebData.data?.celebrities?.length || 0);
-    
-    // 셀럽 뉴스 데이터 처리
+
+    // 셀럽+버라이어티 뉴스 데이터 처리
     const celebNewsData = await celebNewsResponse.json();
     console.log('셀럽 뉴스 API 응답:', celebNewsData.success ? '성공' : '실패', '데이터 개수:', celebNewsData.data?.length || 0);
-    
-    // 버라이어티 뉴스 데이터 처리
-    const varietyNewsData = await varietyNewsResponse.json();
-    // /api/news는 data.news 형식이므로 그대로 유지
-    console.log('버라이어티 뉴스 API 응답:', varietyNewsData.success ? '성공' : '실패', '데이터 개수:', varietyNewsData.data?.news?.length || 0);
-    
-    // 셀럽 뉴스 이미지 처리
-    const processedCelebNews = celebNewsData.success && celebNewsData.data ? celebNewsData.data.map(news => {
+
+    // 뉴스 이미지 처리
+    const uniqueNews = celebNewsData.success && celebNewsData.data ? celebNewsData.data.map(news => {
       if (!news.coverImage) {
         news.coverImage = '/images/news/default-news.jpg';
       }
       return news;
     }) : [];
-    
-    // 버라이어티 뉴스 이미지 처리
-    const processedVarietyNews = varietyNewsData.success && varietyNewsData.data && varietyNewsData.data.news ? 
-      varietyNewsData.data.news.map(news => {
-        if (!news.coverImage) {
-          news.coverImage = '/images/news/default-news.jpg';
-        }
-        return news;
-      }) : [];
-    
-    // 두 카테고리의 뉴스 결합
-    const combinedNews = [...processedCelebNews, ...processedVarietyNews];
-    
-    // 중복 제거 및 날짜 기준 정렬
-    const uniqueNewsIds = new Set();
-    const uniqueNews = combinedNews
-      .filter(news => {
-        const id = news._id || news.id;
-        if (!id || uniqueNewsIds.has(id)) return false;
-        uniqueNewsIds.add(id);
-        return true;
-      })
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     
     // 데이터 성공적으로 가져왔는지 확인
     if (celebData.success && celebData.data && celebData.data.celebrities) {

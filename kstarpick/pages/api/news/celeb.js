@@ -83,11 +83,11 @@ export default async function handler(req, res) {
     // 전체 문서 수 조회
     const totalCount = await db.collection('news').countDocuments(query);
     
-    // 페이징 적용된 데이터 조회
+    // 페이징 적용된 데이터 조회 (발행일 우선, 없으면 생성일 기준 내림차순)
     const news = await db
       .collection('news')
       .find(query)
-      .sort({ createdAt: -1 })
+      .sort({ publishedAt: -1, createdAt: -1 })
       .skip(skip)
       .limit(limitNum)
       .toArray();

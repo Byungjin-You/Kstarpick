@@ -79,20 +79,13 @@
   "pages/index.js -> ../components/MoreNews": {
     "id": 34756,
     "files": [
-      "static/chunks/4756-19e2ec44f642d436.js"
+      "static/chunks/4756-e388a11f1289d07c.js"
     ]
   },
   "pages/index.js -> ../components/RecommendedNews": {
     "id": 10104,
     "files": [
-      "static/chunks/104.6425f66ee89ea4f2.js"
-    ]
-  },
-  "pages/news/[id].js -> react-quill/dist/quill.snow.css": {
-    "id": 86834,
-    "files": [
-      "static/css/8aee48eb52f4c731.css",
-      "static/chunks/6834.239a53bd64da4a13.js"
+      "static/chunks/104.66d3a5f3d8ea6efc.js"
     ]
   }
 }

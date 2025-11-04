@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import { Eye, ChevronRight, TrendingUp, Calendar, Star, Heart, Medal, Clock, Bookmark, Music, Tv, Film, Users } from 'lucide-react';
+import { Eye, ChevronRight, Calendar, Star, Heart, Medal, Clock, Bookmark, Music, Tv, Film, Users } from 'lucide-react';
 import MainLayout from '../components/MainLayout';
 import Seo from '../components/Seo';
 import { formatCompactNumber } from '../utils/formatHelpers';
@@ -50,13 +50,46 @@ export default function Ranking({ mostViewedNews = [], todayNews = [], weekNews 
   const [loading, setLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [activeTab, setActiveTab] = useState('today'); // 'today', 'week', 'month'
-  
+
+  // 스크롤 위치 복원 로직
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const isBackToRanking = sessionStorage.getItem('isBackToRanking');
+    const savedScrollPosition = sessionStorage.getItem('rankingScrollPosition');
+
+    if (isBackToRanking === 'true' && savedScrollPosition) {
+      const scrollPos = parseInt(savedScrollPosition, 10);
+
+      const restoreScroll = () => {
+        window.scrollTo(0, scrollPos);
+        document.documentElement.scrollTop = scrollPos;
+        document.body.scrollTop = scrollPos;
+      };
+
+      // 여러 시도로 동적 콘텐츠 로딩을 고려
+      setTimeout(restoreScroll, 50);
+      setTimeout(restoreScroll, 100);
+      setTimeout(restoreScroll, 200);
+      setTimeout(restoreScroll, 300);
+      setTimeout(restoreScroll, 500);
+
+      requestAnimationFrame(() => {
+        setTimeout(restoreScroll, 100);
+        setTimeout(restoreScroll, 300);
+      });
+
+      // 플래그 제거
+      sessionStorage.removeItem('isBackToRanking');
+    }
+  }, []);
+
   // 화면 크기 감지
   useEffect(() => {
     function handleResize() {
       setIsMobile(window.innerWidth < 768);
     }
-    
+
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -64,36 +97,23 @@ export default function Ranking({ mostViewedNews = [], todayNews = [], weekNews 
 
   // 모바일 터치 이벤트 핸들러
   const handleTabClick = (tab) => {
-    console.log('탭 클릭:', tab);
     setActiveTab(tab);
   };
 
   // 탭 변경 시 데이터 업데이트
   useEffect(() => {
-    console.log('탭 변경:', activeTab);
-    console.log('데이터 개수:', {
-      mostViewedNews: mostViewedNews.length,
-      todayNews: todayNews.length,
-      weekNews: weekNews.length,
-      monthNews: monthNews.length
-    });
-    
     switch (activeTab) {
       case 'today':
         setNewsItems(todayNews);
-        console.log('오늘 뉴스로 변경:', todayNews.length, '개');
         break;
       case 'week':
         setNewsItems(weekNews);
-        console.log('이번 주 뉴스로 변경:', weekNews.length, '개');
         break;
       case 'month':
         setNewsItems(monthNews);
-        console.log('이번 달 뉴스로 변경:', monthNews.length, '개');
         break;
       default:
         setNewsItems(todayNews);
-        console.log('기본값 오늘 뉴스로 변경:', todayNews.length, '개');
     }
   }, [activeTab, mostViewedNews, todayNews, weekNews, monthNews]);
   
@@ -152,26 +172,9 @@ export default function Ranking({ mostViewedNews = [], todayNews = [], weekNews 
       />
 
       <div className="bg-white min-h-screen">
-        <div className="container mx-auto px-4 py-12">
-          {/* 헤더 섹션 - 셀럽 페이지와 동일한 스타일 적용 */}
-          <div className="mb-8 relative">
-            <div className="absolute -top-10 -left-6 w-32 h-32 bg-gradient-to-br from-purple-200 to-pink-200 rounded-full blur-3xl opacity-60"></div>
-            <div className="absolute top-12 right-20 w-40 h-40 bg-gradient-to-br from-blue-200 to-indigo-200 rounded-full blur-3xl opacity-40"></div>
-            
-            <div className="relative z-10">
-              <div className="flex items-center mb-1">
-                <div className="h-1.5 w-16 bg-gradient-to-r from-[#8e44ad] to-[#9b59b6] rounded-full mr-3"></div>
-                <TrendingUp size={20} className="text-[#8e44ad] animate-pulse" />
-                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-[#8e44ad] via-[#9b59b6] to-[#d35400] text-transparent bg-clip-text ml-2">
-                  Top Trending
-                </h1>
-              </div>
-              <p className="text-gray-500 text-sm mt-2">Most viewed articles ranked by popularity</p>
-            </div>
-          </div>
-          
+        <div className="container mx-auto px-4 pb-12" style={{ paddingTop: '2rem' }}>
           {/* 일자별 필터 탭 */}
-          <div className="mb-8">
+          <div className="mb-12">
             <div className="flex flex-wrap gap-1 md:gap-4 justify-start">
               <div
                 role="button"
@@ -182,10 +185,16 @@ export default function Ranking({ mostViewedNews = [], todayNews = [], weekNews 
                 onMouseDown={() => handleTabClick('today')}
                 className={`relative px-2 py-1.5 md:px-4 md:py-3 rounded-full text-xs md:text-sm font-medium transition-all duration-300 cursor-pointer select-none touch-manipulation min-h-[36px] md:min-h-[48px] min-w-[70px] md:min-w-[100px] flex items-center justify-center ${
                   activeTab === 'today'
-                    ? 'bg-gradient-to-r from-[#8e44ad] via-[#9b59b6] to-[#e74c3c] text-white shadow-lg shadow-purple-500/30 border border-purple-300/50'
+                    ? 'text-white shadow-lg'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300'
                 }`}
-                style={{ 
+                style={activeTab === 'today' ? {
+                  background: '#233CFA',
+                  WebkitTapHighlightColor: 'transparent',
+                  WebkitUserSelect: 'none',
+                  userSelect: 'none',
+                  touchAction: 'manipulation'
+                } : {
                   WebkitTapHighlightColor: 'transparent',
                   WebkitUserSelect: 'none',
                   userSelect: 'none',
@@ -205,10 +214,16 @@ export default function Ranking({ mostViewedNews = [], todayNews = [], weekNews 
                 onMouseDown={() => handleTabClick('week')}
                 className={`relative px-2 py-1.5 md:px-4 md:py-3 rounded-full text-xs md:text-sm font-medium transition-all duration-300 cursor-pointer select-none touch-manipulation min-h-[36px] md:min-h-[48px] min-w-[70px] md:min-w-[100px] flex items-center justify-center ${
                   activeTab === 'week'
-                    ? 'bg-gradient-to-r from-[#8e44ad] via-[#9b59b6] to-[#e74c3c] text-white shadow-lg shadow-purple-500/30 border border-purple-300/50'
+                    ? 'text-white shadow-lg'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300'
                 }`}
-                style={{ 
+                style={activeTab === 'week' ? {
+                  background: '#233CFA',
+                  WebkitTapHighlightColor: 'transparent',
+                  WebkitUserSelect: 'none',
+                  userSelect: 'none',
+                  touchAction: 'manipulation'
+                } : {
                   WebkitTapHighlightColor: 'transparent',
                   WebkitUserSelect: 'none',
                   userSelect: 'none',
@@ -228,10 +243,16 @@ export default function Ranking({ mostViewedNews = [], todayNews = [], weekNews 
                 onMouseDown={() => handleTabClick('month')}
                 className={`relative px-2 py-1.5 md:px-4 md:py-3 rounded-full text-xs md:text-sm font-medium transition-all duration-300 cursor-pointer select-none touch-manipulation min-h-[36px] md:min-h-[48px] min-w-[70px] md:min-w-[100px] flex items-center justify-center ${
                   activeTab === 'month'
-                    ? 'bg-gradient-to-r from-[#8e44ad] via-[#9b59b6] to-[#e74c3c] text-white shadow-lg shadow-purple-500/30 border border-purple-300/50'
+                    ? 'text-white shadow-lg'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300'
                 }`}
-                style={{ 
+                style={activeTab === 'month' ? {
+                  background: '#233CFA',
+                  WebkitTapHighlightColor: 'transparent',
+                  WebkitUserSelect: 'none',
+                  userSelect: 'none',
+                  touchAction: 'manipulation'
+                } : {
                   WebkitTapHighlightColor: 'transparent',
                   WebkitUserSelect: 'none',
                   userSelect: 'none',
@@ -245,216 +266,124 @@ export default function Ranking({ mostViewedNews = [], todayNews = [], weekNews 
             </div>
           </div>
           
-          {/* 상위 6개 뉴스는 큰 카드로 표시 */}
+          {/* 상위 6개 뉴스는 큰 카드로 표시 - Featured News 스타일 */}
           {newsItems.length > 0 && (
-            <div className="mb-2">
-              {/* 모바일 및 데스크톱 공통 그리드 - 드라마 뉴스와 동일한 디자인 */}
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-6">
+            <div className="mb-16">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {newsItems.slice(0, 6).map((news, idx) => (
-                  <div 
+                  <Link
                     key={`top-${news._id}`}
-                    className="bg-white overflow-hidden hover:shadow-sm transition-all duration-300 transform hover:-translate-y-1 group relative"
+                    href={`/news/${news._id}`}
+                    passHref
                   >
-                    <Link 
-                      href={`/news/${news._id}`}
-                      className="absolute inset-0 z-10"
-                    >
-                      <span className="sr-only">View article</span>
-                    </Link>
-                    
-                    <div className="h-56 overflow-hidden relative rounded-xl">
-                      <img
-                        src={news.coverImage || news.thumbnailUrl || '/images/news/default-news.jpg'}
-                        alt={news.title}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        onError={handleImageError}
-                      />
-                      
-                      {/* 상단 장식 요소 */}
-                      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#8e44ad] via-[#9b59b6] to-[#d35400] opacity-80 group-hover:opacity-100 transition-opacity duration-300"></div>
-                      
-                      {/* 순위 배지 - 이미지 왼쪽 상단에 표시 */}
-                      <div className="absolute top-0 left-0 w-10 h-10 bg-gradient-to-r from-black/60 to-transparent flex items-center justify-center">
-                        <span className="text-white text-lg font-bold">{idx + 1}</span>
-                      </div>
-                      
-                      {/* 카테고리 태그 - 순위 옆에 표시 */}
-                      <div className="absolute top-3 left-12 z-20">
-                        <span className="px-2 py-1 text-white text-xs font-medium rounded-full backdrop-blur-sm shadow-md" 
-                              style={{ background: 'linear-gradient(to right, #9333ea, #ec4899)' }}>
-                          {news.category ? news.category.charAt(0).toUpperCase() + news.category.slice(1) : 'News'}
-                        </span>
-                      </div>
-                      
-                      {/* 조회수 배지 - 이미지 오른쪽 상단에 표시 */}
-                      <div className="absolute top-3 right-3 bg-black/30 backdrop-blur-sm px-2 py-1 rounded-full">
-                        <div className="text-white text-xs flex items-center">
-                          <Eye size={12} className="mr-1" />
-                          <span>{formatCompactNumber(news.viewCount || 0)}</span>
+                    <div className="block cursor-pointer">
+                      <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">
+                        <div className="h-64 overflow-hidden relative rounded-md">
+                          {/* 이미지 */}
+                          <img
+                            src={news.coverImage || news.thumbnailUrl || '/images/news/default-news.jpg'}
+                            alt={news.title}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            onError={handleImageError}
+                          />
+
+                          {/* 순위 - 왼쪽 상단 (뮤직 차트 스타일) */}
+                          <div className="absolute top-0 left-0 w-16 h-16 flex items-center justify-center">
+                            <span className="text-white font-bold text-5xl drop-shadow-lg" style={{textShadow: '0 2px 4px rgba(0,0,0,0.5)'}}>
+                              {idx + 1}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="p-4">
+                          <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#006fff] transition-colors">
+                            {news.title}
+                          </h3>
+
+                          <p className="text-gray-600 text-xs line-clamp-2 mb-3">
+                            {news.content && news.content.trim()
+                              ? news.content.replace(/<[^>]*>/g, '').slice(0, 120) + '...'
+                              : news.summary
+                                ? news.summary.slice(0, 120) + '...'
+                                : 'No content available'}
+                          </p>
+
+                          <div className="flex justify-between items-end">
+                            {/* 시간 배지 */}
+                            <div className="flex items-center text-gray-500 text-xs">
+                              <Clock size={12} className="mr-1 text-gray-500" />
+                              <span>{formatDate(news.createdAt)}</span>
+                            </div>
+
+                            {/* Read more 버튼 */}
+                            <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#233CFA' }}>
+                              Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" style={{ color: '#233CFA' }} />
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                    
-                    <div className="p-4">
-                      <h3 className="font-bold text-gray-800 text-lg mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#8e44ad] transition-colors">
-                        {news.title}
-                      </h3>
-                      
-                      <p className="text-gray-600 text-xs line-clamp-2 mb-3">
-                        {news.content 
-                          ? truncateText(stripHtml(news.content), 100)
-                          : news.summary}
-                      </p>
-                      
-                      <div className="flex justify-between items-end relative z-20">
-                        {/* 시간 배지 */}
-                        <div className="flex items-center text-gray-500 text-xs">
-                          <Calendar size={12} className="mr-1 text-[#9b59b6]" />
-                          <span>{formatDate(news.createdAt)}</span>
-                        </div>
-                        
-                        <span className="inline-flex items-center text-[#8e44ad] text-xs font-medium">
-                          <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" />
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>
           )}
           
-          {/* 7-30위 뉴스는 작은 카드로 표시 */}
+          {/* 7-30위 뉴스는 작은 카드로 표시 - Latest News 스타일 */}
           {newsItems.length > 6 && (
-            <div className="mt-2">
-              <div className="md:grid md:grid-cols-2 md:gap-4 hidden"></div>
-              <div className="md:hidden space-y-2">
-                {newsItems.slice(6).map((news, index) => (
-                  <Link 
-                    key={`list-${news._id}`}
-                    href={`/news/${news._id}`}
-                    passHref
-                  >
-                    <div className="block bg-white overflow-hidden py-3 cursor-pointer">
-                      <div className="flex gap-1">
-                        {/* 썸네일 */}
-                        <div className="w-40 h-32 flex-shrink-0 relative rounded-xl overflow-hidden">
-                          <img
-                            src={news.coverImage || news.thumbnailUrl || '/images/news/default-news.jpg'}
-                            alt={news.title}
-                            className="w-full h-full object-cover rounded-xl"
-                            onError={handleImageError}
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-                          
-                          {/* 순위 표시 (이미지 왼쪽 상단에 배치) */}
-                          <div className="absolute top-0 left-0 w-8 h-8 bg-gradient-to-r from-black/60 to-transparent flex items-center justify-center">
-                            <span className="text-white text-sm font-bold">{index + 7}</span>
-                          </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {newsItems.slice(6).map((news, index) => (
+                <Link
+                  key={`list-${news._id}`}
+                  href={`/news/${news._id}`}
+                  passHref
+                >
+                  <div className="block cursor-pointer">
+                    <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative flex gap-4">
+                      {/* 썸네일 */}
+                      <div className="w-32 md:w-40 h-32 flex-shrink-0 relative overflow-hidden rounded-md">
+                        <img
+                          src={news.coverImage || news.thumbnailUrl || '/images/news/default-news.jpg'}
+                          alt={news.title}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          onError={handleImageError}
+                        />
+
+                        {/* 순위 - 왼쪽 상단 (뮤직 차트 스타일) */}
+                        <div className="absolute top-0 left-0 w-12 h-12 flex items-center justify-center">
+                          <span className="text-white font-bold text-3xl drop-shadow-lg" style={{textShadow: '0 2px 4px rgba(0,0,0,0.5)'}}>
+                            {index + 7}
+                          </span>
                         </div>
-                        
-                        {/* 콘텐츠 */}
-                        <div className="flex-1 pt-0 pr-3 pb-0 pl-3 flex flex-col justify-between h-32">
-                          <div>
-                            <div className="flex items-center gap-2 items-start mb-2">
-                              <span className="px-2 py-0.5 text-xs font-medium rounded-full text-white"
-                                    style={{ background: 'linear-gradient(to right, #9333ea, #ec4899)' }}>
-                                {news.category ? news.category.charAt(0).toUpperCase() + news.category.slice(1) : 'News'}
-                              </span>
-                              <span className="text-pink-600 text-xs flex items-center">
-                                <Eye size={12} className="mr-1" />
-                                {formatCompactNumber(news.viewCount || 0)}
-                              </span>
-                            </div>
-                            <h3 className="text-sm font-semibold line-clamp-3 text-gray-800">
-                              {news.title}
-                            </h3>
-                          </div>
-                          <div className="flex items-end justify-between w-full mt-2">
-                            <div className="flex items-center text-gray-500 text-xs">
-                              <Calendar size={12} className="mr-1" />
-                              {formatDate(news.createdAt)}
-                            </div>
-                            <span className="inline-flex items-center text-[#8e44ad] text-xs font-medium">
-                              <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" />
-                            </span>
-                          </div>
+                      </div>
+
+                      {/* 콘텐츠 */}
+                      <div className="flex-1 pr-4 flex flex-col justify-between h-32">
+                        <div>
+                          <h3 className="font-bold text-gray-800 text-base md:text-lg line-clamp-3 group-hover:text-[#006fff] transition-colors">
+                            {news.title}
+                          </h3>
+                        </div>
+
+                        <div className="flex items-center text-gray-500 text-xs">
+                          <Clock size={12} className="mr-1 text-gray-500" />
+                          <span>{formatDate(news.createdAt)}</span>
                         </div>
                       </div>
                     </div>
-                  </Link>
-                ))}
-              </div>
-              
-              {/* 데스크톱 레이아웃 */}
-              <div className="hidden md:grid md:grid-cols-2 md:gap-4">
-                {newsItems.slice(6).map((news, index) => (
-                  <Link 
-                    key={`list-desktop-${news._id}`}
-                    href={`/news/${news._id}`}
-                    passHref
-                  >
-                    <div className="block bg-white overflow-hidden py-3 cursor-pointer">
-                      <div className="flex gap-1">
-                        {/* 썸네일 */}
-                        <div className="w-40 h-32 flex-shrink-0 relative rounded-xl overflow-hidden">
-                          <img
-                            src={news.coverImage || news.thumbnailUrl || '/images/news/default-news.jpg'}
-                            alt={news.title}
-                            className="w-full h-full object-cover rounded-xl"
-                            onError={handleImageError}
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-                          
-                          {/* 순위 표시 (이미지 왼쪽 상단에 배치) */}
-                          <div className="absolute top-0 left-0 w-8 h-8 bg-gradient-to-r from-black/60 to-transparent flex items-center justify-center">
-                            <span className="text-white text-sm font-bold">{index + 7}</span>
-                          </div>
-                        </div>
-                        
-                        {/* 콘텐츠 */}
-                        <div className="flex-1 pt-0 pr-3 pb-0 pl-3 flex flex-col justify-between h-32">
-                          <div>
-                            <div className="flex items-center gap-2 items-start mb-2">
-                              <span className="px-2 py-0.5 text-xs font-medium rounded-full text-white"
-                                    style={{ background: 'linear-gradient(to right, #9333ea, #ec4899)' }}>
-                                {news.category ? news.category.charAt(0).toUpperCase() + news.category.slice(1) : 'News'}
-                              </span>
-                              <span className="text-pink-600 text-xs flex items-center">
-                                <Eye size={12} className="mr-1" />
-                                {formatCompactNumber(news.viewCount || 0)}
-                              </span>
-                            </div>
-                            <h3 className="text-sm font-semibold line-clamp-3 text-gray-800">
-                              {news.title}
-                            </h3>
-                          </div>
-                          <div className="flex items-end justify-between w-full mt-2">
-                            <div className="flex items-center text-gray-500 text-xs">
-                              <Calendar size={12} className="mr-1" />
-                              {formatDate(news.createdAt)}
-                            </div>
-                            <span className="inline-flex items-center text-[#8e44ad] text-xs font-medium">
-                              <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" />
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
+                  </div>
+                </Link>
+              ))}
             </div>
           )}
           
           {/* 데이터가 없는 경우 */}
           {newsItems.length === 0 && !loading && (
-            <div className="text-center py-24 bg-white rounded-xl shadow-sm">
-              <div className="text-gray-400 mb-6">
-                <TrendingUp size={64} className="mx-auto opacity-40" />
+            <div className="flex items-center justify-center min-h-[60vh]">
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">No trending news found</h3>
+                <p className="text-sm text-gray-500 max-w-md mx-auto">Check back later for the most popular news articles.</p>
               </div>
-              <h3 className="text-2xl font-semibold text-gray-700 mb-2">No trending news found</h3>
-              <p className="text-gray-500 max-w-md mx-auto">Check back later for the most popular news articles.</p>
             </div>
           )}
           

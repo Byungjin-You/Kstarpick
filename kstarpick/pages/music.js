@@ -25,19 +25,52 @@ export default function Music({ musicNews = [], topSongs = [], newsPagination })
   const cardRefs = useRef({});
   const [showAll, setShowAll] = useState(false);
   const initialDisplayCount = 10;
-  
+
+  // 스크롤 위치 복원 로직
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const isBackToMusic = sessionStorage.getItem('isBackToMusic');
+    const savedScrollPosition = sessionStorage.getItem('musicScrollPosition');
+
+    if (isBackToMusic === 'true' && savedScrollPosition) {
+      const scrollPos = parseInt(savedScrollPosition, 10);
+
+      const restoreScroll = () => {
+        window.scrollTo(0, scrollPos);
+        document.documentElement.scrollTop = scrollPos;
+        document.body.scrollTop = scrollPos;
+      };
+
+      // 여러 시도로 동적 콘텐츠 로딩을 고려
+      setTimeout(restoreScroll, 50);
+      setTimeout(restoreScroll, 100);
+      setTimeout(restoreScroll, 200);
+      setTimeout(restoreScroll, 300);
+      setTimeout(restoreScroll, 500);
+
+      requestAnimationFrame(() => {
+        setTimeout(restoreScroll, 100);
+        setTimeout(restoreScroll, 300);
+      });
+
+      // 플래그 제거
+      sessionStorage.removeItem('isBackToMusic');
+    }
+  }, []);
+
   // 화면 크기 감지를 위한 useEffect
   useEffect(() => {
     function handleResize() {
       setIsMobile(window.innerWidth <= 768);
     }
-    
+
     // 초기 로드 시 모바일 체크
     if (typeof window !== 'undefined') {
       handleResize();
       window.addEventListener('resize', handleResize);
     }
-    
+
     return () => {
       if (typeof window !== 'undefined') {
         window.removeEventListener('resize', handleResize);
@@ -62,13 +95,11 @@ export default function Music({ musicNews = [], topSongs = [], newsPagination })
         
         // 이전 순위 처리 - 유효하지 않으면 현재 순위와 동일하게 설정
         const previousPosition = ensureNumber(song.previousPosition, position);
-        
+
         // 일일 조회수와 전체 조회수 처리
         const dailyViews = ensureNumber(song.dailyViews, 0);
         const totalViews = ensureNumber(song.totalViews, 0);
-        
-        console.log(`음악 처리 (${index}): ${song.title} - position: ${position}, prev: ${previousPosition}`);
-        
+
         return {
           ...song,
           position,
@@ -77,13 +108,11 @@ export default function Music({ musicNews = [], topSongs = [], newsPagination })
           totalViews
         };
       });
-      
+
       // 순위(position) 기준으로 정렬
       const sorted = processed.sort((a, b) => a.position - b.position);
       setProcessedSongs(sorted.slice(0, visibleSongs));
       setAllSongs(sorted);
-      
-      console.log('음악 차트 데이터 처리 완료:', sorted.length, '개 항목');
     } else {
       setProcessedSongs([]);
       setAllSongs([]);

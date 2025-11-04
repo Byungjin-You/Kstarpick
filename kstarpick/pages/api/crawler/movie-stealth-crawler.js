@@ -462,7 +462,12 @@ async function crawlMovieDetail(url) {
     // 감독(Director) 추출
     const directorItem = $('.show-detailsxss li.list-item:contains("Director:")');
     if (directorItem.length) {
-      const director = directorItem.find('a.text-primary').text().trim();
+      const directors = [];
+      directorItem.find('a.text-primary').each((_, link) => {
+        const name = $(link).text().trim();
+        if (name) directors.push(name);
+      });
+      const director = directors.join(', ');
       movieInfo.director = director || null;
       console.log(`[영화 스텔스 크롤러] 감독: ${director}`);
     }
@@ -1303,7 +1308,33 @@ async function crawlMovieDetail(url) {
       console.error('[영화 스텔스 크롤러] YouTube 영상 검색 중 오류 발생:', error);
       movieInfo.videos = [];
     }
-    
+
+    // Where to Watch 정보 추출
+    try {
+      console.log('[영화 스텔스 크롤러] Where to Watch 정보 추출 시작');
+      const streamingServices = await parseStreamingServices(html, url);
+      if (streamingServices && streamingServices.length > 0) {
+        console.log(`[영화 스텔스 크롤러] ${streamingServices.length}개의 스트리밍 서비스 발견`);
+        movieInfo.streamingServices = streamingServices;
+        movieInfo.whereToWatch = streamingServices.map(service => ({
+          name: service.name,
+          link: service.url,
+          imageUrl: service.logo,
+          type: service.type
+        }));
+        // credits에도 추가 (일관성을 위해)
+        movieInfo.credits.watchProviders = streamingServices;
+      } else {
+        console.log('[영화 스텔스 크롤러] 스트리밍 서비스를 찾지 못했습니다');
+        movieInfo.streamingServices = [];
+        movieInfo.whereToWatch = [];
+      }
+    } catch (error) {
+      console.error('[영화 스텔스 크롤러] Where to Watch 정보 추출 중 오류:', error);
+      movieInfo.streamingServices = [];
+      movieInfo.whereToWatch = [];
+    }
+
     console.log('[영화 스텔스 크롤러] 영화 정보 추출 완료');
     return movieInfo;
   } catch (error) {
@@ -1314,5 +1345,125 @@ async function crawlMovieDetail(url) {
       await browser.close();
       console.log('[영화 스텔스 크롤러] 브라우저 종료');
     }
+  }
+}
+
+/**
+ * MyDramalist의 "Where to Watch" 섹션에서 스트리밍 서비스 정보를 추출하는 함수
+ */
+async function parseStreamingServices(html, url) {
+  try {
+    console.log(`[영화 스텔스 크롤러] "Where to Watch" 섹션 파싱 시작, HTML 크기: ${html.length} 바이트`);
+
+    // HTML 파싱
+    const $ = cheerio.load(html);
+
+    // 스트리밍 서비스 정보를 저장할 배열
+    const streamingServices = [];
+
+    // "Where to Watch" 섹션 찾기
+    const whereToWatchSection = $('.box-body.wts');
+
+    if (!whereToWatchSection.length) {
+      console.log('[영화 스텔스 크롤러] "Where to Watch" 섹션을 찾을 수 없음');
+      return [];
+    }
+
+    // 각 스트리밍 서비스 항목 찾기
+    whereToWatchSection.find('.row .col-xs-12.col-lg-4.m-b-sm').each((_, element) => {
+      try {
+        const serviceContainer = $(element);
+
+        // 서비스 정보 추출
+        const serviceLink = serviceContainer.find('a[rel="external nofollow"]').first();
+        if (!serviceLink.length) return;
+
+        // 서비스 URL 추출
+        const rawRedirectUrl = serviceLink.attr('href') || '';
+        let serviceUrl = '';
+
+        // mydramalist의 리다이렉트 URL에서 실제 URL 추출
+        if (rawRedirectUrl.includes('/redirect?q=')) {
+          const urlMatch = rawRedirectUrl.match(/\/redirect\?q=([^&]+)/);
+          if (urlMatch && urlMatch[1]) {
+            serviceUrl = decodeURIComponent(urlMatch[1]);
+          }
+        } else {
+          serviceUrl = rawRedirectUrl;
+        }
+
+        // 서비스 이름 추출
+        const serviceName = serviceContainer.find('a.text-primary b').text().trim();
+
+        // 서비스 타입 추출 (Subscription, Free 등)
+        const serviceType = serviceContainer.find('.p-l div:nth-child(2)').text().trim();
+
+        // 서비스 로고 이미지 추출
+        const serviceLogoElement = serviceContainer.find('img.img-responsive');
+        let serviceLogo = serviceLogoElement.length ? serviceLogoElement.attr('src') : '';
+
+        // 특정 서비스는 고정 로고 URL 사용
+        if (serviceName.toLowerCase() === 'wavve') {
+          serviceLogo = 'https://i.mydramalist.com/pgAd8_3m.jpg';
+        } else if (serviceName.toLowerCase() === 'viki') {
+          serviceLogo = 'https://i.mydramalist.com/kEBdrm.jpg';
+        }
+
+        // 발견한 서비스 정보 처리
+        if (serviceName && serviceUrl) {
+          console.log(`[영화 스텔스 크롤러] 스트리밍 서비스 발견: ${serviceName}, URL: ${serviceUrl}, Logo: ${serviceLogo}`);
+
+          // 로고 URL 정규화
+          const normalizedLogo = serviceLogo?.startsWith('http') ?
+            serviceLogo :
+            `https://i.mydramalist.com${serviceLogo?.startsWith('/') ? '' : '/'}${serviceLogo}`;
+
+          // 스트리밍 서비스 정보 객체 생성
+          const serviceInfo = {
+            name: serviceName,
+            url: serviceUrl,
+            type: serviceType,
+            logo: normalizedLogo
+          };
+
+          // 특정 서비스에 대한 추가 정보 설정
+          switch (serviceName.toLowerCase()) {
+            case 'netflix':
+              serviceInfo.providerKey = 'netflix';
+              break;
+            case 'apple tv+':
+            case 'apple tv':
+              serviceInfo.providerKey = 'apple';
+              break;
+            case 'disney+':
+              serviceInfo.providerKey = 'disney';
+              break;
+            case 'viki':
+              serviceInfo.providerKey = 'viki';
+              serviceInfo.logo = 'https://i.mydramalist.com/kEBdrm.jpg';
+              break;
+            case 'wavve':
+              serviceInfo.providerKey = 'wavve';
+              serviceInfo.logo = 'https://i.mydramalist.com/pgAd8_3m.jpg';
+              break;
+            default:
+              // 기타 서비스는 소문자 이름을 키로 사용
+              serviceInfo.providerKey = serviceName.toLowerCase().replace(/\s+/g, '_');
+          }
+
+          // 배열에 추가
+          streamingServices.push(serviceInfo);
+        }
+      } catch (serviceError) {
+        console.error('[영화 스텔스 크롤러] 스트리밍 서비스 파싱 중 오류:', serviceError);
+      }
+    });
+
+    console.log(`[영화 스텔스 크롤러] "Where to Watch" 섹션 파싱 완료: ${streamingServices.length}개 서비스 발견`);
+    return streamingServices;
+
+  } catch (error) {
+    console.error('[영화 스텔스 크롤러] 스트리밍 서비스 파싱 중 오류:', error);
+    return [];
   }
 } 

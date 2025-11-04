@@ -26,32 +26,88 @@ export default async function handler(req, res) {
     // 데이터베이스 연결
     const { db } = await connectToDatabase();
     
-    // 데이터 가공 및 준비
+    // 데이터 가공 및 준비 - 필드 매핑 추가
     const dramaData = {
       ...data,
       updatedAt: new Date(),
     };
-    
-    // 필수 필드가 없는 경우 기본값 설정
-    if (!dramaData.slug) {
-      // slug 생성 - 제목 기반
-      const baseSlug = dramaData.title
-        .toLowerCase()
-        .replace(/[^a-z0-9ㄱ-ㅎㅏ-ㅣ가-힣]+/g, '-')
-        .replace(/^-|-$/g, '');
-      const timestamp = Date.now().toString().slice(-6);
-      dramaData.slug = `${baseSlug}-${timestamp}`;
+
+    // 필드 이름 매핑 (크롤러 필드명 -> UI 필드명)
+    // synopsis -> summary
+    if (dramaData.synopsis && !dramaData.summary) {
+      dramaData.summary = dramaData.synopsis;
     }
-    
-    // 드라마 검색 조건 구성 (고유 식별자 우선순위: slug > mdlUrl > title)
+
+    // posterImage -> coverImage
+    if (dramaData.posterImage && !dramaData.coverImage) {
+      dramaData.coverImage = dramaData.posterImage;
+    }
+
+    // nativeTitle -> originalTitle
+    if (dramaData.nativeTitle && !dramaData.originalTitle) {
+      dramaData.originalTitle = dramaData.nativeTitle;
+    }
+
+    // airsInfo -> releaseDate
+    if (dramaData.airsInfo && !dramaData.releaseDate) {
+      dramaData.releaseDate = dramaData.airsInfo;
+    }
+
+    // contentRating -> ageRating
+    if (dramaData.contentRating && !dramaData.ageRating) {
+      dramaData.ageRating = dramaData.contentRating;
+    }
+
+    // backgroundImage -> bannerImage
+    if (dramaData.backgroundImage && !dramaData.bannerImage) {
+      dramaData.bannerImage = dramaData.backgroundImage;
+    }
+
+    // whereToWatch/streamingServices -> watchProviders
+    if (!dramaData.watchProviders) {
+      if (dramaData.whereToWatch && dramaData.whereToWatch.length > 0) {
+        dramaData.watchProviders = dramaData.whereToWatch;
+      } else if (dramaData.streamingServices && dramaData.streamingServices.length > 0) {
+        // streamingServices를 watchProviders 형식으로 변환
+        dramaData.watchProviders = dramaData.streamingServices.map(service => ({
+          name: service.name,
+          link: service.url,
+          imageUrl: service.logo,
+          type: service.type
+        }));
+      }
+    }
+
+    // status 필드 생성 (airsInfo 기반)
+    if (!dramaData.status && dramaData.airsInfo) {
+      const airsInfo = dramaData.airsInfo.toLowerCase();
+      const currentDate = new Date();
+
+      if (airsInfo.includes('upcoming') || (dramaData.startDate && new Date(dramaData.startDate) > currentDate)) {
+        dramaData.status = 'Upcoming';
+      } else if (airsInfo.includes('airing') || airsInfo.includes('ongoing') ||
+                 (dramaData.startDate && new Date(dramaData.startDate) <= currentDate &&
+                  (!dramaData.endDate || new Date(dramaData.endDate) >= currentDate))) {
+        dramaData.status = 'Airing';
+      } else if (dramaData.endDate && new Date(dramaData.endDate) < currentDate) {
+        dramaData.status = 'Completed';
+      } else {
+        dramaData.status = 'Completed'; // 기본값
+      }
+
+      console.log(`[드라마 저장] 상태 자동 설정: ${dramaData.status} (airsInfo: ${dramaData.airsInfo})`);
+    }
+
+    // 드라마 검색 조건 구성 (고유 식별자 우선순위: mdlUrl > slug > title)
+    // slug를 생성하기 전에 먼저 기존 드라마를 검색
     let query = {};
-    
-    if (dramaData.slug && dramaData.slug !== 'mydramalist.com') {
-      // slug가 있고 유효한 값이면 slug로 검색 (가장 고유한 식별자)
-      query.slug = dramaData.slug;
-    } else if (dramaData.mdlUrl) {
-      // mdlUrl이 있으면 URL로 검색
+
+    if (dramaData.mdlUrl) {
+      // mdlUrl이 있으면 URL로 검색 (가장 신뢰할 수 있는 고유 식별자)
       query.mdlUrl = dramaData.mdlUrl;
+    } else if (dramaData.slug && dramaData.slug !== 'mydramalist.com') {
+      // slug가 있고 유효한 값이면 slug로 검색
+      query.slug = dramaData.slug;
     } else if (dramaData.title) {
       // 마지막 수단으로 제목으로 검색
       query.title = dramaData.title;
@@ -100,7 +156,18 @@ export default async function handler(req, res) {
       });
     } else {
       console.log(`[드라마 저장] 새 드라마 등록: ${dramaData.title}`);
-      
+
+      // slug가 없으면 생성 (새 드라마일 때만)
+      if (!dramaData.slug) {
+        const baseSlug = dramaData.title
+          .toLowerCase()
+          .replace(/[^a-z0-9ㄱ-ㅎㅏ-ㅣ가-힣]+/g, '-')
+          .replace(/^-|-$/g, '');
+        const timestamp = Date.now().toString().slice(-6);
+        dramaData.slug = `${baseSlug}-${timestamp}`;
+        console.log(`[드라마 저장] 생성된 slug: ${dramaData.slug}`);
+      }
+
       // 새 드라마 생성
       dramaData.createdAt = new Date();
       result = await db.collection('dramas').insertOne(dramaData);

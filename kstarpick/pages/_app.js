@@ -43,7 +43,7 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       window.history.scrollRestoration = 'manual';
     }
 
-    // 홈 페이지에서 스크롤 위치를 주기적으로 저장 (throttle 적용)
+    // 홈 페이지와 드라마 페이지에서 스크롤 위치를 주기적으로 저장 (throttle 적용)
     let lastSavedScroll = 0;
     let scrollSaveTimer = null;
 
@@ -52,13 +52,35 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
     };
 
-    const saveHomeScroll = () => {
-      if (router.pathname === '/') {
-        const currentScroll = getScrollPosition();
-        // 10px 이상 차이날 때만 저장 (불필요한 저장 방지)
-        if (Math.abs(currentScroll - lastSavedScroll) > 10) {
-          lastSavedScroll = currentScroll;
+    const savePageScroll = () => {
+      const currentScroll = getScrollPosition();
+      // 10px 이상 차이날 때만 저장 (불필요한 저장 방지)
+      if (Math.abs(currentScroll - lastSavedScroll) > 10) {
+        lastSavedScroll = currentScroll;
+
+        // 홈 페이지 스크롤 저장
+        if (router.pathname === '/') {
           sessionStorage.setItem('homeScrollPosition', currentScroll.toString());
+        }
+        // 드라마 페이지 스크롤 저장
+        else if (router.pathname === '/drama') {
+          sessionStorage.setItem('dramaScrollPosition', currentScroll.toString());
+        }
+        // TV & Film 페이지 스크롤 저장
+        else if (router.pathname === '/tvfilm') {
+          sessionStorage.setItem('tvfilmScrollPosition', currentScroll.toString());
+        }
+        // Music 페이지 스크롤 저장
+        else if (router.pathname === '/music') {
+          sessionStorage.setItem('musicScrollPosition', currentScroll.toString());
+        }
+        // Celeb 페이지 스크롤 저장
+        else if (router.pathname === '/celeb') {
+          sessionStorage.setItem('celebScrollPosition', currentScroll.toString());
+        }
+        // Ranking 페이지 스크롤 저장
+        else if (router.pathname === '/ranking') {
+          sessionStorage.setItem('rankingScrollPosition', currentScroll.toString());
         }
       }
     };
@@ -67,7 +89,7 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       // throttle: 100ms마다 저장
       if (scrollSaveTimer) return;
       scrollSaveTimer = setTimeout(() => {
-        saveHomeScroll();
+        savePageScroll();
         scrollSaveTimer = null;
       }, 100);
     };
@@ -107,6 +129,41 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       if (router.pathname === '/' && !isLogoClick && !hasScrollSaved) {
         sessionStorage.setItem('homeScrollPosition', currentScroll.toString());
         hasScrollSaved = true; // 저장 완료 플래그 설정
+      }
+
+      // 드라마 페이지에서 뉴스로 이동할 때 스크롤 위치 저장
+      if (router.pathname === '/drama' && url.startsWith('/news/') && !isLogoClick && !hasScrollSaved) {
+        sessionStorage.setItem('dramaScrollPosition', currentScroll.toString());
+        sessionStorage.setItem('isBackToDrama', 'true');
+        hasScrollSaved = true;
+      }
+
+      // TV & Film 페이지에서 뉴스로 이동할 때 스크롤 위치 저장
+      if (router.pathname === '/tvfilm' && url.startsWith('/news/') && !isLogoClick && !hasScrollSaved) {
+        sessionStorage.setItem('tvfilmScrollPosition', currentScroll.toString());
+        sessionStorage.setItem('isBackToTvfilm', 'true');
+        hasScrollSaved = true;
+      }
+
+      // Music 페이지에서 뉴스로 이동할 때 스크롤 위치 저장
+      if (router.pathname === '/music' && url.startsWith('/news/') && !isLogoClick && !hasScrollSaved) {
+        sessionStorage.setItem('musicScrollPosition', currentScroll.toString());
+        sessionStorage.setItem('isBackToMusic', 'true');
+        hasScrollSaved = true;
+      }
+
+      // Celeb 페이지에서 뉴스로 이동할 때 스크롤 위치 저장
+      if (router.pathname === '/celeb' && url.startsWith('/news/') && !isLogoClick && !hasScrollSaved) {
+        sessionStorage.setItem('celebScrollPosition', currentScroll.toString());
+        sessionStorage.setItem('isBackToCeleb', 'true');
+        hasScrollSaved = true;
+      }
+
+      // Ranking 페이지에서 뉴스로 이동할 때 스크롤 위치 저장
+      if (router.pathname === '/ranking' && url.startsWith('/news/') && !isLogoClick && !hasScrollSaved) {
+        sessionStorage.setItem('rankingScrollPosition', currentScroll.toString());
+        sessionStorage.setItem('isBackToRanking', 'true');
+        hasScrollSaved = true;
       }
 
       // 뉴스 페이지에서 다른 뉴스 페이지로 이동하는 경우 (뒤로가기 제외)

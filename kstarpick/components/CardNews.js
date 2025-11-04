@@ -221,13 +221,13 @@ const CardNews = React.memo(({ cards, featured }) => {
             >
               <div className="block cursor-pointer">
                 <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">
-                  <div className="h-64 overflow-hidden relative">
+                  <div className="h-64 overflow-hidden relative rounded-md">
                     {/* 이미지 */}
                     {card.coverImage ? (
                       <img
                         src={card.coverImage}
                         alt={card.title}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-md"
+                        className="w-full h-full object-cover transition-transform duration-500 "
                       onError={(e) => {
                         e.target.onerror = null;
                         e.target.src = "/images/placeholder.jpg";
@@ -274,34 +274,35 @@ const CardNews = React.memo(({ cards, featured }) => {
       </section>
 
       {/* Trending Categories */}
-      <section className="mb-16 md:mb-0 md:rounded-md md:p-8 latest-news-section -mx-4 md:mx-0 md:px-8" style={{ backgroundColor: '#1d1a27', padding: '1rem 0 1.5rem 0' }}>
-        {/* 제목 영역 */}
-        <div className="mb-8 px-4 md:px-0">
-          <div className="flex items-center">
-            {/* Conflict Icon */}
-            <div className="mr-4 flex-shrink-0">
-              <img
-                src="/images/icons8-conflict-50.png"
-                alt="Conflict Icon"
-                className="h-12 w-12 object-contain"
-              />
-            </div>
-            <div>
-              <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#008cff' }}>What's New</span>
-              <h2 className="text-2xl md:text-3xl font-bold text-white flex items-center">
-                <span className="inline-block">Latest News</span>
+      <section className="mb-16 md:mb-0 latest-news-section -mx-4 md:-mx-[50vw] md:ml-[calc(-50vw+50%)] md:mr-[calc(-50vw+50%)]" style={{ backgroundColor: '#1d1a27', padding: '1rem 0 1.5rem 0' }}>
+        <div className="container mx-auto px-4">
+          {/* 제목 영역 */}
+          <div className="mb-8">
+            <div className="flex items-center">
+              {/* Conflict Icon */}
+              <div className="mr-4 flex-shrink-0">
+                <img
+                  src="/images/icons8-conflict-50.png"
+                  alt="Conflict Icon"
+                  className="h-12 w-12 object-contain"
+                />
+              </div>
+              <div>
+                <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#008cff' }}>What's New</span>
+                <h2 className="text-2xl md:text-3xl font-bold text-white flex items-center">
+                  <span className="inline-block">Latest News</span>
 
-                {/* 스크롤 안내 추가 */}
-                <span className="ml-3 text-sm font-normal text-gray-400 hidden md:inline-block">
-                  (Scroll for more)
-                </span>
-              </h2>
+                  {/* 스크롤 안내 추가 */}
+                  <span className="ml-3 text-sm font-normal text-gray-400 hidden md:inline-block">
+                    (Scroll for more)
+                  </span>
+                </h2>
+              </div>
             </div>
           </div>
-        </div>
-        
-        {/* 스크롤 컨테이너 */}
-        <div className="relative md:px-0">
+
+          {/* 스크롤 컨테이너 */}
+          <div className="relative -mx-4">
           {/* 스크롤 버튼 - 데스크톱에서만 표시 */}
           <button 
             onClick={() => handleScroll('left')} 
@@ -351,12 +352,12 @@ const CardNews = React.memo(({ cards, featured }) => {
                 >
                   <div className="block cursor-pointer">
                     <div className="bg-transparent md:bg-white md:rounded-lg overflow-hidden transition-all duration-300 group relative h-full mx-0">
-                      <div className="h-64 md:h-64 overflow-hidden relative">
+                      <div className="h-64 md:h-64 overflow-hidden relative rounded-md">
                         {card.coverImage ? (
                           <img
                             src={card.coverImage}
                             alt={card.title}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-md"
+                            className="w-full h-full object-cover transition-transform duration-500 "
                           onError={(e) => {
                             e.target.onerror = null;
                             e.target.src = "/images/placeholder.jpg";
@@ -394,8 +395,8 @@ const CardNews = React.memo(({ cards, featured }) => {
             ))}
           </div>
           
-          <button 
-            onClick={() => handleScroll('right')} 
+          <button
+            onClick={() => handleScroll('right')}
             className={`absolute -right-4 top-1/2 transform -translate-y-1/2 z-10 p-3 bg-white shadow-md rounded-full text-pink-600 border border-pink-100 hidden md:block
               ${scrollState.canScrollRight ? 'opacity-80 hover:opacity-100' : 'opacity-0 cursor-default pointer-events-none'} transition-opacity`}
             disabled={!scrollState.canScrollRight}
@@ -403,6 +404,7 @@ const CardNews = React.memo(({ cards, featured }) => {
           >
             <ArrowRight size={20} />
           </button>
+          </div>
         </div>
       </section>
     </div>
