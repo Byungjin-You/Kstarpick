@@ -166,29 +166,40 @@ function Home({ initialData }) {
     const savedScrollPosition = sessionStorage.getItem('homeScrollPosition');
 
     if (isBackToHome === 'true' && savedScrollPosition) {
-      const scrollPos = parseInt(savedScrollPosition, 10);
+      const targetScrollPos = parseInt(savedScrollPosition, 10);
+      let restoreAttempts = 0;
+      const maxAttempts = 15;
+      const tolerance = 10; // 10px 오차 허용
 
       const restoreScroll = () => {
-        window.scrollTo(0, scrollPos);
-        document.documentElement.scrollTop = scrollPos;
-        document.body.scrollTop = scrollPos;
+        const currentScroll = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+
+        // 이미 목표 위치에 충분히 가까우면 더 이상 조정하지 않음
+        if (Math.abs(currentScroll - targetScrollPos) < tolerance) {
+          return;
+        }
+
+        // 최대 시도 횟수 초과 시 중단
+        if (restoreAttempts >= maxAttempts) {
+          return;
+        }
+
+        restoreAttempts++;
+        window.scrollTo(0, targetScrollPos);
+        document.documentElement.scrollTop = targetScrollPos;
+        document.body.scrollTop = targetScrollPos;
       };
 
-      // 여러 시도로 동적 콘텐츠 로딩을 고려 (더 긴 지연 시간 추가)
-      setTimeout(restoreScroll, 50);
-      setTimeout(restoreScroll, 100);
-      setTimeout(restoreScroll, 200);
-      setTimeout(restoreScroll, 300);
-      setTimeout(restoreScroll, 500);
-      setTimeout(restoreScroll, 800);  // Watch News 로딩을 위한 추가 시간
-      setTimeout(restoreScroll, 1000); // 긴 콘텐츠 로딩을 위한 추가 시간
-      setTimeout(restoreScroll, 1500); // 이미지 로딩을 위한 최종 시간
+      // 여러 시도로 동적 콘텐츠 로딩을 고려
+      const timeouts = [50, 100, 200, 300, 500, 800, 1000, 1500];
+      timeouts.forEach(delay => {
+        setTimeout(restoreScroll, delay);
+      });
 
       requestAnimationFrame(() => {
-        setTimeout(restoreScroll, 100);
-        setTimeout(restoreScroll, 300);
-        setTimeout(restoreScroll, 600);
-        setTimeout(restoreScroll, 1000);
+        [100, 300, 600, 1000].forEach(delay => {
+          setTimeout(restoreScroll, delay);
+        });
       });
 
       // 이미지 로딩 완료 후 최종 스크롤 복원

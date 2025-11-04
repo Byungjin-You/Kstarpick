@@ -214,6 +214,7 @@ export default async function handler(req, res) {
           
           const newsResults = await newsCollection
             .find(titleQuery)
+            .sort({ publishedAt: -1, createdAt: -1 })
             .limit(parseInt(limit))
             .toArray();
             
@@ -277,6 +278,7 @@ export default async function handler(req, res) {
         
         const newsMatches = await newsCollection
           .find(titleQuery)
+          .sort({ publishedAt: -1, createdAt: -1 })
           .limit(parseInt(limit))
           .toArray();
           
