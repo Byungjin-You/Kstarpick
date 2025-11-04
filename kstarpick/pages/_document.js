@@ -38,13 +38,13 @@ export default function Document() {
 
         
         {/* Favicon and app icons */}
-        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-        <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-        <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png" />
-        <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png" />
+        <link rel="icon" type="image/png" href="/images/icons8-popular-3d-fluency-32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/images/icons8-popular-3d-fluency-16.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/images/icons8-popular-3d-fluency-32.png" />
+        <link rel="icon" type="image/png" sizes="48x48" href="/images/icons8-popular-3d-fluency-32.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/images/icons8-popular-3d-fluency-96.png" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/images/icons8-popular-3d-fluency-96.png" />
+        <link rel="icon" type="image/png" sizes="512x512" href="/images/icons8-popular-3d-fluency-96.png" />
         <link rel="manifest" href="/site.webmanifest" />
         
         {/* 무한 새로고침 방지: logoClicked 플래그 강제 제거 */}
@@ -56,7 +56,6 @@ export default function Document() {
                 try {
                   const logoClicked = sessionStorage.getItem('logoClicked');
                   if (logoClicked) {
-                    console.log('[_document.js CLEANUP] logoClicked 플래그 발견 및 즉시 제거:', logoClicked);
                     sessionStorage.removeItem('logoClicked');
                   }
                 } catch(e) {
@@ -78,11 +77,6 @@ export default function Document() {
                        !window.location.pathname.endsWith('/news');
               }
               
-              console.log('[Global Script] 페이지 확인:', {
-                path: window.location.pathname,
-                isNewsDetail: isNewsDetailPage()
-              });
-              
               // 전역 상태 초기화
               window.embedScriptStatus = {
                 instagram: { loaded: false, loading: false, error: false },
@@ -98,13 +92,11 @@ export default function Document() {
                   return; 
                 }
                 
-                console.log('[Global] Instagram 스크립트 로드 시작');
                 window.embedScriptStatus.instagram.loading = true;
                 const script = document.createElement('script');
                 script.async = true;
                 script.src = 'https://www.instagram.com/embed.js';
                 script.onload = function() {
-                  console.log('[Global] Instagram 스크립트 로드 완료');
                   window.embedScriptStatus.instagram.loaded = true;
                   window.embedScriptStatus.instagram.loading = false;
                   window.dispatchEvent(new CustomEvent('instagramScriptLoaded'));
@@ -125,14 +117,12 @@ export default function Document() {
                   return; 
                 }
                 
-                console.log('[Global] Twitter 스크립트 로드 시작');
                 window.embedScriptStatus.twitter.loading = true;
                 const script = document.createElement('script');
                 script.async = true;
                 script.src = 'https://platform.twitter.com/widgets.js';
                 script.charset = 'utf-8';
                 script.onload = function() {
-                  console.log('[Global] Twitter 스크립트 로드 완료');
                   window.embedScriptStatus.twitter.loaded = true;
                   window.embedScriptStatus.twitter.loading = false;
                   window.dispatchEvent(new CustomEvent('twitterScriptLoaded'));
@@ -153,13 +143,11 @@ export default function Document() {
                   return; 
                 }
                 
-                console.log('[Global] Riddle 스크립트 로드 시작');
                 window.embedScriptStatus.riddle.loading = true;
                 const script = document.createElement('script');
                 script.async = true;
                 script.src = 'https://www.riddle.com/embed/build-embedjs/embedV2.js';
                 script.onload = function() {
-                  console.log('[Global] Riddle 스크립트 로드 완료');
                   window.embedScriptStatus.riddle.loaded = true;
                   window.embedScriptStatus.riddle.loading = false;
                   window.dispatchEvent(new CustomEvent('riddleScriptLoaded'));
@@ -174,14 +162,10 @@ export default function Document() {
               
               // 뉴스 상세페이지에서만 스크립트 즉시 로드
               if (isNewsDetailPage()) {
-                console.log('[Global Script] 뉴스 상세페이지 - 임베드 스크립트 즉시 로드');
-
                 // 즉시 스크립트 로드 (대기 없음)
                 window.loadInstagramScript();
                 window.loadTwitterScript();
                 window.loadRiddleScript();
-              } else {
-                console.log('[Global Script] 뉴스 페이지가 아님 - 임베드 스크립트 로드 생략');
               }
             `
           }}

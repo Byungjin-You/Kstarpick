@@ -58,6 +58,15 @@ const SearchResults = ({ results, viewMode, type, searchQuery }) => {
   };
 
 
+  // Save scroll position before navigation
+  const handleLinkClick = () => {
+    if (typeof window !== 'undefined') {
+      const scrollPosition = document.body.scrollTop || window.pageYOffset || document.documentElement.scrollTop;
+      sessionStorage.setItem('searchScrollPosition', scrollPosition.toString());
+      sessionStorage.setItem('isBackToSearch', 'true');
+    }
+  };
+
   // 그리드 뷰 아이템 렌더링 - CardNews와 완전히 동일한 디자인
   const renderGridItem = (item) => {
     const { icon, path, isCastMatch } = getItemTypeInfo(item, type);
@@ -91,7 +100,7 @@ const SearchResults = ({ results, viewMode, type, searchQuery }) => {
     }
 
     return (
-      <Link href={path} key={item._id}>
+      <Link href={path} key={item._id} onClick={handleLinkClick}>
         <div className="block cursor-pointer">
           <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">
             <div className="h-64 overflow-hidden relative rounded-md">
@@ -195,7 +204,7 @@ const SearchResults = ({ results, viewMode, type, searchQuery }) => {
     }
     
     return (
-      <Link href={path} key={item._id}>
+      <Link href={path} key={item._id} onClick={handleLinkClick}>
         <div className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
           <div className="flex flex-col md:flex-row">
             <div className="md:w-1/4 relative">

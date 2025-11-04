@@ -94,15 +94,59 @@ export default function CelebrityDetailPage({ celebrity = null }) {
   const [relatedNews, setRelatedNews] = useState([]);
   const [isLoadingNews, setIsLoadingNews] = useState(true);
 
+  // 뱃지 설명 모달 상태
+  const [showBadgeInfoModal, setShowBadgeInfoModal] = useState(false);
+  const [showTodayInfoModal, setShowTodayInfoModal] = useState(false);
+
   // 스크롤 이벤트 리스너 추가
   useEffect(() => {
     const handleScroll = () => {
       setScrollY(window.scrollY);
     };
-    
+
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // 스크롤 위치 복원 로직 - celeb 페이지에서 뒤로가기 시
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const isBackToCeleb = sessionStorage.getItem('isBackToCeleb');
+    const savedScrollPosition = sessionStorage.getItem('celebDetailScrollPosition');
+
+    if (isBackToCeleb === 'true' && savedScrollPosition) {
+      const scrollPos = parseInt(savedScrollPosition, 10);
+
+      const restoreScroll = () => {
+        // body에 직접 스크롤 설정
+        document.body.scrollTop = scrollPos;
+        document.documentElement.scrollTop = scrollPos;
+        window.scrollTo(0, scrollPos);
+      };
+
+      // 여러 시도로 동적 콘텐츠 로딩을 고려
+      setTimeout(restoreScroll, 0);
+      setTimeout(restoreScroll, 50);
+      setTimeout(restoreScroll, 100);
+      setTimeout(restoreScroll, 200);
+      setTimeout(restoreScroll, 300);
+      setTimeout(restoreScroll, 500);
+      setTimeout(restoreScroll, 800);
+
+      requestAnimationFrame(() => {
+        setTimeout(restoreScroll, 100);
+        setTimeout(restoreScroll, 300);
+        setTimeout(restoreScroll, 500);
+      });
+
+      // 플래그 제거
+      setTimeout(() => {
+        sessionStorage.removeItem('isBackToCeleb');
+        sessionStorage.removeItem('celebDetailScrollPosition');
+      }, 1000);
+    }
+  }, [router.asPath]);
   
   // 이미지 에러 핸들러
   const handleImageError = (e) => {
@@ -409,9 +453,8 @@ export default function CelebrityDetailPage({ celebrity = null }) {
         
         /* 업그레이드된 뱃지 스타일 */
         .hexagon-badge {
-          clip-path: polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%);
-          width: 100px;
-          height: 110px;
+          width: 130px;
+          height: 140px;
           position: relative;
           transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
           display: flex;
@@ -421,6 +464,7 @@ export default function CelebrityDetailPage({ celebrity = null }) {
           overflow: hidden;
           z-index: 1;
           filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.2));
+          border-radius: 16px;
         }
         
         /* 뱃지 테두리 효과 */
@@ -428,19 +472,19 @@ export default function CelebrityDetailPage({ celebrity = null }) {
           content: '';
           position: absolute;
           inset: 0;
-          clip-path: polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%);
+          border-radius: 16px;
           background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
           opacity: 0.3;
           z-index: 0;
         }
-        
+
         /* 뱃지 텍스처 효과 */
         .hexagon-badge::before {
           content: '';
           position: absolute;
           inset: 0;
-          clip-path: polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%);
-          background-image: 
+          border-radius: 16px;
+          background-image:
             linear-gradient(45deg, rgba(255, 255, 255, 0) 45%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0) 55%);
           background-size: 250px;
           animation: shine 3s infinite linear;
@@ -518,7 +562,7 @@ export default function CelebrityDetailPage({ celebrity = null }) {
         
         /* 조회수 텍스트 스타일 */
         .view-count {
-          font-size: 32px;
+          font-size: 38px;
           font-weight: 800;
           font-family: 'Montserrat', sans-serif;
           text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
@@ -527,7 +571,7 @@ export default function CelebrityDetailPage({ celebrity = null }) {
           margin-top: -5px;
           transform: scale(1, 0.95);
         }
-        
+
         /* MILLION VIEWS 텍스트 스타일 */
         .million-text {
           font-size: 9px;
@@ -536,21 +580,18 @@ export default function CelebrityDetailPage({ celebrity = null }) {
           letter-spacing: 0.5px;
           text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
           white-space: nowrap;
-          transform: rotate(-30deg);
-          position: absolute;
-          bottom: 18px;
-          right: 5px;
-          color: rgba(255, 255, 255, 0.9);
+          margin-top: 2px;
+          color: rgba(255, 255, 255, 0.85);
         }
-        
+
         /* 플레이 아이콘 스타일 */
         .play-icon {
           position: absolute;
-          top: 14px;
-          left: 14px;
+          top: 18px;
+          left: 24px;
           color: rgba(255, 255, 255, 0.9);
           text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
-          transform: scale(1.1);
+          transform: scale(1.2);
         }
         
         /* 호버 효과 */
@@ -576,7 +617,7 @@ export default function CelebrityDetailPage({ celebrity = null }) {
           min-width: 28px;
           height: 28px;
           border-radius: 14px;
-          background: linear-gradient(to bottom right, #ff3e8e, #ff6a8e);
+          background: #1d1a27;
           color: white;
           font-weight: 700;
           font-size: 14px;
@@ -639,7 +680,7 @@ export default function CelebrityDetailPage({ celebrity = null }) {
         </div>
         
         {/* 메인 콘텐츠 */}
-        <div className="relative z-10 pt-8 px-4 min-h-screen flex flex-col justify-center">
+        <div className="relative z-10 -mt-16 px-4 min-h-screen flex flex-col justify-center">
           {/* 뒤로가기 버튼 */}
           <div className="max-w-7xl mx-auto w-full">
             <Link href="/celeb" className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/20 text-white backdrop-blur-md hover:bg-white/30 transition-all">
@@ -649,7 +690,7 @@ export default function CelebrityDetailPage({ celebrity = null }) {
           </div>
           
           {/* 프로필 헤더 */}
-          <div className="max-w-7xl mx-auto mt-16 md:mt-20 mb-8 w-full">
+          <div className="max-w-7xl mx-auto mt-8 md:mt-12 mb-8 w-full">
             <div className="flex flex-col md:flex-row gap-8 items-center md:items-end text-white">
               {/* 프로필 이미지 */}
               <div className="relative">
@@ -661,11 +702,6 @@ export default function CelebrityDetailPage({ celebrity = null }) {
                     onError={handleImageError}
                   />
                 </div>
-                
-                {/* 카테고리 배지 */}
-                <div className="absolute -top-2 -right-2 w-10 h-10 rounded-full bg-gradient-to-br from-[#ff3e8e] to-[#ff7461] flex items-center justify-center shadow-lg">
-                  {categoryIcon}
-                </div>
               </div>
               
               {/* 이름 및 기본 정보 */}
@@ -674,25 +710,20 @@ export default function CelebrityDetailPage({ celebrity = null }) {
                   <h1 className="text-4xl md:text-6xl font-black tracking-tight text-stroke animate-fadeIn">
                     {celebrity.name}
                   </h1>
-                  {celebrity.koreanName && (
-                    <p className="text-xl md:text-2xl font-medium text-white/90">
-                      {celebrity.koreanName}
-                    </p>
-                  )}
                 </div>
                 
                 {/* 기본 정보 */}
                 <div className="mt-4 flex flex-wrap justify-center md:justify-start gap-6 text-white/90">
                   {celebrity.agency && (
                     <div className="flex items-center gap-2">
-                      <Globe size={18} className="text-pink-200" />
+                      <Globe size={18} />
                       <span>{celebrity.agency}</span>
                     </div>
                   )}
-                  
+
                   {celebrity.debutDate && (
                     <div className="flex items-center gap-2">
-                      <Calendar size={18} className="text-pink-200" />
+                      <Calendar size={18} />
                       <span>{formatDate(celebrity.debutDate)}</span>
                     </div>
                   )}
@@ -720,11 +751,8 @@ export default function CelebrityDetailPage({ celebrity = null }) {
         <div className="max-w-7xl mx-auto px-4">
           {/* 프로필 섹션 - 데이터 그리드 */}
           <section className="mb-24">
-            <div className="flex items-center mb-6 section-header">
-              <h2 className="text-3xl font-bold text-gray-800 section-title flex items-center">
-                <span className="icon-wrapper">
-                  <Users size={24} className="text-[#ff3e8e]" />
-                </span>
+            <div className="flex items-center mb-6">
+              <h2 className="text-3xl font-bold text-black">
                 Profile Information
               </h2>
             </div>
@@ -736,32 +764,32 @@ export default function CelebrityDetailPage({ celebrity = null }) {
                   {/* 정보 아이템들 */}
                   {celebrity.agency && (
                     <div className="flex items-start gap-4 p-5 rounded-xl hover:bg-gray-50 transition-colors border border-gray-100">
-                      <div className="w-12 h-12 rounded-full bg-pink-50 flex items-center justify-center text-[#ff3e8e]">
-                        <Globe size={24} />
+                      <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
+                        <img src="/images/icons8-globe-94.png" alt="Agency" className="w-8 h-8" />
                       </div>
                       <div>
                         <p className="text-sm text-gray-500">Agency</p>
-                        <p className="font-medium text-gray-800 text-lg">{celebrity.agency}</p>
+                        <p className="font-bold text-gray-800 text-lg">{celebrity.agency}</p>
                       </div>
                     </div>
                   )}
-                  
+
                   {celebrity.debutDate && (
                     <div className="flex items-start gap-4 p-5 rounded-xl hover:bg-gray-50 transition-colors border border-gray-100">
-                      <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
-                        <Calendar size={24} />
+                      <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
+                        <img src="/images/icons8-calendar-94.png" alt="Debut Date" className="w-8 h-8" />
                       </div>
                       <div>
                         <p className="text-sm text-gray-500">Debut Date</p>
-                        <p className="font-medium text-gray-800 text-lg">{formatDate(celebrity.debutDate)}</p>
+                        <p className="font-bold text-gray-800 text-lg">{formatDate(celebrity.debutDate)}</p>
                       </div>
                     </div>
                   )}
-                  
+
                   {celebrity.group && (
                     <div className="flex items-start gap-4 p-5 rounded-xl hover:bg-gray-50 transition-colors border border-gray-100">
-                      <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-500">
-                        <Users size={24} />
+                      <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
+                        <Users size={32} className="text-blue-500" />
                       </div>
                       <div>
                         <p className="text-sm text-gray-500">Group</p>
@@ -769,23 +797,23 @@ export default function CelebrityDetailPage({ celebrity = null }) {
                       </div>
                     </div>
                   )}
-                  
+
                   {celebrity.role && (
                     <div className="flex items-start gap-4 p-5 rounded-xl hover:bg-gray-50 transition-colors border border-gray-100">
-                      <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center text-orange-500">
-                        <Mic size={24} />
+                      <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
+                        <img src="/images/icons8-profile-94.png" alt="Role" className="w-8 h-8" />
                       </div>
                       <div>
                         <p className="text-sm text-gray-500">Role</p>
-                        <p className="font-medium text-gray-800 text-lg">{celebrity.role}</p>
+                        <p className="font-bold text-gray-800 text-lg">{celebrity.role}</p>
                       </div>
                     </div>
                   )}
-                  
+
                   {celebrity.followers > 0 && (
                     <div className="flex items-start gap-4 p-5 rounded-xl hover:bg-gray-50 transition-colors border border-gray-100">
-                      <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center text-green-500">
-                        <Users size={24} />
+                      <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
+                        <Users size={32} className="text-blue-500" />
                       </div>
                       <div>
                         <p className="text-sm text-gray-500">Followers</p>
@@ -813,25 +841,62 @@ export default function CelebrityDetailPage({ celebrity = null }) {
           
           {/* 뮤직비디오 뱃지 섹션 */}
           {hasMusicVideos && (
-            <section className="mb-24">
-              <div className="flex items-center mb-6 section-header">
-                <h2 className="text-3xl font-bold text-gray-800 section-title flex items-center">
-                  <span className="icon-wrapper">
-                    <Award size={24} className="text-[#ff3e8e]" />
-                  </span>
-                  MUSIC VIDEO BADGES
+            <section className="mb-24 -mt-8 md:mt-12">
+              <div className="flex items-center gap-2 mb-6">
+                <h2 className="text-3xl font-bold text-black">
+                  Badges
                 </h2>
+                <button
+                  onClick={() => setShowBadgeInfoModal(true)}
+                  className="text-gray-500 hover:text-gray-700 text-lg cursor-pointer transition-colors"
+                  title="More information"
+                >
+                  ⓘ
+                </button>
               </div>
-              <p className="text-gray-500 mb-10 flex items-center gap-2">
-                <span className="w-4 h-4 rounded-full flex items-center justify-center bg-gray-200 text-gray-500 text-xs">ⓘ</span>
-                <span>Check out badges based on music video view counts</span>
-              </p>
+
+              {/* 모달 */}
+              {showBadgeInfoModal && (
+                <div
+                  className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+                  onClick={() => setShowBadgeInfoModal(false)}
+                >
+                  <div
+                    className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl transform transition-all"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <h3 className="text-xl font-bold text-gray-800">Music Video Badges</h3>
+                      <button
+                        onClick={() => setShowBadgeInfoModal(false)}
+                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    </div>
+                    <p className="text-gray-600 leading-relaxed">
+                      Check out badges based on music video view counts
+                    </p>
+                    <div className="mt-6 flex justify-end">
+                      <button
+                        onClick={() => setShowBadgeInfoModal(false)}
+                        className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors"
+                      >
+                        Got it
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               <div className="relative px-4 py-12 max-w-6xl mx-auto">
                 {/* 배경 타이틀 텍스트 제거 */}
                 
                 {/* 뱃지 그리드 */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8 relative z-10">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-12 relative z-10">
                   {(() => {
                     // 뮤직비디오를 조회수 기준으로 그룹화
                     const badges = [
@@ -972,67 +1037,84 @@ export default function CelebrityDetailPage({ celebrity = null }) {
                       });
                   })()}
                 </div>
-                
-                {/* 설명 텍스트 */}
-                <div className="text-center mt-10 text-gray-500 text-sm">
-                  <p>The numbers indicate the count of music videos that reached the respective view count</p>
-                </div>
               </div>
             </section>
           )}
           
           {/* SNS 팔로워 통계 섹션 */}
-          <section className="mb-24">
-            <div className="flex items-center mb-6 section-header">
-              <h2 className="text-3xl font-bold text-gray-800 section-title flex items-center">
-                <span className="icon-wrapper">
-                  <TrendingUp size={24} className="text-[#ff3e8e]" />
-                </span>
-                TODAY
+          <section className="mb-24 -mt-8 md:mt-12">
+            <div className="flex items-center gap-2 mb-6">
+              <h2 className="text-3xl font-bold text-black">
+                Today
               </h2>
+              <button
+                onClick={() => setShowTodayInfoModal(true)}
+                className="text-gray-500 hover:text-gray-700 text-lg cursor-pointer transition-colors"
+                title="More information"
+              >
+                ⓘ
+              </button>
             </div>
-            <div className="flex flex-col md:flex-row items-start md:items-center gap-2 mb-10">
-              <p className="text-gray-500 flex items-center gap-2">
-                <span className="w-4 h-4 rounded-full flex items-center justify-center bg-gray-200 text-gray-500 text-xs">ⓘ</span>
-                <span>Current platform subscribers and rankings compared to the previous day ({new Date().toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')})</span>
-              </p>
-              <div className="inline-flex items-center gap-1 text-sm text-gray-500 px-2 py-1 bg-gray-50 rounded-full">
-                <ExternalLink size={14} />
-                <span>Click each card to visit official social media</span>
+
+            {/* 모달 */}
+            {showTodayInfoModal && (
+              <div
+                className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+                onClick={() => setShowTodayInfoModal(false)}
+              >
+                <div
+                  className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl transform transition-all"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <h3 className="text-xl font-bold text-gray-800">TODAY</h3>
+                    <button
+                      onClick={() => setShowTodayInfoModal(false)}
+                      className="text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
+                  <p className="text-gray-600 leading-relaxed">
+                    Current platform subscribers and rankings compared to the previous day ({new Date().toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')})
+                  </p>
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      onClick={() => setShowTodayInfoModal(false)}
+                      className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors"
+                    >
+                      Got it
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-            
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* YouTube */}
               {celebrity.socialMediaFollowers?.youtube > 0 && (
-                <a 
+                <a
                   href={celebrity.socialMedia?.youtube || "#"}
-                  target="_blank" 
+                  target="_blank"
                   rel="noopener noreferrer"
-                  className="group overflow-hidden rounded-xl border border-gray-100 hover:border-transparent hover:shadow-xl transition-all duration-300 relative"
+                  className="group overflow-hidden rounded-xl transition-all duration-300 relative bg-white"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-red-100 opacity-70 group-hover:opacity-90 transition-opacity"></div>
-                  <div className="absolute -bottom-10 -right-10 w-40 h-40 rounded-full bg-red-500 opacity-10 group-hover:opacity-20 transition-opacity"></div>
                   
-                  <div className="p-6 relative z-10">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm">
-                          <Youtube className="text-red-500" size={24} />
-                        </div>
-                        <h3 className="text-2xl font-bold">YouTube</h3>
+                  <div className="p-3 relative z-10">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
+                        <img src="/images/icons8-youtube-logo-94.png" alt="YouTube" className="w-4 h-4" />
                       </div>
-                      
-                      {celebrity.socialMedia?.youtube && (
-                        <div className="rounded-full p-2 bg-white/30 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:translate-y-0 translate-y-2">
-                          <ExternalLink size={16} className="text-red-500" />
-                        </div>
-                      )}
+                      <h3 className="text-lg font-bold">YouTube</h3>
+                      <ChevronRight size={16} className="text-gray-400" />
                     </div>
-                    
-                    <div className="flex flex-col gap-2">
+
+                    <div className="flex flex-col gap-1">
                       <div className="flex items-baseline">
-                        <div className="text-4xl font-black text-gray-800">{celebrity.socialMediaFollowers.youtube.toLocaleString()}</div>
+                        <div className="text-2xl font-black" style={{color: '#797585'}}>{celebrity.socialMediaFollowers.youtube.toLocaleString()}</div>
                         {celebrity.socialMediaRankings?.youtube > 0 && (
                           <div className="ml-3 py-1 px-2 bg-white/50 rounded-full text-sm font-semibold text-gray-700">
                             Rank <span className="text-red-500">{celebrity.socialMediaRankings.youtube}</span>
@@ -1073,34 +1155,25 @@ export default function CelebrityDetailPage({ celebrity = null }) {
               
               {/* Instagram */}
               {celebrity.socialMediaFollowers?.instagram > 0 && (
-                <a 
+                <a
                   href={celebrity.socialMedia?.instagram || "#"}
-                  target="_blank" 
+                  target="_blank"
                   rel="noopener noreferrer"
-                  className="group overflow-hidden rounded-xl border border-gray-100 hover:border-transparent hover:shadow-xl transition-all duration-300 relative"
+                  className="group overflow-hidden rounded-xl transition-all duration-300 relative bg-white"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-pink-100 opacity-70 group-hover:opacity-90 transition-opacity"></div>
-                  <div className="absolute -bottom-10 -right-10 w-40 h-40 rounded-full bg-pink-500 opacity-10 group-hover:opacity-20 transition-opacity"></div>
                   
-                  <div className="p-6 relative z-10">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm">
-                          <Instagram className="text-pink-500" size={24} />
-                        </div>
-                        <h3 className="text-2xl font-bold">Instagram</h3>
+                  <div className="p-3 relative z-10">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
+                        <img src="/images/icons8-instagram-logo-94.png" alt="Instagram" className="w-4 h-4" />
                       </div>
-                      
-                      {celebrity.socialMedia?.instagram && (
-                        <div className="rounded-full p-2 bg-white/30 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:translate-y-0 translate-y-2">
-                          <ExternalLink size={16} className="text-pink-500" />
-                        </div>
-                      )}
+                      <h3 className="text-lg font-bold">Instagram</h3>
+                      <ChevronRight size={16} className="text-gray-400" />
                     </div>
-                    
-                    <div className="flex flex-col gap-2">
+
+                    <div className="flex flex-col gap-1">
                       <div className="flex items-baseline">
-                        <div className="text-4xl font-black text-gray-800">{celebrity.socialMediaFollowers.instagram.toLocaleString()}</div>
+                        <div className="text-2xl font-black" style={{color: '#797585'}}>{celebrity.socialMediaFollowers.instagram.toLocaleString()}</div>
                         {celebrity.socialMediaRankings?.instagram > 0 && (
                           <div className="ml-3 py-1 px-2 bg-white/50 rounded-full text-sm font-semibold text-gray-700">
                             Rank <span className="text-pink-500">{celebrity.socialMediaRankings.instagram}</span>
@@ -1141,34 +1214,25 @@ export default function CelebrityDetailPage({ celebrity = null }) {
               
               {/* Twitter */}
               {celebrity.socialMediaFollowers?.twitter > 0 && (
-                <a 
+                <a
                   href={celebrity.socialMedia?.twitter || "#"}
-                  target="_blank" 
+                  target="_blank"
                   rel="noopener noreferrer"
-                  className="group overflow-hidden rounded-xl border border-gray-100 hover:border-transparent hover:shadow-xl transition-all duration-300 relative"
+                  className="group overflow-hidden rounded-xl transition-all duration-300 relative bg-white"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100 opacity-70 group-hover:opacity-90 transition-opacity"></div>
-                  <div className="absolute -bottom-10 -right-10 w-40 h-40 rounded-full bg-blue-500 opacity-10 group-hover:opacity-20 transition-opacity"></div>
                   
-                  <div className="p-6 relative z-10">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm">
-                          <Twitter className="text-blue-500" size={24} />
-                        </div>
-                        <h3 className="text-2xl font-bold">Twitter</h3>
+                  <div className="p-3 relative z-10">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
+                        <img src="/images/icons8-x-94.png" alt="X" className="w-4 h-4" />
                       </div>
-                      
-                      {celebrity.socialMedia?.twitter && (
-                        <div className="rounded-full p-2 bg-white/30 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:translate-y-0 translate-y-2">
-                          <ExternalLink size={16} className="text-blue-500" />
-                        </div>
-                      )}
+                      <h3 className="text-lg font-bold">X</h3>
+                      <ChevronRight size={16} className="text-gray-400" />
                     </div>
-                    
-                    <div className="flex flex-col gap-2">
+
+                    <div className="flex flex-col gap-1">
                       <div className="flex items-baseline">
-                        <div className="text-4xl font-black text-gray-800">{celebrity.socialMediaFollowers.twitter.toLocaleString()}</div>
+                        <div className="text-2xl font-black" style={{color: '#797585'}}>{celebrity.socialMediaFollowers.twitter.toLocaleString()}</div>
                         {celebrity.socialMediaRankings?.twitter > 0 && (
                           <div className="ml-3 py-1 px-2 bg-white/50 rounded-full text-sm font-semibold text-gray-700">
                             Rank <span className="text-blue-500">{celebrity.socialMediaRankings.twitter}</span>
@@ -1209,34 +1273,25 @@ export default function CelebrityDetailPage({ celebrity = null }) {
               
               {/* Spotify */}
               {celebrity.socialMediaFollowers?.spotify > 0 && (
-                <a 
+                <a
                   href={celebrity.socialMedia?.spotify || "#"}
-                  target="_blank" 
+                  target="_blank"
                   rel="noopener noreferrer"
-                  className="group overflow-hidden rounded-xl border border-gray-100 hover:border-transparent hover:shadow-xl transition-all duration-300 relative"
+                  className="group overflow-hidden rounded-xl transition-all duration-300 relative bg-white"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-green-50 to-green-100 opacity-70 group-hover:opacity-90 transition-opacity"></div>
-                  <div className="absolute -bottom-10 -right-10 w-40 h-40 rounded-full bg-green-500 opacity-10 group-hover:opacity-20 transition-opacity"></div>
                   
-                  <div className="p-6 relative z-10">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm">
-                          <Music className="text-green-500" size={24} />
-                        </div>
-                        <h3 className="text-2xl font-bold">Spotify</h3>
+                  <div className="p-3 relative z-10">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
+                        <img src="/images/icons8-spotify-logo-94.png" alt="Spotify" className="w-4 h-4" />
                       </div>
-                      
-                      {celebrity.socialMedia?.spotify && (
-                        <div className="rounded-full p-2 bg-white/30 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:translate-y-0 translate-y-2">
-                          <ExternalLink size={16} className="text-green-500" />
-                        </div>
-                      )}
+                      <h3 className="text-lg font-bold">Spotify</h3>
+                      <ChevronRight size={16} className="text-gray-400" />
                     </div>
-                    
-                    <div className="flex flex-col gap-2">
+
+                    <div className="flex flex-col gap-1">
                       <div className="flex items-baseline">
-                        <div className="text-4xl font-black text-gray-800">{celebrity.socialMediaFollowers.spotify.toLocaleString()}</div>
+                        <div className="text-2xl font-black" style={{color: '#797585'}}>{celebrity.socialMediaFollowers.spotify.toLocaleString()}</div>
                         {celebrity.socialMediaRankings?.spotify > 0 && (
                           <div className="ml-3 py-1 px-2 bg-white/50 rounded-full text-sm font-semibold text-gray-700">
                             Rank <span className="text-green-500">{celebrity.socialMediaRankings.spotify}</span>
@@ -1277,34 +1332,25 @@ export default function CelebrityDetailPage({ celebrity = null }) {
               
               {/* TikTok */}
               {celebrity.socialMediaFollowers?.tiktok > 0 && (
-                <a 
+                <a
                   href={celebrity.socialMedia?.tiktok || "#"}
-                  target="_blank" 
+                  target="_blank"
                   rel="noopener noreferrer"
-                  className="group overflow-hidden rounded-xl border border-gray-100 hover:border-transparent hover:shadow-xl transition-all duration-300 relative"
+                  className="group overflow-hidden rounded-xl transition-all duration-300 relative bg-white"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 opacity-70 group-hover:opacity-90 transition-opacity"></div>
-                  <div className="absolute -bottom-10 -right-10 w-40 h-40 rounded-full bg-black opacity-10 group-hover:opacity-20 transition-opacity"></div>
                   
-                  <div className="p-6 relative z-10">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm">
-                          <Hash className="text-black" size={24} />
-                        </div>
-                        <h3 className="text-2xl font-bold">TikTok</h3>
+                  <div className="p-3 relative z-10">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
+                        <img src="/images/icons8-tiktok-logo-94.png" alt="TikTok" className="w-4 h-4" />
                       </div>
-                      
-                      {celebrity.socialMedia?.tiktok && (
-                        <div className="rounded-full p-2 bg-white/30 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:translate-y-0 translate-y-2">
-                          <ExternalLink size={16} className="text-black" />
-                        </div>
-                      )}
+                      <h3 className="text-lg font-bold">TikTok</h3>
+                      <ChevronRight size={16} className="text-gray-400" />
                     </div>
-                    
-                    <div className="flex flex-col gap-2">
+
+                    <div className="flex flex-col gap-1">
                       <div className="flex items-baseline">
-                        <div className="text-4xl font-black text-gray-800">{celebrity.socialMediaFollowers.tiktok.toLocaleString()}</div>
+                        <div className="text-2xl font-black" style={{color: '#797585'}}>{celebrity.socialMediaFollowers.tiktok.toLocaleString()}</div>
                         {celebrity.socialMediaRankings?.tiktok > 0 && (
                           <div className="ml-3 py-1 px-2 bg-white/50 rounded-full text-sm font-semibold text-gray-700">
                             Rank <span className="text-black">{celebrity.socialMediaRankings.tiktok}</span>
@@ -1355,74 +1401,52 @@ export default function CelebrityDetailPage({ celebrity = null }) {
                 </div>
               )}
             </div>
-            
-            {/* Display update time if available */}
-            {celebrity.socialMediaUpdatedAt && (
-              <p className="text-right text-xs text-gray-400 mt-3 italic">
-                Last updated: {new Date(celebrity.socialMediaUpdatedAt).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </p>
-            )}
           </section>
           
           {/* 뮤직비디오 섹션 */}
           {hasMusicVideos && (
-            <section className="mb-24 scroll-mt-24" id="musicvideos">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-10">
-                <div className="flex items-center section-header">
-                  <h2 className="text-3xl font-bold text-gray-800 section-title flex items-center">
-                    <span className="icon-wrapper">
-                      <Play size={24} className="text-[#ff3e8e]" />
-                    </span>
-                    Music Videos
-                  </h2>
-                </div>
-                <div className="text-sm text-gray-500 flex items-center gap-2 mt-2 md:mt-0">
-                  <Youtube size={16} className="text-[#ff3e8e]" />
-                  <span>Based on YouTube views</span>
-                </div>
+            <section className="mb-24 -mt-8 md:mt-12 scroll-mt-24" id="musicvideos">
+              <div className="flex items-center mb-6">
+                <h2 className="text-3xl font-bold text-black">
+                  Music Videos
+                </h2>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {celebrity.musicVideos.map((video, index) => (
-                  <div key={index} className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 transform hover:scale-[1.01] video-card-shadow">
+                  <div key={index} className="bg-white rounded-lg transition-all duration-300 group relative">
                     {/* 썸네일 */}
-                    <a 
-                      href={video.youtubeUrl} 
-                      target="_blank" 
+                    <a
+                      href={video.youtubeUrl}
+                      target="_blank"
                       rel="noopener noreferrer"
-                      className="block relative group"
+                      className="block relative"
                     >
-                      <div className="aspect-video overflow-hidden">
-                        <img 
-                          src={video.thumbnails?.medium?.url || video.thumbnails?.default?.url || '/placeholder-video.jpg'} 
-                          alt={video.title} 
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      <div className="h-64 overflow-hidden relative rounded-md">
+                        <img
+                          src={video.thumbnails?.medium?.url || video.thumbnails?.default?.url || '/placeholder-video.jpg'}
+                          alt={video.title}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-md"
                           onError={handleImageError}
                         />
                       </div>
                       
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center rounded-md">
                         <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transform group-hover:scale-110 transition-transform duration-300">
                           <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center">
-                            <Play size={28} className="text-[#ff3e8e] ml-1" />
+                            <Play size={28} className="text-[#233CFA] ml-1" />
                           </div>
                         </div>
                       </div>
-                      
+
                       {/* 조회수 및 날짜 정보 */}
-                      <div className="absolute bottom-0 left-0 right-0 px-4 py-3 bg-gradient-to-t from-black/80 to-transparent">
+                      <div className="absolute bottom-0 left-0 right-0 px-4 py-3 bg-gradient-to-t from-black/80 to-transparent rounded-b-md">
                         <div className="flex items-center justify-between text-white">
                           <div className="flex items-center gap-2">
                             <Eye size={14} />
                             <span className="text-sm font-medium">{formatCompactNumber(video.views)}</span>
                           </div>
-                          
+
                           {video.publishedAt && (
                             <div className="text-xs">
                               {new Date(video.publishedAt).toLocaleDateString('en-US', {
@@ -1444,12 +1468,12 @@ export default function CelebrityDetailPage({ celebrity = null }) {
                         rel="noopener noreferrer"
                         className="block"
                       >
-                        <h3 className="text-lg font-bold text-gray-800 hover:text-[#ff3e8e] transition-colors line-clamp-2 mb-2">{video.title}</h3>
+                        <h3 className="text-lg font-bold text-gray-800 line-clamp-2 mb-2">{video.title}</h3>
                       </a>
                       
                       {video.artists && video.artists.length > 0 && (
                         <p className="text-gray-500 text-sm mb-4 flex items-center gap-1.5">
-                          <Users size={14} />
+                          <img src="/images/icons8-youtube-logo-94.png" alt="YouTube" className="w-4 h-4" />
                           <span>{video.artists.join(', ')}</span>
                         </p>
                       )}
@@ -1462,11 +1486,11 @@ export default function CelebrityDetailPage({ celebrity = null }) {
                           </div>
                         )}
                         
-                        <a 
-                          href={video.youtubeUrl} 
-                          target="_blank" 
+                        <a
+                          href={video.youtubeUrl}
+                          target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[#ff3e8e] hover:underline text-sm font-medium flex items-center gap-1"
+                          className="text-[#233CFA] hover:underline text-sm font-medium flex items-center gap-1"
                         >
                           <span>Watch Video</span>
                           <ExternalLink size={14} />
@@ -1480,24 +1504,18 @@ export default function CelebrityDetailPage({ celebrity = null }) {
           )}
           
           {/* 추천 아티스트 섹션 - 뮤직비디오 아래로 이동 */}
-          <section className="mb-24">
-            <div className="flex items-center mb-6 section-header">
-              <h2 className="text-3xl font-bold text-gray-800 section-title flex items-center">
-                <span className="icon-wrapper">
-                  <Star size={24} className="text-[#ff3e8e]" />
-                </span>
+          <section className="mb-24 -mt-8 md:mt-12">
+            <div className="flex items-center mb-6">
+              <h2 className="text-3xl font-bold text-black">
                 Recommended Artists
               </h2>
             </div>
-            <p className="text-gray-500 mb-10">
-              K-POP artists to check out with {celebrity.name}
-            </p>
-            
+
             {isLoadingRecommended ? (
               // 로딩 상태
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8">
+              <div className="flex overflow-x-auto md:grid md:grid-cols-4 lg:grid-cols-6 gap-8 pb-4 -mx-4 px-4 md:mx-0 md:px-0">
                 {Array.from({ length: 12 }).map((_, idx) => (
-                  <div key={idx} className="text-center animate-pulse">
+                  <div key={idx} className="text-center animate-pulse flex-shrink-0">
                     <div className="w-28 h-28 rounded-full overflow-hidden mx-auto mb-4 bg-gray-200"></div>
                     <div className="h-5 bg-gray-200 rounded w-20 mx-auto mb-2"></div>
                     <div className="h-4 bg-gray-100 rounded w-16 mx-auto"></div>
@@ -1510,23 +1528,23 @@ export default function CelebrityDetailPage({ celebrity = null }) {
                 <p className="text-gray-500">No recommended artists available</p>
               </div>
             ) : (
-              // 추천 아티스트 목록
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8">
-                {recommendedArtists.map((artist) => (
-                  <Link 
-                    href={`/celeb/${artist.slug}`} 
+              // 추천 아티스트 목록 - 모바일: 가로 스크롤, 데스크톱: 그리드
+              <div className="flex overflow-x-auto md:grid md:grid-cols-4 lg:grid-cols-6 gap-8 pb-4 pl-4 md:pl-0 snap-x snap-mandatory md:snap-none">
+                {recommendedArtists.map((artist, index) => (
+                  <Link
+                    href={`/celeb/${artist.slug}`}
                     key={artist._id}
-                    className="text-center group"
+                    className="text-center group flex-shrink-0 snap-start"
                   >
-                    <div className="w-28 h-28 rounded-full overflow-hidden mx-auto mb-4 border-2 border-transparent group-hover:border-[#ff3e8e] transition-all shadow-sm group-hover:shadow-md">
-                      <img 
-                        src={artist.profileImage || "/images/placeholder.jpg"} 
-                        alt={artist.name} 
+                    <div className="w-28 h-28 rounded-full overflow-hidden mx-auto mb-4 border-2 border-transparent group-hover:border-[#233CFA] transition-all shadow-sm group-hover:shadow-md">
+                      <img
+                        src={artist.profileImage || "/images/placeholder.jpg"}
+                        alt={artist.name}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                         onError={handleImageError}
                       />
                     </div>
-                    <h3 className="font-bold text-gray-800 group-hover:text-[#ff3e8e] transition-colors">{artist.name}</h3>
+                    <h3 className="font-bold text-gray-800 group-hover:text-[#233CFA] transition-colors">{artist.name}</h3>
                     <p className="text-xs text-gray-500">
                       {artist.group ? `${artist.group}` : artist.category === 'solo' ? 'Solo' : 'K-POP'}
                     </p>
@@ -1536,110 +1554,96 @@ export default function CelebrityDetailPage({ celebrity = null }) {
             )}
           </section>
           
-          {/* 관련 소식 섹션 */}
-          <section className="mb-24">
-            <div className="flex items-center mb-6 section-header">
-              <h2 className="text-3xl font-bold text-gray-800 section-title flex items-center">
-                <span className="icon-wrapper">
-                  <Globe size={24} className="text-[#ff3e8e]" />
-                </span>
-                Related News
-              </h2>
-            </div>
-            
-            {isLoadingNews ? (
-              // 로딩 상태 UI
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
-                {Array.from({ length: 3 }).map((_, idx) => (
-                  <div key={idx} className="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm animate-pulse">
-                    <div className="h-56 bg-gray-200 rounded-xl"></div>
-                    <div className="p-4">
-                      <div className="h-5 bg-gray-200 rounded mb-3 w-3/4"></div>
-                      <div className="h-3 bg-gray-100 rounded mb-2 w-full"></div>
-                      <div className="h-3 bg-gray-100 rounded mb-2 w-5/6"></div>
-                      <div className="h-3 bg-gray-100 rounded w-4/6"></div>
-                      <div className="flex items-center justify-between mt-4">
-                        <div className="h-3 bg-gray-100 rounded w-20"></div>
-                        <div className="h-3 bg-gray-100 rounded w-24"></div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : relatedNews.length === 0 ? (
-              // 데이터가 없는 경우
-              <div className="mt-10 flex flex-col items-center justify-center py-16 bg-gray-50 rounded-2xl border border-gray-100">
-                <div className="text-center max-w-lg">
-                  <h3 className="text-2xl font-bold text-gray-800 mb-2">No Related News</h3>
-                  <p className="text-gray-600">
-                    We couldn't find any news related to {celebrity.name} at the moment.<br />
-                    Please check back later.
-                  </p>
+          {/* 관련 소식 섹션 - 드라마 상세페이지와 동일한 디자인 */}
+          <section className="mb-24 -mt-8 md:mt-12">
+            <div className="mb-8">
+              <div className="flex items-center">
+                {/* Link Icon */}
+                <div className="mr-4 flex-shrink-0">
+                  <img
+                    src="/images/icons8-link-48.png"
+                    alt="Related News"
+                    className="h-12 w-12 object-contain"
+                  />
+                </div>
+                <div>
+                  <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#233CFA' }}>Related Content</span>
+                  <h2 className="text-2xl md:text-3xl font-bold text-gray-800">Related News</h2>
                 </div>
               </div>
-            ) : (
-              // 뉴스 목록
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
-                {relatedNews.map((news) => (
-                  <div 
-                    key={news._id} 
-                    className="bg-white rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 group relative"
+            </div>
+
+            {/* 뉴스 카드 그리드 - 드라마 상세페이지와 동일한 디자인 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {relatedNews && relatedNews.length > 0 ? (
+                relatedNews.map((news, index) => (
+                  <Link
+                    key={index}
+                    href={`/news/${news._id}`}
+                    passHref
+                    onClick={() => {
+                      // 현재 스크롤 위치 저장
+                      if (typeof window !== 'undefined') {
+                        const scrollPosition = document.body.scrollTop || window.pageYOffset || document.documentElement.scrollTop;
+                        sessionStorage.setItem('celebDetailScrollPosition', scrollPosition.toString());
+                        sessionStorage.setItem('isBackToCeleb', 'true');
+                      }
+                    }}
                   >
-                    <Link 
-                      href={`/news/${news.slug || news._id}`}
-                      className="absolute inset-0 z-10"
-                    >
-                      <span className="sr-only">View article</span>
-                    </Link>
-                    
-                    <div className="h-56 overflow-hidden relative rounded-xl">
-                      <img
-                        src={news.thumbnail || news.coverImage || '/images/news/default-news.jpg'}
-                        alt={news.title}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-xl"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = '/images/news/default-news.jpg';
-                        }}
-                      />
-                      
-                      {/* 상단 그라데이션 바 */}
-                      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#ff3e8e] via-[#ff8360] to-[#ff61ab] opacity-80 group-hover:opacity-100 transition-opacity duration-300"></div>
-                      
-                      {/* 카테고리 배지 */}
-                      {news.category && (
-                        <div className="absolute top-3 left-3 bg-[#ff3e8e]/80 text-white text-xs font-medium py-1 px-2 rounded backdrop-blur-sm">
-                          {news.category}
+                    <div className="block cursor-pointer">
+                      <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">
+                        <div className="h-64 overflow-hidden relative rounded-md">
+                          {/* 이미지 */}
+                          <img
+                            src={news.coverImage || news.thumbnail || '/images/placeholder.jpg'}
+                            alt={news.title}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = "/images/placeholder.jpg";
+                            }}
+                          />
                         </div>
-                      )}
-                    </div>
-                    
-                    <div className="p-4">
-                      <h3 className="font-bold text-gray-800 text-lg mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#ff3e8e] transition-colors">
-                        {news.title}
-                      </h3>
-                      
-                      <p className="text-gray-600 text-xs line-clamp-2 mb-3">
-                        {news.summary || news.content?.substring(0, 120)}
-                      </p>
-                      
-                      <div className="flex justify-between items-end relative z-20">
-                        {/* 시간 배지 */}
-                        <div className="flex items-center text-gray-500 text-xs">
-                          <Clock size={12} className="mr-1 text-[#ff3e8e]" />
-                          <span>{formatTimeAgo(news.createdAt || news.publishedAt)}</span>
+
+                        <div className="p-4">
+                          <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#006fff] transition-colors">
+                            {news.title}
+                          </h3>
+
+                          <p className="text-gray-600 text-xs line-clamp-2 mb-3">
+                            {news.content && news.content.trim()
+                              ? news.content.replace(/<[^>]*>/g, '').slice(0, 120) + '...'
+                              : news.summary
+                                ? news.summary.slice(0, 120) + '...'
+                                : 'No content available'}
+                          </p>
+
+                          <div className="flex justify-between items-end">
+                            {/* 시간 배지 */}
+                            <div className="flex items-center text-gray-500 text-xs">
+                              <Clock size={12} className="mr-1 text-gray-500" />
+                              <span>{new Date(news.publishedAt || news.createdAt).toLocaleDateString()}</span>
+                            </div>
+
+                            {/* Read more 버튼 */}
+                            <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#233CFA' }}>
+                              Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" style={{ color: '#233CFA' }} />
+                            </span>
+                          </div>
                         </div>
-                        
-                        {/* Read more 버튼 */}
-                        <span className="inline-flex items-center text-[#ff3e8e] text-xs font-medium hover:underline cursor-pointer">
-                          Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" />
-                        </span>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  </Link>
+                ))
+              ) : (
+                <div className="bg-white rounded-xl p-8 text-center border border-gray-100 col-span-full" style={{ boxShadow: 'none' }}>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">No Related News</h3>
+                  <p className="text-gray-500 max-w-md mx-auto">
+                    No news related to this content is currently available.
+                  </p>
+                </div>
+              )}
+            </div>
           </section>
         </div>
       </div>

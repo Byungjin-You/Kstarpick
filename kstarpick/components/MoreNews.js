@@ -193,7 +193,7 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
           sessionStorage.removeItem(STORAGE_KEYS.BACK_NAVIGATION);
           sessionStorage.removeItem(STORAGE_KEYS.CACHE_TIME); // 새로고침 시 캐시 타임도 초기화
           
-          // 추가로 모든 moreNews 관련 캐시 정리
+          // 추가로 모든 moreNews ���련 캐시 정리
           Object.keys(sessionStorage).forEach(key => {
             if (key.startsWith('moreNews') || key.includes('moreNews')) {
               sessionStorage.removeItem(key);
@@ -970,7 +970,12 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
           </div>
           <div className="flex-1">
             <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#233CFA' }}>Continue Reading</span>
-            <h2 className="text-2xl font-bold text-gray-800">Latest K-Pop Updates</h2>
+            <h2 className="text-2xl font-bold text-gray-800">
+              {category === 'movie' ? 'Latest K-Movie Updates' :
+               category === 'drama' ? 'Latest K-Drama Updates' :
+               (category === 'celeb' || (Array.isArray(category) && category.includes('celeb'))) ? 'Latest K-Celeb Updates' :
+               'Latest K-Pop Updates'}
+            </h2>
           </div>
         </div>
       </div>
@@ -1029,12 +1034,12 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
                 >
                   <div className="block cursor-pointer">
                     <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">
-                      <div className="h-64 overflow-hidden relative">
+                      <div className="h-64 overflow-hidden relative rounded-md">
                         {set[0].coverImage ? (
                           <img
                             src={set[0].coverImage}
                             alt={set[0].title}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-md"
+                            className="w-full h-full object-cover transition-transform duration-500 "
                             onError={(e) => {
                               e.target.onerror = null;
                               e.target.src = "/images/placeholder.jpg";
@@ -1147,12 +1152,12 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
                       <div
                         className="block bg-white rounded-lg overflow-hidden transition-all duration-300 group relative cursor-pointer"
                       >
-                        <div className="h-56 overflow-hidden relative">
+                        <div className="h-56 overflow-hidden relative rounded-md">
                           {/* 이미지 */}
                           <img
                             src={news.coverImage || '/images/placeholder.jpg'}
                             alt={news.title}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-md"
+                            className="w-full h-full object-cover transition-transform duration-500 "
                             onError={(e) => {
                               e.target.onerror = null;
                               e.target.src = "/images/placeholder.jpg";
