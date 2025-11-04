@@ -1874,6 +1874,10 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
             <meta property="og:title" content={cleanTextForMeta(newsArticle.title, 90)} />
             <meta property="og:description" content={cleanTextForMeta(newsArticle.description || newsArticle.content?.substring(0, 200), 280) || 'Latest Korean entertainment news from KstarPick'} />
             <meta property="og:image" content={getNewsImage(newsArticle)} />
+            <meta property="og:image:width" content="1200" />
+            <meta property="og:image:height" content="630" />
+            <meta property="og:image:type" content="image/jpeg" />
+            <meta property="og:image:alt" content={cleanTextForMeta(newsArticle.title, 90)} />
             <meta property="og:url" content={`https://www.kstarpick.com/news/${newsArticle.slug || newsArticle._id}`} />
             <meta property="og:type" content="article" />
             <meta property="og:site_name" content="KstarPick - K-Pop News Portal" />
