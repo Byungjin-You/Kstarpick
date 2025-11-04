@@ -174,17 +174,32 @@ function Home({ initialData }) {
         document.body.scrollTop = scrollPos;
       };
 
-      // 여러 시도로 동적 콘텐츠 로딩을 고려
+      // 여러 시도로 동적 콘텐츠 로딩을 고려 (더 긴 지연 시간 추가)
       setTimeout(restoreScroll, 50);
       setTimeout(restoreScroll, 100);
       setTimeout(restoreScroll, 200);
       setTimeout(restoreScroll, 300);
       setTimeout(restoreScroll, 500);
+      setTimeout(restoreScroll, 800);  // Watch News 로딩을 위한 추가 시간
+      setTimeout(restoreScroll, 1000); // 긴 콘텐츠 로딩을 위한 추가 시간
+      setTimeout(restoreScroll, 1500); // 이미지 로딩을 위한 최종 시간
 
       requestAnimationFrame(() => {
         setTimeout(restoreScroll, 100);
         setTimeout(restoreScroll, 300);
+        setTimeout(restoreScroll, 600);
+        setTimeout(restoreScroll, 1000);
       });
+
+      // 이미지 로딩 완료 후 최종 스크롤 복원
+      if (document.readyState === 'complete') {
+        setTimeout(restoreScroll, 100);
+      } else {
+        window.addEventListener('load', () => {
+          setTimeout(restoreScroll, 100);
+          setTimeout(restoreScroll, 300);
+        });
+      }
 
       // 플래그 제거
       sessionStorage.removeItem('isBackToHome');
@@ -467,16 +482,13 @@ function Home({ initialData }) {
     }
 
     // 세션 스토리지에 데이터가 없는 경우에만 실행
-    console.log("Home - preparing moreNews data for client-side rendering");
     if (moreNews?.length > 0) {
       setInitialMoreNews(moreNews);
-      console.log("Home - using moreNews data:", moreNews.length);
       setLoadedMoreNews(true);
     } else if (newsArticles?.length > 0) {
       // moreNews가 없으면 newsArticles 배열에서 데이터 가져옴
       const newsForMoreNews = newsArticles.slice(0, 20);
       setInitialMoreNews(newsForMoreNews);
-      console.log("Home - using newsArticles for moreNews:", newsForMoreNews.length);
       setLoadedMoreNews(true);
     }
   }, [moreNews, newsArticles]); // loadedMoreNews를 의존성에서 제거하여 무한 루프 방지

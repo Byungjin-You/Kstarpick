@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { q, type, page = 1, limit = 12, sortBy = 'relevance', dateRange } = req.query;
+    const { q, type, page = 1, limit = 12, sortBy = 'newest', dateRange } = req.query;
     
     if (!q) {
       return res.status(400).json({ message: 'Search query is required' });
