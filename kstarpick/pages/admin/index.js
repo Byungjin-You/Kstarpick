@@ -53,6 +53,7 @@ export default function AdminDashboard() {
   const [viewMultiplier, setViewMultiplier] = useState(10);
   const [isDataSettingsOpen, setIsDataSettingsOpen] = useState(false);
   const [dayFilter, setDayFilter] = useState(15);
+  const [dailyDAUData, setDailyDAUData] = useState([]);
 
   // URL에서 탭 파라미터 가져오기
   useEffect(() => {
@@ -67,6 +68,7 @@ export default function AdminDashboard() {
     const savedDAU = localStorage.getItem('dailyActiveUsers');
     const savedWAU = localStorage.getItem('weeklyActiveUsers');
     const savedMAU = localStorage.getItem('monthlyActiveUsers');
+    const savedDailyDAU = localStorage.getItem('dailyDAUData');
 
     if (savedMultiplier) {
       setViewMultiplier(Number(savedMultiplier));
@@ -80,6 +82,13 @@ export default function AdminDashboard() {
     if (savedMAU) {
       setMonthlyVisitors(Number(savedMAU));
     }
+    if (savedDailyDAU) {
+      try {
+        setDailyDAUData(JSON.parse(savedDailyDAU));
+      } catch (e) {
+        console.error('Error parsing daily DAU data:', e);
+      }
+    }
   }, []);
 
   // Save data settings to localStorage
@@ -88,6 +97,7 @@ export default function AdminDashboard() {
     localStorage.setItem('dailyActiveUsers', dailyVisitors.toString());
     localStorage.setItem('weeklyActiveUsers', weeklyVisitors.toString());
     localStorage.setItem('monthlyActiveUsers', monthlyVisitors.toString());
+    localStorage.setItem('dailyDAUData', JSON.stringify(dailyDAUData));
     alert('Settings saved successfully!');
   };
 
@@ -649,45 +659,70 @@ export default function AdminDashboard() {
                         ))}
 
                         {(() => {
-                          // Daily Trends에 multiplier 적용
+                          // DAU 데이터 준비
+                          const dauByDate = {};
+                          dailyDAUData.forEach(d => {
+                            dauByDate[d.date] = d.dau;
+                          });
+
+                          // 최대값 계산 (페이지뷰와 DAU 모두 고려)
                           const maxViews = Math.max(...pageViewStats.dailyTrends.map(d => d.views * viewMultiplier), 1);
+                          const maxDAU = Math.max(...pageViewStats.dailyTrends.map(d => dauByDate[d.date] || 0), 1);
+                          const maxValue = Math.max(maxViews, maxDAU);
+
                           const pointSpacing = pageViewStats.dailyTrends.length > 1
                             ? 1000 / (pageViewStats.dailyTrends.length - 1)
                             : 500;
 
+                          // 페이지뷰 경로
                           const pathData = pageViewStats.dailyTrends.map((day, index) => {
                             const x = index * pointSpacing;
-                            const y = maxViews > 0 ? 270 - ((day.views * viewMultiplier) / maxViews * 240) : 270;
+                            const y = maxValue > 0 ? 270 - ((day.views * viewMultiplier) / maxValue * 240) : 270;
+                            return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
+                          }).join(' ');
+
+                          // DAU 경로
+                          const dauPathData = pageViewStats.dailyTrends.map((day, index) => {
+                            const dau = dauByDate[day.date] || 0;
+                            const x = index * pointSpacing;
+                            const y = maxValue > 0 ? 270 - (dau / maxValue * 240) : 270;
                             return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
                           }).join(' ');
 
                           return (
                             <>
-                              {/* Area fill */}
+                              {/* 페이지뷰 Area fill */}
                               <path
                                 d={`${pathData} L ${(pageViewStats.dailyTrends.length - 1) * pointSpacing} 300 L 0 300 Z`}
                                 fill="url(#gradient)"
                                 opacity="0.3"
                               />
-                              {/* Line */}
+                              {/* 페이지뷰 Line */}
                               <path
                                 d={pathData}
                                 fill="none"
                                 stroke="#233CFA"
                                 strokeWidth="3"
                               />
-                              {/* Dots and Labels */}
+                              {/* DAU Line */}
+                              <path
+                                d={dauPathData}
+                                fill="none"
+                                stroke="#f97316"
+                                strokeWidth="3"
+                                strokeDasharray="5,5"
+                              />
+                              {/* 페이지뷰 Dots and Labels */}
                               {pageViewStats.dailyTrends.map((day, index) => {
                                 const x = index * pointSpacing;
-                                const y = maxViews > 0 ? 270 - ((day.views * viewMultiplier) / maxViews * 240) : 270;
+                                const y = maxValue > 0 ? 270 - ((day.views * viewMultiplier) / maxValue * 240) : 270;
                                 const displayValue = (day.views * viewMultiplier).toLocaleString();
                                 const isFirst = index === 0;
                                 const isLast = index === pageViewStats.dailyTrends.length - 1;
-                                // 맨 왼쪽은 start, 맨 오른쪽은 end, 나머지는 middle
                                 const textAnchor = isFirst ? 'start' : isLast ? 'end' : 'middle';
 
                                 return (
-                                  <g key={index}>
+                                  <g key={`pv-${index}`}>
                                     <ellipse
                                       cx={x}
                                       cy={y}
@@ -710,6 +745,43 @@ export default function AdminDashboard() {
                                       {displayValue}
                                     </text>
                                     <title>{`${day.date}: ${displayValue} views`}</title>
+                                  </g>
+                                );
+                              })}
+                              {/* DAU Dots and Labels */}
+                              {pageViewStats.dailyTrends.map((day, index) => {
+                                const dau = dauByDate[day.date] || 0;
+                                if (dau === 0) return null;
+
+                                const x = index * pointSpacing;
+                                const y = maxValue > 0 ? 270 - (dau / maxValue * 240) : 270;
+                                const isFirst = index === 0;
+                                const isLast = index === pageViewStats.dailyTrends.length - 1;
+                                const textAnchor = isFirst ? 'start' : isLast ? 'end' : 'middle';
+
+                                return (
+                                  <g key={`dau-${index}`}>
+                                    <circle
+                                      cx={x}
+                                      cy={y}
+                                      r="4"
+                                      fill="#f97316"
+                                      stroke="white"
+                                      strokeWidth="1.5"
+                                    />
+                                    {/* DAU value label */}
+                                    <text
+                                      x={x}
+                                      y={y + 20}
+                                      textAnchor={textAnchor}
+                                      fontSize="9"
+                                      fill="#f97316"
+                                      fontWeight="600"
+                                      transform={`scale(0.9, 1.5) translate(${x * 0.11}, ${(y + 20) * -0.33})`}
+                                    >
+                                      {dau.toLocaleString()}
+                                    </text>
+                                    <title>{`${day.date}: ${dau.toLocaleString()} DAU`}</title>
                                   </g>
                                 );
                               })}
@@ -747,6 +819,19 @@ export default function AdminDashboard() {
                             </span>
                           );
                         })}
+                      </div>
+                      {/* Legend */}
+                      <div className="flex justify-center gap-6 mt-6">
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-0.5 bg-[#233CFA]"></div>
+                          <span className="text-xs text-gray-600">Page Views</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <svg width="16" height="2" viewBox="0 0 16 2">
+                            <line x1="0" y1="1" x2="16" y2="1" stroke="#f97316" strokeWidth="2" strokeDasharray="3,3" />
+                          </svg>
+                          <span className="text-xs text-gray-600">DAU</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -963,12 +1048,10 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
-        </div>
 
-        {/* Recent Activity */}
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Recent Activity</h2>
-          <div className="bg-white rounded-lg shadow-sm">
+          {/* Recent Activity */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Recent Activity</h2>
             {recentActivity.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 <Newspaper size={48} className="mx-auto mb-2 opacity-30" />
@@ -1027,16 +1110,335 @@ export default function AdminDashboard() {
             </ul>
             )}
           </div>
+
+          {/* Content Trend Analysis */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">콘텐츠 트렌드 분석</h2>
+
+            {/* Trending Topics */}
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <span className="text-lg">🔥</span>
+                지금 핫한 트렌드
+              </h3>
+              <div className="space-y-3">
+                {/* Top Topic */}
+                <div className="bg-gradient-to-r from-orange-50 to-orange-100 border border-orange-200 rounded-lg p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-bold text-orange-800">K-Pop: Awards & Events</span>
+                        <span className="px-2 py-0.5 bg-orange-200 text-orange-800 text-xs font-bold rounded-full">
+                          #1 TRENDING
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="h-2 bg-orange-200 rounded-full flex-1 max-w-xs">
+                          <div className="h-2 bg-orange-500 rounded-full" style={{ width: '60%' }}></div>
+                        </div>
+                        <span className="text-sm font-semibold text-orange-700">60%</span>
+                        <span className="text-xs text-orange-600">(3/5)</span>
+                      </div>
+                      <p className="text-sm text-orange-700 italic">
+                        "시상식 & 이벤트 발표 기사가 압도적인 참여도"
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Second Topic */}
+                <div className="bg-gradient-to-r from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-bold text-purple-800">Movie: Survival Show Coverage</span>
+                        <span className="px-2 py-0.5 bg-purple-200 text-purple-800 text-xs font-bold rounded-full">
+                          #2 TRENDING
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="h-2 bg-purple-200 rounded-full flex-1 max-w-xs">
+                          <div className="h-2 bg-purple-500 rounded-full" style={{ width: '20%' }}></div>
+                        </div>
+                        <span className="text-sm font-semibold text-purple-700">20%</span>
+                        <span className="text-xs text-purple-600">(1/5)</span>
+                      </div>
+                      <p className="text-sm text-purple-700 italic">
+                        "리얼리티 쇼 관심도 지속적으로 높음"
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Key Insights */}
+            <div className="mb-6 pb-6 border-b border-gray-200">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <span className="text-lg">💡</span>
+                핵심 인사이트
+              </h3>
+              <div className="space-y-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-green-500 mt-0.5">•</span>
+                  <p className="text-sm text-gray-700">
+                    <span className="font-semibold">시상식 시즌 콘텐츠가 압도적 성과</span> -
+                    ISAC 발표 기사만으로 65K 조회수 달성 (평균 대비 3배 상회)
+                  </p>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-green-500 mt-0.5">•</span>
+                  <p className="text-sm text-gray-700">
+                    <span className="font-semibold">라인업 발표 기사가 높은 참여도</span> -
+                    AAA와 TMA "퍼스트 라인업" 기사 모두 Top 5 진입
+                  </p>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-green-500 mt-0.5">•</span>
+                  <p className="text-sm text-gray-700">
+                    <span className="font-semibold">서바이벌 쇼 업데이트가 지속적인 관심 유지</span> -
+                    BOYS II PLANET 순위 발표 기사 17K 조회수 달성
+                  </p>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-blue-500 mt-0.5">•</span>
+                  <p className="text-sm text-gray-700">
+                    시상식 콘텐츠 평균: <span className="font-semibold text-blue-600">33,192</span> vs
+                    서바이벌 쇼: <span className="font-semibold text-purple-600">17,150</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Discovered Trends */}
+            <div className="mb-6 pb-6 border-b border-gray-200">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <span className="text-lg">📈</span>
+                발견된 트렌드
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-2xl">✅</span>
+                    <span className="text-sm font-bold text-green-800">가설 검증 완료</span>
+                  </div>
+                  <p className="text-xs text-green-700 mb-2 font-semibold">
+                    "아이돌 시상식이 압도적 우위"
+                  </p>
+                  <p className="text-xs text-green-600">
+                    Top 5에 시상식 관련 기사 3개 포함(60%). ISAC 스포츠 대회가 가장 높은 참여도 기록.
+                  </p>
+                </div>
+
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-2xl">✅</span>
+                    <span className="text-sm font-bold text-green-800">가설 검증 완료</span>
+                  </div>
+                  <p className="text-xs text-green-700 mb-2 font-semibold">
+                    "서바이벌 쇼 콘텐츠의 높은 성과"
+                  </p>
+                  <p className="text-xs text-green-600">
+                    BOYS II PLANET 순위 업데이트가 17K 조회수로 3위 달성, 전통적인 영화 뉴스보다 높은 성과.
+                  </p>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-2xl">🆕</span>
+                    <span className="text-sm font-bold text-blue-800">신규 발견</span>
+                  </div>
+                  <p className="text-xs text-blue-700 mb-2 font-semibold">
+                    "라인업 발표에 대한 높은 수요"
+                  </p>
+                  <p className="text-xs text-blue-600">
+                    팬들이 자신의 아티스트가 참여하는지 확인하기 위해 "퍼스트 라인업" 발표를 적극적으로 찾음.
+                  </p>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-2xl">⚡</span>
+                    <span className="text-sm font-bold text-blue-800">성과 격차</span>
+                  </div>
+                  <p className="text-xs text-blue-700 mb-2 font-semibold">
+                    "ISAC가 3배 조회수로 압도"
+                  </p>
+                  <p className="text-xs text-blue-600">
+                    ISAC 발표(65K)가 2위 AAA(23K)보다 거의 3배 높은 조회수 달성.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Content Strategy Recommendations */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <span className="text-lg">🎯</span>
+                콘텐츠 전략 권장사항
+              </h3>
+              <div className="space-y-3">
+                <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-lg">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">📺</span>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-bold text-emerald-900 mb-1">시상식 시즌 커버리지 확대</h4>
+                      <p className="text-xs text-emerald-700 mb-2">
+                        주요 K-pop 시상식(MAMA, AAA, TMA, 골든디스크)의 라인업 발표, 후보 목록, 투표 정보를 즉시 보도하는 것을 우선순위로 설정.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded">높은 우선순위</span>
+                        <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded">+40% 참여도 증가 예상</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-violet-50 border-l-4 border-violet-500 p-4 rounded-r-lg">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">🏆</span>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-bold text-violet-900 mb-1">주간 서바이벌 쇼 리캡 제작</h4>
+                      <p className="text-xs text-violet-700 mb-2">
+                        인기 서바이벌/오디션 프로그램(피지컬:100, 보이즈 플래닛, 걸즈 플래닛)의 순위, 탈락, 하이라이트를 다루는 주간 다이제스트 기사 제작.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="px-2 py-1 bg-violet-100 text-violet-700 text-xs rounded">중간 우선순위</span>
+                        <span className="px-2 py-1 bg-violet-100 text-violet-700 text-xs rounded">지속적 참여도</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">⚠️</span>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-bold text-amber-900 mb-1">드라마 & 개별 셀럽 커버리지 다각화</h4>
+                      <p className="text-xs text-amber-700 mb-2">
+                        현재 Top 5에 드라마와 개별 셀럽 뉴스가 부족. 시청률 업데이트, 캐스팅 소식, 셀럽 개인 이정표를 포함하여 콘텐츠 믹스 균형 조정 필요.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded">주의 필요</span>
+                        <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded">현재 0% 커버리지</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-sky-50 border-l-4 border-sky-500 p-4 rounded-r-lg">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">🎪</span>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-bold text-sky-900 mb-1">특별 아이돌 이벤트 집중</h4>
+                      <p className="text-xs text-sky-700 mb-2">
+                        ISAC형 특별 이벤트(스포츠 대회, 예능 스페셜)가 압도적인 참여도 생성. 이러한 비전통적 아이돌 콘텐츠 기회를 모니터링하고 보도.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="px-2 py-1 bg-sky-100 text-sky-700 text-xs rounded">높은 영향력</span>
+                        <span className="px-2 py-1 bg-sky-100 text-sky-700 text-xs rounded">이벤트 기반</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Data Settings */}
+        {/* Content based on active tab */}
+        {activeTab === 'drama' && (
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-gray-800">Dramas</h2>
+              <Link
+                href="/admin/drama/create"
+                className="px-4 py-2 bg-green-500 text-white rounded-lg flex items-center"
+              >
+                <Plus size={16} className="mr-2" />
+                Add New
+              </Link>
+            </div>
+
+            {dramaLoading ? (
+              <div className="p-6 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500 mx-auto"></div>
+                <p className="text-gray-500 mt-2">Loading dramas...</p>
+              </div>
+            ) : dramaError ? (
+              <div className="p-6 text-center">
+                <AlertCircle size={32} className="text-red-500 mx-auto mb-2" />
+                <p className="text-red-500">{dramaError}</p>
+              </div>
+            ) : dramas.length === 0 ? (
+              <div className="p-6 text-center">
+                <p className="text-gray-500">No dramas found.</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {dramas.map((drama) => (
+                  <li key={drama._id} className="px-6 py-4 hover:bg-gray-50">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0 h-12 w-12 rounded overflow-hidden bg-gray-100">
+                        {drama.image ? (
+                          <img
+                            src={drama.image}
+                            alt={drama.title}
+                            className="h-full w-full object-cover"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = '/images/dramas/default-poster.jpg';
+                            }}
+                          />
+                        ) : (
+                          <div className="flex items-center justify-center h-full bg-gray-200">
+                            <Film size={20} className="text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="ml-4 flex-1">
+                        <h3 className="text-sm font-medium text-gray-800">{drama.title}</h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {drama.year} • {drama.episodes} eps • Rating: {drama.rating || 'N/A'}
+                        </p>
+                      </div>
+                      <div className="flex space-x-2">
+                        <Link
+                          href={`/admin/drama/edit/${drama._id}`}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-md"
+                        >
+                          <PenTool size={16} />
+                        </Link>
+                        <Link
+                          href={`/drama/${drama._id}`}
+                          className="p-2 text-green-600 hover:bg-green-50 rounded-md"
+                          target="_blank"
+                        >
+                          <Eye size={16} />
+                        </Link>
+                        <button
+                          onClick={() => handleDeleteDrama(drama._id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-md"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {/* etc */}
         <div className="mb-8">
           <div className="bg-white rounded-lg shadow-sm">
             <button
               onClick={() => setIsDataSettingsOpen(!isDataSettingsOpen)}
               className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
             >
-              <h2 className="text-lg font-semibold text-gray-800">Data Settings</h2>
+              <h2 className="text-lg font-semibold text-gray-800">etc</h2>
               <ChevronDown
                 size={20}
                 className={`transform transition-transform ${isDataSettingsOpen ? 'rotate-180' : ''}`}
@@ -1131,6 +1533,49 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
+                {/* 30일 DAU 데이터 입력 */}
+                <div className="col-span-full mt-6">
+                  <label className="text-sm font-medium text-gray-700 mb-3 block">
+                    Daily DAU Data (30 Days)
+                  </label>
+                  <div className="grid grid-cols-5 md:grid-cols-10 gap-2">
+                    {Array.from({ length: 30 }, (_, i) => {
+                      const date = new Date();
+                      date.setDate(date.getDate() - (29 - i));
+                      const dateStr = date.toISOString().split('T')[0];
+                      const existingData = dailyDAUData.find(d => d.date === dateStr);
+
+                      return (
+                        <div key={i} className="flex flex-col gap-1">
+                          <label className="text-xs text-gray-500">
+                            {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </label>
+                          <input
+                            type="number"
+                            value={existingData?.dau || ''}
+                            onChange={(e) => {
+                              const value = Number(e.target.value) || 0;
+                              setDailyDAUData(prev => {
+                                const newData = prev.filter(d => d.date !== dateStr);
+                                if (value > 0) {
+                                  newData.push({ date: dateStr, dau: value });
+                                }
+                                return newData.sort((a, b) => a.date.localeCompare(b.date));
+                              });
+                            }}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-500"
+                            placeholder="DAU"
+                            min="0"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Enter daily active user counts for the last 30 days to display on the Daily Trends chart
+                  </p>
+                </div>
+
                 {/* Save Button */}
                 <div className="mt-6 flex justify-end">
                   <button
@@ -1144,91 +1589,6 @@ export default function AdminDashboard() {
             )}
           </div>
         </div>
-
-        {/* Content based on active tab */}
-        {activeTab === 'drama' && (
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-gray-800">Dramas</h2>
-              <Link 
-                href="/admin/drama/create" 
-                className="px-4 py-2 bg-green-500 text-white rounded-lg flex items-center"
-              >
-                <Plus size={16} className="mr-2" />
-                Add New
-              </Link>
-            </div>
-            
-            {dramaLoading ? (
-              <div className="p-6 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500 mx-auto"></div>
-                <p className="text-gray-500 mt-2">Loading dramas...</p>
-              </div>
-            ) : dramaError ? (
-              <div className="p-6 text-center">
-                <AlertCircle size={32} className="text-red-500 mx-auto mb-2" />
-                <p className="text-red-500">{dramaError}</p>
-              </div>
-            ) : dramas.length === 0 ? (
-              <div className="p-6 text-center">
-                <p className="text-gray-500">No dramas found.</p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-gray-100">
-                {dramas.map((drama) => (
-                  <li key={drama._id} className="px-6 py-4 hover:bg-gray-50">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-12 w-12 rounded overflow-hidden bg-gray-100">
-                        {drama.image ? (
-                          <img 
-                            src={drama.image} 
-                            alt={drama.title} 
-                            className="h-full w-full object-cover" 
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = '/images/dramas/default-poster.jpg';
-                            }}
-                          />
-                        ) : (
-                          <div className="flex items-center justify-center h-full bg-gray-200">
-                            <Film size={20} className="text-gray-400" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="ml-4 flex-1">
-                        <h3 className="text-sm font-medium text-gray-800">{drama.title}</h3>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {drama.year} • {drama.episodes} eps • Rating: {drama.rating || 'N/A'}
-                        </p>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Link 
-                          href={`/admin/drama/edit/${drama._id}`}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-md"
-                        >
-                          <PenTool size={16} />
-                        </Link>
-                        <Link 
-                          href={`/drama/${drama._id}`}
-                          className="p-2 text-green-600 hover:bg-green-50 rounded-md"
-                          target="_blank"
-                        >
-                          <Eye size={16} />
-                        </Link>
-                        <button 
-                          onClick={() => handleDeleteDrama(drama._id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-md"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
       </div>
     </AdminLayout>
   );
