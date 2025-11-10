@@ -37,15 +37,69 @@ export default function Document() {
         
 
         
-        {/* Favicon and app icons */}
-        <link rel="icon" type="image/png" href="/images/icons8-popular-3d-fluency-32.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/images/icons8-popular-3d-fluency-16.png" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/images/icons8-popular-3d-fluency-32.png" />
-        <link rel="icon" type="image/png" sizes="48x48" href="/images/icons8-popular-3d-fluency-32.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/images/icons8-popular-3d-fluency-96.png" />
-        <link rel="icon" type="image/png" sizes="192x192" href="/images/icons8-popular-3d-fluency-96.png" />
-        <link rel="icon" type="image/png" sizes="512x512" href="/images/icons8-popular-3d-fluency-96.png" />
+        {/* Favicon and app icons - 최적화된 순서 */}
+        <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon/icons8-popular-3d-fluency-16.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon/icons8-popular-3d-fluency-32.png" />
+        <link rel="icon" type="image/png" sizes="96x96" href="/images/favicon/icons8-popular-3d-fluency-96.png" />
+        <link rel="apple-touch-icon" sizes="57x57" href="/images/favicon/icons8-popular-3d-fluency-57.png" />
+        <link rel="apple-touch-icon" sizes="60x60" href="/images/favicon/icons8-popular-3d-fluency-60.png" />
+        <link rel="apple-touch-icon" sizes="72x72" href="/images/favicon/icons8-popular-3d-fluency-72.png" />
+        <link rel="apple-touch-icon" sizes="76x76" href="/images/favicon/icons8-popular-3d-fluency-76.png" />
+        <link rel="apple-touch-icon" sizes="114x114" href="/images/favicon/icons8-popular-3d-fluency-114.png" />
+        <link rel="apple-touch-icon" sizes="120x120" href="/images/favicon/icons8-popular-3d-fluency-120.png" />
+        <link rel="apple-touch-icon" sizes="144x144" href="/images/favicon/icons8-popular-3d-fluency-144.png" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/images/favicon/icons8-popular-3d-fluency-152.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon/icons8-popular-3d-fluency-180.png" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/images/favicon/icons8-popular-3d-fluency-192.png" />
+        <link rel="icon" type="image/png" sizes="512x512" href="/images/favicon/icons8-popular-3d-fluency-512.png" />
+        <meta name="msapplication-TileImage" content="/images/favicon/icons8-popular-3d-fluency-144.png" />
         <link rel="manifest" href="/site.webmanifest" />
+
+        {/* Structured Data for Google Search - Organization Logo */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              "name": "KstarPick",
+              "url": "https://kstarpick.com",
+              "logo": "https://kstarpick.com/images/icons8-popular-3d-fluency-96.png",
+              "sameAs": [
+                "https://www.instagram.com/kstarpick",
+                "https://twitter.com/kstarpick",
+                "https://www.facebook.com/kstarpick"
+              ],
+              "contactPoint": {
+                "@type": "ContactPoint",
+                "contactType": "Customer Service",
+                "email": "contact@kstarpick.com"
+              }
+            })
+          }}
+        />
+
+        {/* Structured Data for Website */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              "name": "KstarPick",
+              "alternateName": "KstarPick - K-Pop & K-Drama News",
+              "url": "https://kstarpick.com",
+              "potentialAction": {
+                "@type": "SearchAction",
+                "target": {
+                  "@type": "EntryPoint",
+                  "urlTemplate": "https://kstarpick.com/search?q={search_term_string}"
+                },
+                "query-input": "required name=search_term_string"
+              }
+            })
+          }}
+        />
         
         {/* 무한 새로고침 방지: logoClicked 플래그 강제 제거 */}
         <script

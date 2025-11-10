@@ -297,7 +297,7 @@ const TwitterEmbed = ({ url, className = "" }) => {
 
   useEffect(() => {
     if (!isClient || !embedRef.current) {
-      console.log('[TwitterEmbed] 조건 불충족 - isClient:', isClient, 'embedRef:', !!embedRef.current);
+      console.log('[TwitterEmbed] 조건 ���충족 - isClient:', isClient, 'embedRef:', !!embedRef.current);
       return;
     }
 
@@ -367,7 +367,7 @@ const TwitterEmbed = ({ url, className = "" }) => {
               console.error('[TwitterEmbed] 트위터 위젯 생성 실패:', error);
               return false;
             });
-            return true; // Promise 반환으로 성공으로 간주
+            return true; // Promise 반환���로 성공으로 간주
           } else {
             console.error('[TwitterEmbed] 유효하지 않은 트윗 URL:', url);
             return false;
@@ -1324,6 +1324,15 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
   const [currentRelatedIndex, setCurrentRelatedIndex] = useState(0); // Related News 썸네일 인덱스
   const [showRelatedThumbnail, setShowRelatedThumbnail] = useState(true); // Related News 썸네일 표시 상태
   const { data: session } = useSession();
+
+  // Reactions state
+  const [reactions, setReactions] = useState({
+    like: 0,
+    congratulations: 0,
+    surprised: 0,
+    sad: 0
+  });
+  const [userReaction, setUserReaction] = useState(null);
   
   // For optimized scroll handling and position saving
   const lastScrollY = useRef(0);
@@ -1364,6 +1373,29 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
         const likedNews = JSON.parse(likedNewsFromCookie);
         if (likedNews[newsArticle._id]) {
           setLiked(true);
+        }
+      }
+    }
+  }, [newsArticle, userId]);
+
+  // Load reaction status from cookies on page load
+  useEffect(() => {
+    if (typeof window !== 'undefined' && newsArticle?._id && userId) {
+      // Get user's reaction from cookies
+      const userReactionsFromCookie = Cookies.get('newsReactions');
+      if (userReactionsFromCookie) {
+        const userReactions = JSON.parse(userReactionsFromCookie);
+        if (userReactions[newsArticle._id]) {
+          setUserReaction(userReactions[newsArticle._id]);
+        }
+      }
+
+      // Get all reactions count from cookies
+      const allReactionsFromCookie = Cookies.get('newsReactionsCounts');
+      if (allReactionsFromCookie) {
+        const allReactions = JSON.parse(allReactionsFromCookie);
+        if (allReactions[newsArticle._id]) {
+          setReactions(allReactions[newsArticle._id]);
         }
       }
     }
@@ -2158,8 +2190,139 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                     {newsArticle.tags && newsArticle.tags.length > 0 && (
                       <TagsSection tags={newsArticle.tags} />
                     )}
+
+                    {/* Reactions Section */}
+                    <div className="mt-10 pt-6 border-t border-gray-100">
+                      <div className="flex flex-nowrap gap-2 sm:gap-8 justify-center items-center">
+                      {[
+                        { key: 'like', label: 'Like', image: '/images/icons8-like-50.png' },
+                        { key: 'congratulations', label: 'Congratulations', image: '/images/icons8-partying-face-50.png' },
+                        { key: 'surprised', label: 'Surprised', image: '/images/icons8-surprised-50.png' },
+                        { key: 'sad', label: 'Sad', image: '/images/icons8-sleepy-face-emoji-50.png' }
+                      ].map(({ key, label, image }) => (
+                        <button
+                          key={key}
+                          onClick={() => {
+                            let newReactions;
+                            let newUserReaction;
+
+                            if (userReaction === key) {
+                              // 이미 선택한 반응을 다시 클릭하면 취소
+                              newReactions = { ...reactions, [key]: Math.max(0, reactions[key] - 1) };
+                              newUserReaction = null;
+                              setReactions(newReactions);
+                              setUserReaction(null);
+                            } else {
+                              // 새로운 반응 선택
+                              newReactions = { ...reactions };
+                              if (userReaction) {
+                                // 이전 반응 취소
+                                newReactions[userReaction] = Math.max(0, newReactions[userReaction] - 1);
+                              }
+                              newReactions[key] = newReactions[key] + 1;
+                              newUserReaction = key;
+                              setReactions(newReactions);
+                              setUserReaction(key);
+                            }
+
+                            // 쿠키에 저장 (1년 유효기간)
+                            if (typeof window !== 'undefined' && newsArticle?._id) {
+                              // 사용자의 반응 저장
+                              const userReactionsFromCookie = Cookies.get('newsReactions');
+                              const userReactions = userReactionsFromCookie ? JSON.parse(userReactionsFromCookie) : {};
+
+                              if (newUserReaction) {
+                                userReactions[newsArticle._id] = newUserReaction;
+                              } else {
+                                delete userReactions[newsArticle._id];
+                              }
+
+                              Cookies.set('newsReactions', JSON.stringify(userReactions), { expires: 365 });
+
+                              // 전체 반응 카운트 저장
+                              const allReactionsFromCookie = Cookies.get('newsReactionsCounts');
+                              const allReactions = allReactionsFromCookie ? JSON.parse(allReactionsFromCookie) : {};
+                              allReactions[newsArticle._id] = newReactions;
+                              Cookies.set('newsReactionsCounts', JSON.stringify(allReactions), { expires: 365 });
+                            }
+                          }}
+                          className={`flex flex-col items-center gap-1 sm:gap-2 px-3 sm:px-8 py-2 sm:py-4 rounded-lg transition-all duration-200 hover:scale-105 ${
+                            userReaction === key
+                              ? 'bg-[#009efc]/10'
+                              : 'bg-transparent hover:bg-gray-50'
+                          }`}
+                        >
+                          <img
+                            src={image}
+                            alt={label}
+                            className="w-9 h-9 sm:w-10 sm:h-10 object-contain"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                          <div className="text-center">
+                            <div className={`text-xs font-medium whitespace-nowrap ${userReaction === key ? 'text-[#233CFA]' : 'text-gray-700'}`}>{label}</div>
+                            <div className={`text-sm font-bold ${userReaction === key ? 'text-[#233CFA]' : 'text-gray-900'}`}>{reactions[key]}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  
+
+                    {/* SNS Share Section */}
+                    <div className="mt-10 pt-6 border-t border-gray-100">
+                      <h3 className="text-lg font-semibold mb-4 text-gray-800">Share this article</h3>
+                      <div className="flex flex-wrap gap-3">
+                        {/* Facebook */}
+                        <button
+                          onClick={() => {
+                            const url = `https://www.kstarpick.com/news/${newsArticle.slug || newsArticle._id}`;
+                            // Facebook 공유 URL에 quote 파라미터 추가
+                            window.open(
+                              `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(newsArticle.title)}`,
+                              '_blank',
+                              'width=600,height=400'
+                            );
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full hover:border-[#1877f2] hover:bg-[#1877f2]/5 transition-all duration-200"
+                        >
+                          <img src="/images/icons8-facebook-logo-50.png" alt="Facebook" className="w-5 h-5" />
+                          <span className="text-sm font-medium text-gray-700">Facebook</span>
+                        </button>
+
+                        {/* X (Twitter) */}
+                        <button
+                          onClick={() => {
+                            const url = `https://www.kstarpick.com/news/${newsArticle.slug || newsArticle._id}`;
+                            const text = newsArticle.title;
+                            window.open(
+                              `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
+                              '_blank',
+                              'width=600,height=400'
+                            );
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full hover:border-[#000000] hover:bg-gray-50 transition-all duration-200"
+                        >
+                          <img src="/images/icons8-x-50.png" alt="X" className="w-5 h-5" />
+                          <span className="text-sm font-medium text-gray-700">X</span>
+                        </button>
+
+                        {/* URL Copy */}
+                        <button
+                          onClick={() => {
+                            const url = `https://www.kstarpick.com/news/${newsArticle.slug || newsArticle._id}`;
+                            navigator.clipboard.writeText(url);
+                            alert('Link copied to clipboard!');
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full hover:border-[#233CFA] hover:bg-[#233CFA]/5 transition-all duration-200"
+                        >
+                          <img src="/images/icons8-url-50.png" alt="Copy URL" className="w-5 h-5" />
+                          <span className="text-sm font-medium text-gray-700">Copy URL</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Comments Section */}
                   <div className="rounded-xl p-3 sm:p-6 md:p-10 mb-8 bg-white border border-gray-200 shadow-sm relative overflow-hidden">
 
