@@ -9,7 +9,7 @@ import Seo from '../../components/Seo';
 import StructuredData from '../../components/StructuredData';
 import Analytics from '../../components/Analytics';
 import { generateNewsArticleJsonLd, generateMetaTags, generateKeywords } from '../../utils/seoHelpers';
-import { Heart, MessageCircle, Share2, Calendar, Clock, User, ChevronLeft, ChevronRight, ArrowUp, Bookmark, Facebook, Twitter, Copy, Eye, TrendingUp, ExternalLink, MessageSquare, ThumbsUp, Send, X, Smile } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Calendar, Clock, User, ChevronLeft, ChevronRight, ArrowUp, Bookmark, Eye, TrendingUp, ExternalLink, MessageSquare, ThumbsUp, Send, X, Smile } from 'lucide-react';
 import Cookies from 'js-cookie';
 import { connectToDatabase } from "../../utils/mongodb";
 import { ObjectId } from 'mongodb';
@@ -1333,7 +1333,8 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
     sad: 0
   });
   const [userReaction, setUserReaction] = useState(null);
-  
+  const [showShareMenu, setShowShareMenu] = useState(false);
+
   // For optimized scroll handling and position saving
   const lastScrollY = useRef(0);
   const ticking = useRef(false);
@@ -1589,17 +1590,6 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
   // Handle bookmark functionality
   const handleBookmark = () => {
     setBookmarked(!bookmarked);
-  };
-
-  // Handle share functionality - copy link to clipboard
-  const handleCopyLink = () => {
-    if (typeof window !== 'undefined') {
-      // slug 기반의 정확한 URL 생성
-      const correctUrl = `https://www.kstarpick.com/news/${newsArticle.slug || newsArticle._id}`;
-      navigator.clipboard.writeText(correctUrl);
-      setIsLinkCopied(true);
-      setTimeout(() => setIsLinkCopied(false), 2000);
-    }
   };
 
   // 페이지 로드 시 로컬 저장소 및 서버에서 댓글을 가져옴
@@ -1894,6 +1884,33 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
     [newsArticle.category, newsArticle.author?.name].filter(Boolean)
   ) : [];
 
+  // 공유 함수들
+  const handleShareFacebook = () => {
+    if (typeof window === 'undefined') return;
+    const shareUrl = `https://www.kstarpick.com/news/${newsArticle?.slug || newsArticle?._id}`;
+    const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
+    window.open(facebookUrl, '_blank', 'width=600,height=400');
+    setShowShareMenu(false);
+  };
+
+  const handleShareTwitter = () => {
+    if (typeof window === 'undefined') return;
+    const shareUrl = `https://www.kstarpick.com/news/${newsArticle?.slug || newsArticle?._id}`;
+    const shareTitle = newsArticle?.title || '';
+    const twitterUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareTitle)}`;
+    window.open(twitterUrl, '_blank', 'width=600,height=400');
+    setShowShareMenu(false);
+  };
+
+  const handleCopyLink = () => {
+    if (typeof window === 'undefined') return;
+    const shareUrl = `https://www.kstarpick.com/news/${newsArticle?.slug || newsArticle?._id}`;
+    navigator.clipboard.writeText(shareUrl);
+    setIsLinkCopied(true);
+    setTimeout(() => setIsLinkCopied(false), 2000);
+    setShowShareMenu(false);
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <Head>
@@ -1945,12 +1962,12 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
         )}
         
         {/* Riddle 로딩 애니메이션을 위한 CSS */}
-        <style jsx>{`
+        <style dangerouslySetInnerHTML={{__html: `
           @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
           }
-        `}</style>
+        `}} />
       </Head>
       <Seo 
         {...metaTags}
@@ -2038,7 +2055,7 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                           <div className="flex items-center px-3 py-1 rounded-full" style={{ backgroundColor: '#233CFA' }}>
                             <span className="font-medium capitalize">{newsArticle.category || 'K-pop'}</span>
                           </div>
-                          
+
                           <div className="flex items-center">
                             <Calendar size={16} className="mr-2 text-[#009efc]" />
                             <span className="font-medium">{
@@ -2056,6 +2073,13 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                             <User size={16} className="mr-2 text-[#009efc]" />
                             <span className="font-medium">By {newsArticle.author?.name || 'Admin'}</span>
                           </div>
+
+                          <button
+                            onClick={() => setShowShareMenu(!showShareMenu)}
+                            className="flex md:hidden items-center justify-center bg-white/20 hover:bg-white/30 active:bg-white/40 p-2 rounded-full transition-all duration-200"
+                          >
+                            <Share2 size={16} className="text-[#009efc]" />
+                          </button>
                         </div>
 
                         <div className="hidden md:flex items-center gap-4">
@@ -2072,6 +2096,14 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                             <User size={16} className="mr-2 text-[#009efc]" />
                             <span className="font-medium">By {newsArticle.author?.name || 'Admin'}</span>
                           </div>
+
+                          <button
+                            onClick={() => setShowShareMenu(!showShareMenu)}
+                            className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-all duration-200"
+                          >
+                            <Share2 size={16} className="text-[#009efc]" />
+                            <span className="font-medium">Share</span>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -2091,7 +2123,7 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                     </div>
                     
                     {/* Riddle 전용 CSS 스타일 - 매우 강력한 버전 */}
-                    <style jsx global>{`
+                    <style dangerouslySetInnerHTML={{__html: `
                       /* 최강 Riddle wrapper 스타일 */
                       .article-content .riddle2-wrapper,
                       .prose .riddle2-wrapper,
@@ -2105,7 +2137,7 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                         width: 100% !important;
                         max-width: none !important;
                       }
-                      
+
                       /* 최강 Riddle iframe 스타일 */
                       .article-content .riddle2-wrapper iframe,
                       .prose .riddle2-wrapper iframe,
@@ -2120,7 +2152,7 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                         display: block !important;
                         border: none !important;
                       }
-                      
+
                       /* 모든 Riddle 관련 요소에 강제 적용 */
                       [data-rid-id] {
                         height: auto !important;
@@ -2130,20 +2162,20 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                         width: 100% !important;
                         max-width: none !important;
                       }
-                      
+
                       [data-rid-id] iframe {
                         height: 1000px !important;
                         min-height: 1000px !important;
                         width: 100% !important;
                         max-height: none !important;
                       }
-                      
+
                       /* 인라인 스타일보다 우선하는 CSS */
                       iframe[style*="height"] {
                         height: 1000px !important;
                         min-height: 1000px !important;
                       }
-                      
+
                       /* 강제 클래스 스타일 */
                       .riddle-force-height {
                         height: 1000px !important;
@@ -2184,7 +2216,7 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                         margin-top: 1rem !important;
                         margin-bottom: 1rem !important;
                       }
-                    `}</style>
+                    `}} />
                     
                     {/* Tags */}
                     {newsArticle.tags && newsArticle.tags.length > 0 && (
@@ -2268,60 +2300,7 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                       ))}
                     </div>
                   </div>
-
-                    {/* SNS Share Section */}
-                    <div className="mt-10 pt-6 border-t border-gray-100">
-                      <h3 className="text-lg font-semibold mb-4 text-gray-800">Share this article</h3>
-                      <div className="flex flex-wrap gap-3">
-                        {/* Facebook */}
-                        <button
-                          onClick={() => {
-                            const url = `https://www.kstarpick.com/news/${newsArticle.slug || newsArticle._id}`;
-                            // Facebook 공유 URL에 quote 파라미터 추가
-                            window.open(
-                              `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(newsArticle.title)}`,
-                              '_blank',
-                              'width=600,height=400'
-                            );
-                          }}
-                          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full hover:border-[#1877f2] hover:bg-[#1877f2]/5 transition-all duration-200"
-                        >
-                          <img src="/images/icons8-facebook-logo-50.png" alt="Facebook" className="w-5 h-5" />
-                          <span className="text-sm font-medium text-gray-700">Facebook</span>
-                        </button>
-
-                        {/* X (Twitter) */}
-                        <button
-                          onClick={() => {
-                            const url = `https://www.kstarpick.com/news/${newsArticle.slug || newsArticle._id}`;
-                            const text = newsArticle.title;
-                            window.open(
-                              `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
-                              '_blank',
-                              'width=600,height=400'
-                            );
-                          }}
-                          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full hover:border-[#000000] hover:bg-gray-50 transition-all duration-200"
-                        >
-                          <img src="/images/icons8-x-50.png" alt="X" className="w-5 h-5" />
-                          <span className="text-sm font-medium text-gray-700">X</span>
-                        </button>
-
-                        {/* URL Copy */}
-                        <button
-                          onClick={() => {
-                            const url = `https://www.kstarpick.com/news/${newsArticle.slug || newsArticle._id}`;
-                            navigator.clipboard.writeText(url);
-                            alert('Link copied to clipboard!');
-                          }}
-                          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full hover:border-[#233CFA] hover:bg-[#233CFA]/5 transition-all duration-200"
-                        >
-                          <img src="/images/icons8-url-50.png" alt="Copy URL" className="w-5 h-5" />
-                          <span className="text-sm font-medium text-gray-700">Copy URL</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                </div>
 
                   {/* Comments Section */}
                   <div className="rounded-xl p-3 sm:p-6 md:p-10 mb-8 bg-white border border-gray-200 shadow-sm relative overflow-hidden">
@@ -2627,24 +2606,147 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
       {isMounted && showBackToTop && (
         <button
               onClick={scrollToTop}
-              className="fixed bottom-6 right-6 p-3 bg-white rounded-full shadow-lg transition-all duration-300 transform hover:scale-110"
+              className="back-to-top-btn fixed bottom-6 right-6 p-3 bg-white rounded-full shadow-lg transition-all duration-300 transform hover:scale-110"
               aria-label="Back to top"
               style={{
                 border: '2px solid #233CFA',
                 zIndex: 9999,
               }}
             >
-              <style jsx>{`
-                button:hover {
+              <style dangerouslySetInnerHTML={{__html: `
+                .back-to-top-btn:hover {
                   transform: scale(1.15);
                   box-shadow: 0 10px 25px -5px rgba(35, 60, 250, 0.4);
                 }
-              `}</style>
+              `}} />
               <ArrowUp size={20} color="#233CFA" />
             </button>
       )}
 
+      {/* 공유 모달 (PC: 중앙 팝업, 모바일: 하단 모달) */}
+      {showShareMenu && (
+        <>
+          {/* 배경 오버레이 */}
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-50 transition-opacity"
+            onClick={() => setShowShareMenu(false)}
+          />
+
+          {/* 모달 - PC: 중앙 팝업, 모바일: 하단 */}
+          <div className="fixed bottom-0 left-0 right-0 md:bottom-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:max-w-md md:w-full bg-white rounded-t-3xl md:rounded-2xl z-50 animate-slide-up-mobile shadow-2xl">
+            <div className="p-6">
+              {/* 핸들 바 (모바일만) */}
+              <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-6 md:hidden"></div>
+
+              {/* 제목과 닫기 버튼 */}
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-gray-900">Share this article</h3>
+                <button
+                  onClick={() => setShowShareMenu(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  aria-label="Close"
+                >
+                  <X size={24} color="#374151" />
+                </button>
+              </div>
+
+              {/* 공유 버튼들 */}
+              <div className="flex justify-center gap-6 mb-4">
+                {/* Facebook */}
+                <button
+                  onClick={handleShareFacebook}
+                  className="w-14 h-14 flex items-center justify-center hover:scale-110 transition-transform"
+                >
+                  <img src="/images/icons8-facebook-logo-50.png" alt="Facebook" className="w-12 h-12" />
+                </button>
+
+                {/* X (Twitter) */}
+                <button
+                  onClick={handleShareTwitter}
+                  className="w-14 h-14 flex items-center justify-center hover:scale-110 transition-transform"
+                >
+                  <img src="/images/icons8-x-50.png" alt="X" className="w-12 h-12" />
+                </button>
+              </div>
+
+              {/* URL 표시 */}
+              <div className="mt-6 p-4 bg-gray-100 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-600 truncate flex-1">
+                    {typeof window !== 'undefined' ? `https://www.kstarpick.com/news/${newsArticle?.slug || newsArticle?._id}` : ''}
+                  </p>
+                  <button
+                    onClick={handleCopyLink}
+                    className="ml-2 px-4 py-2 bg-gray-800 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors"
+                  >
+                    Copy URL
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 링크 복사 완료 토스트 */}
+      {isLinkCopied && (
+        <div className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in">
+          Link copied to clipboard!
+        </div>
+      )}
+
       <Footer />
+
+      <style dangerouslySetInnerHTML={{__html: `
+        /* 모바일 하단 슬라이드 업 애니메이션 */
+        @keyframes slide-up-mobile {
+          from {
+            transform: translateY(100%);
+          }
+          to {
+            transform: translateY(0);
+          }
+        }
+
+        /* 모바일에만 애니메이션 적용 */
+        @media (max-width: 767px) {
+          .animate-slide-up-mobile {
+            animation: slide-up-mobile 0.3s ease-out;
+          }
+        }
+
+        /* PC 중앙 페이드 인 애니메이션 */
+        @keyframes fade-in-center {
+          from {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+          }
+        }
+
+        .animate-fade-in-center {
+          animation: fade-in-center 0.25s ease-out;
+        }
+
+        /* 토스트 페이드 인 애니메이션 */
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+            transform: translate(-50%, -20px);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, 0);
+          }
+        }
+
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out;
+        }
+      `}} />
     </div>
   );
 }
