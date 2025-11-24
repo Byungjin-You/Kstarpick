@@ -841,6 +841,15 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
     }
   };
 
+  // 배우 클릭 핸들러 - 배우 이름으로 검색 (CastSection 컴포넌트에서 사용)
+  const handleActorClick = (actorName, e) => {
+    if (!actorName) return;
+
+    // 배우 이름을 URL 인코딩하여 검색 페이지로 이동
+    const encodedName = encodeURIComponent(actorName);
+    router.push(`/search?q=${encodedName}&type=actor`);
+  };
+
   // 리뷰 모달 열기
   const openReviewModal = (review) => {
     setSelectedReview(review);
@@ -2238,7 +2247,10 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                 
                 {/* Cast Section - 출연진 */}
                 <div className="order-4">
-                  <CastSection cast={cast} />
+                  <CastSection
+                    cast={cast}
+                    onActorClick={(actor) => handleActorClick(actor.name, null)}
+                  />
                 </div>
               </div>
               

@@ -1334,6 +1334,8 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
   });
   const [userReaction, setUserReaction] = useState(null);
   const [showShareMenu, setShowShareMenu] = useState(false);
+  const [showMoreNewsSection, setShowMoreNewsSection] = useState(false);
+  const [isMoreNewsSectionHiding, setIsMoreNewsSectionHiding] = useState(false);
 
   // For optimized scroll handling and position saving
   const lastScrollY = useRef(0);
@@ -1467,6 +1469,7 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
       } else {
         setHeaderHeight(25);
       }
+
     };
 
     // 여러 방법으로 스크롤 이벤트 등록
@@ -1484,6 +1487,30 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
       document.removeEventListener('scroll', scrollHandler);
       document.body.removeEventListener('scroll', scrollHandler);
     };
+  }, []);
+
+  // "Want to know more news?" 섹션 - 3초 후 자동 표시, 5초 후 자동 숨김
+  useEffect(() => {
+    const showTimer = setTimeout(() => {
+      setShowMoreNewsSection(true);
+      setIsMoreNewsSectionHiding(false);
+
+      // 표시된 후 5초 뒤 자동 숨김
+      const hideTimer = setTimeout(() => {
+        // 숨김 애니메이션 시작
+        setIsMoreNewsSectionHiding(true);
+
+        // 애니메이션 완료 후 실제로 숨김 (0.5초 후)
+        setTimeout(() => {
+          setShowMoreNewsSection(false);
+          setIsMoreNewsSectionHiding(false);
+        }, 500);
+      }, 5000);
+
+      return () => clearTimeout(hideTimer);
+    }, 3000);
+
+    return () => clearTimeout(showTimer);
   }, []);
 
   // Track viewed news for recommendations
@@ -1519,6 +1546,56 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // "Want to know more news?" 버튼 클릭 시 Related News로 스크롤
+  const handleScrollToRelatedNews = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    // 스크롤 복원 플래그 제거 (간섭 방지)
+    sessionStorage.removeItem('isBackToNewsDetail');
+
+    // 숨김 애니메이션 시작
+    setIsMoreNewsSectionHiding(true);
+
+    // 애니메이션 완료 후 실제로 숨김
+    setTimeout(() => {
+      setShowMoreNewsSection(false);
+      setIsMoreNewsSectionHiding(false);
+    }, 500);
+
+    // Related News 섹션 위치 확인
+    const relatedSection = document.getElementById('related-news-section');
+
+    if (relatedSection) {
+      const scrollContainer = document.body;
+      const currentScroll = scrollContainer.scrollTop;
+      const rect = relatedSection.getBoundingClientRect();
+
+      // Related News가 뷰포트보다 아래에 있는 경우에만 스크롤
+      // rect.top이 양수면 Related News가 화면 아래쪽에 있음 (아직 안 보임)
+      if (rect.top > 0) {
+        const headerOffset = 80; // 헤더 높이
+        const absoluteTop = currentScroll + rect.top;
+        const scrollToPosition = absoluteTop - headerOffset;
+
+        console.log('Scrolling to Related News:', scrollToPosition);
+
+        // 스크롤 실행
+        setTimeout(() => {
+          scrollContainer.scrollTo({
+            top: scrollToPosition,
+            behavior: 'smooth'
+          });
+        }, 100);
+      } else {
+        console.log('Already at or past Related News - no scroll needed');
+      }
+      // rect.top이 0 이하면 Related News가 이미 화면에 보이거나 위에 있음 -> 스크롤 안 함
+    }
   };
 
   // 뉴스 상세 페이지 스크롤 위치 저장 및 복원
@@ -2444,7 +2521,7 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                 {/* Sidebar */}
                 <div className="lg:w-1/3">
                   {/* Related News - 드라마 페이지와 동일한 디자인 */}
-                  <div className="bg-white rounded-xl px-0 py-3 mb-8 mt-0 md:mt-12">
+                  <div id="related-news-section" className="bg-white rounded-xl px-0 py-3 mb-8 mt-0 md:mt-12">
                     <div className="mb-6">
                       <div className="flex items-center">
                         {/* Link Icon */}
@@ -2695,6 +2772,20 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
         </div>
       )}
 
+      {/* Want to know more news? 섹션 - 모바일 전용 */}
+      {showMoreNewsSection && (
+        <div className={`md:hidden fixed bottom-6 left-0 right-0 z-40 flex justify-center px-4 ${isMoreNewsSectionHiding ? 'animate-slide-down-smooth' : 'animate-slide-up-smooth'}`}>
+          <button onClick={handleScrollToRelatedNews} className="block">
+            <div className="py-2.5 px-5 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-300 active:scale-95 border-2" style={{ backgroundColor: '#332c49', borderColor: '#233CFA' }}>
+              <div className="flex items-center gap-2.5 text-white">
+                <p className="text-sm font-bold whitespace-nowrap">Want to know more news?</p>
+                <ChevronRight size={18} className="rotate-90" />
+              </div>
+            </div>
+          </button>
+        </div>
+      )}
+
       <Footer />
 
       <style dangerouslySetInnerHTML={{__html: `
@@ -2713,6 +2804,38 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
           .animate-slide-up-mobile {
             animation: slide-up-mobile 0.3s ease-out;
           }
+        }
+
+        /* Want to know more news? 슬라이드 업 애니메이션 */
+        @keyframes slide-up-smooth {
+          from {
+            transform: translateY(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+
+        /* Want to know more news? 슬라이드 다운 애니메이션 */
+        @keyframes slide-down-smooth {
+          from {
+            transform: translateY(0);
+            opacity: 1;
+          }
+          to {
+            transform: translateY(100%);
+            opacity: 0;
+          }
+        }
+
+        .animate-slide-up-smooth {
+          animation: slide-up-smooth 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .animate-slide-down-smooth {
+          animation: slide-down-smooth 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
 
         /* PC 중앙 페이드 인 애니메이션 */
