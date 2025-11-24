@@ -76,7 +76,7 @@ export default function Logo() {
       <div className="block cursor-pointer" onClick={handleLogoClick}>
         <div className="w-auto h-[40px] flex items-center">
           <Image
-            src="/images/KSTARPICK Logo - Emblem Style, Futuristic Aesthetic.png"
+            src="/images/logo1.svg"
             alt="Kstarpick Logo"
             width={135}
             height={40}
@@ -100,7 +100,7 @@ export default function Logo() {
         <div className="flex items-center">
           {/* 이미지 로고 */}
           <Image
-            src="/images/KSTARPICK Logo - Emblem Style, Futuristic Aesthetic.png"
+            src="/images/logo1.svg"
             alt="Kstarpick Logo"
             width={135}
             height={40}

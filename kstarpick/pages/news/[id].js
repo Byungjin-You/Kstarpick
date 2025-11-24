@@ -1545,7 +1545,9 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
   }, [newsArticle]);
 
   const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // document.body가 실제 스크롤 컨테이너이므로 body.scrollTo 사용
+    const scrollContainer = document.body;
+    scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // "Want to know more news?" 버튼 클릭 시 Related News로 스크롤

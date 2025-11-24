@@ -130,30 +130,39 @@ export default async function handler(req, res) {
         
         // 리뷰 컬렉션에서 해당 드라마의 리뷰 조회 (여러 방식으로 시도)
         let externalReviews = [];
-        
+
         try {
-          // 1. 문자열 ID로 시도
-          console.log(`[API] 리뷰 조회 시도 1: 문자열 ID (${id})`);
-          const stringIdReviews = await db.collection('reviews').find({ dramaId: id }).toArray();
-          
-          // 2. ObjectId로 시도 (유효한 ObjectId인 경우)
-          let objectIdReviews = [];
-          if (ObjectId.isValid(id)) {
-            console.log(`[API] 리뷰 조회 시도 2: ObjectId (${id})`);
-            objectIdReviews = await db.collection('reviews').find({ dramaId: new ObjectId(id) }).toArray();
+          // 드라마의 실제 _id를 사용하여 리뷰 조회 (slug로 찾은 경우에도 _id로 조회)
+          console.log(`[API] 리뷰 조회 시도: drama._id (${drama._id.toString()})`);
+
+          // 1. 드라마의 실제 ObjectId로 조회
+          const objectIdReviews = await db.collection('reviews').find({
+            dramaId: drama._id
+          }).toArray();
+
+          // 2. 문자열 ID로도 조회 (하위 호환성)
+          const stringIdReviews = await db.collection('reviews').find({
+            dramaId: drama._id.toString()
+          }).toArray();
+
+          // 3. 원래 URL 파라미터로도 조회 (slug나 다른 ID 형식인 경우)
+          let paramIdReviews = [];
+          if (id !== drama._id.toString()) {
+            console.log(`[API] 추가 리뷰 조회 시도: URL 파라미터 (${id})`);
+            paramIdReviews = await db.collection('reviews').find({ dramaId: id }).toArray();
           }
-          
+
           // 조회된 리뷰 병합 (중복 제거)
-          const allReviews = [...stringIdReviews, ...objectIdReviews];
-          
+          const allReviews = [...objectIdReviews, ...stringIdReviews, ...paramIdReviews];
+
           // reviewId를 기준으로 중복 제거
           const reviewMap = new Map();
           allReviews.forEach(review => {
             reviewMap.set(review.reviewId || review._id.toString(), review);
           });
-          
+
           externalReviews = Array.from(reviewMap.values());
-          console.log(`[API] 리뷰 조회 결과: 문자열 ID=${stringIdReviews.length}개, ObjectId=${objectIdReviews.length}개, 중복제거 후=${externalReviews.length}개`);
+          console.log(`[API] 리뷰 조회 결과: ObjectId=${objectIdReviews.length}개, 문자열=${stringIdReviews.length}개, 파라미터=${paramIdReviews.length}개, 중복제거 후=${externalReviews.length}개`);
         } catch (error) {
           console.error('[API] 리뷰 조회 중 오류:', error);
           // 오류가 발생해도 계속 진행

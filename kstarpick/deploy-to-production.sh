@@ -81,11 +81,10 @@ echo ""
 echo -e "${GREEN}Step 3/5: 서버로 파일 업로드 중...${NC}"
 echo -e "${BLUE}rsync로 파일 전송 중... (몇 분 소요될 수 있습니다)${NC}"
 
-# rsync로 파일 업로드 (node_modules, .next 폴더, 캐시 제외)
-# 서버에서 빌드하므로 로컬 빌드 결과(.next)는 업로드하지 않음
+# rsync로 파일 업로드 (node_modules와 캐시 제외)
 rsync -avz --progress \
     --exclude 'node_modules' \
-    --exclude '.next' \
+    --exclude '.next/cache' \
     --exclude '.git' \
     --exclude '.env.local' \
     --exclude '*.log' \
