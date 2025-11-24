@@ -2690,7 +2690,7 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
 
       {/* 링크 복사 완료 토스트 */}
       {isLinkCopied && (
-        <div className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in">
+        <div className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-8 py-4 rounded-lg shadow-lg z-50 animate-fade-in whitespace-nowrap text-base">
           Link copied to clipboard!
         </div>
       )}
