@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useSession, signOut } from 'next-auth/react';
-import { Home, FileText, Video, Users, Settings, LogOut, Menu, X, AlertCircle, Film, Newspaper, Tv, Layers, Music, Star } from 'lucide-react';
+import { Home, FileText, Video, Users, Settings, LogOut, Menu, X, AlertCircle, Film, Newspaper, Tv, Layers, Music, Star, BarChart3 } from 'lucide-react';
 
 const AdminLayout = ({ children }) => {
   const router = useRouter();
@@ -138,6 +138,15 @@ const AdminLayout = ({ children }) => {
                 >
                   <Star className="mr-3 h-5 w-5" />
                   셀럽 관리
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/user-dashboard"
+                  className={`flex items-center px-4 py-2 rounded-lg ${router.pathname.startsWith('/admin/user-dashboard') ? 'bg-blue-600 text-white' : 'text-gray-800 hover:bg-blue-100'}`}
+                >
+                  <BarChart3 className="mr-3 h-5 w-5" />
+                  유저 분석
                 </Link>
               </li>
             </ul>
