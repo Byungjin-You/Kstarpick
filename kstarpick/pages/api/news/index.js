@@ -58,47 +58,61 @@ export default async function handler(req, res) {
   // SSR 내부 호출인지 확인
   const isInternalSSR = req.headers['x-internal-ssr'] === 'true';
   
-  // SSR 내부 호출이 아닌 경우에만 인증 확인
-  if (!isInternalSSR) {
-    console.log('[DEBUG] 인증 토큰 체크 시작');
-    try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      if (!token) {
-        console.log('[DEBUG] 토큰 없음 - 인증 오류 반환');
-        return res.status(401).json({ success: false, message: '인증 토큰이 필요합니다.' });
-      }
-
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      if (!decoded.isAdmin) {
-        return res.status(403).json({ success: false, message: '관리자 권한이 필요합니다.' });
-      }
-    } catch (error) {
-      console.log('[DEBUG] 토큰 검증 실패:', error.message);
-      return res.status(401).json({ success: false, message: '유효하지 않은 토큰입니다.' });
-    }
-  }
-
   try {
-    // 세션 확인
+    // 세션 확인 먼저 시도
     const session = await getServerSession(req, res, authOptions);
-    
-    // POST 이외의 요청은 로그인 필수
-    if (!session) {
-      return res.status(401).json({ message: '로그인이 필요합니다.' });
-    }
-    
-    // POST 요청 처리 (뉴스 생성)
-    if (req.method === 'POST') {
+    console.log('[DEBUG] 세션 확인:', session ? `있음 (${session.user?.email})` : '없음');
+
+    // 세션이 있으면 세션 기반 인증 사용
+    if (session) {
       // admin 또는 editor 권한 확인
       if (session.user.role !== 'admin' && session.user.role !== 'editor') {
         return res.status(403).json({ message: '권한이 없습니다.' });
       }
-      
-      return createNews(req, res, session);
+      // 세션 인증 성공 - createNews로 이동
+      if (req.method === 'POST') {
+        return createNews(req, res, session);
+      }
+      return res.status(405).json({ message: '지원하지 않는 메소드입니다.' });
     }
-    
-    // 지원하지 않는 메소드
-    return res.status(405).json({ message: '지원하지 않는 메소드입니다.' });
+
+    // 세션이 없는 경우 토큰 기반 인증 시도 (SSR 내부 호출이 아닌 경우)
+    if (!isInternalSSR) {
+      console.log('[DEBUG] 인증 토큰 체크 시작');
+      try {
+        const token = req.headers.authorization?.replace('Bearer ', '');
+        if (!token) {
+          console.log('[DEBUG] 토큰 없음 - 인증 오류 반환');
+          return res.status(401).json({ success: false, message: '인증 토큰이 필요합니다.' });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (!decoded.isAdmin) {
+          return res.status(403).json({ success: false, message: '관리자 권한이 필요합니다.' });
+        }
+
+        // 토큰에서 세션 정보 생성
+        const tokenSession = {
+          user: {
+            id: decoded.userId || 'token-user',
+            email: decoded.email || 'admin@kstarpick.com',
+            name: decoded.name || 'Admin',
+            role: 'admin',
+            image: ''
+          }
+        };
+
+        if (req.method === 'POST') {
+          return createNews(req, res, tokenSession);
+        }
+      } catch (error) {
+        console.log('[DEBUG] 토큰 검증 실패:', error.message);
+        return res.status(401).json({ success: false, message: '유효하지 않은 토큰입니다.' });
+      }
+    }
+
+    // 세션도 없고 토큰도 유효하지 않음
+    return res.status(401).json({ message: '로그인이 필요합니다.' });
     
   } catch (error) {
     console.error('API 핸들러 오류:', error);
@@ -318,10 +332,10 @@ async function getNews(req, res) {
 
 async function createNews(req, res, session) {
   let client;
-  
+
   try {
     console.log('[createNews] === 네이티브 MongoDB 연결 시작 ===');
-    
+
     // MongoDB 클라이언트 연결 - 로컬/프로덕션 환경 구분
     const isLocal = process.env.NODE_ENV === 'development' && MONGODB_URI.includes('localhost');
     const options = isLocal ? {
@@ -339,12 +353,89 @@ async function createNews(req, res, session) {
     };
 
     client = new MongoClient(MONGODB_URI, options);
-    
+
     await client.connect();
     console.log('[createNews] MongoDB 연결 성공');
-    
+
     const db = client.db(MONGODB_DB);
-    
+
+    // Content-Type 확인하여 JSON 또는 FormData 처리 분기
+    const contentType = req.headers['content-type'] || '';
+
+    // JSON 요청인 경우 (my1pick 발행 등)
+    if (contentType.includes('application/json')) {
+      console.log('[createNews] JSON 요청 처리');
+
+      // body를 직접 파싱
+      let body = '';
+      await new Promise((resolve, reject) => {
+        req.on('data', chunk => {
+          body += chunk.toString();
+        });
+        req.on('end', resolve);
+        req.on('error', reject);
+      });
+
+      const jsonData = JSON.parse(body);
+      console.log('[createNews] JSON data received:', jsonData);
+
+      // 필수 필드 검증
+      const requiredFields = ['title', 'content', 'coverImage'];
+      for (const field of requiredFields) {
+        if (!jsonData[field]) {
+          if (client) await client.close();
+          return res.status(400).json({
+            success: false,
+            message: `${field} 필드는 필수입니다.`,
+          });
+        }
+      }
+
+      // 기사 slug 생성
+      const slug = slugify(jsonData.title, {
+        lower: true,
+        strict: true,
+      });
+
+      // 뉴스 데이터 준비
+      const newsData = {
+        title: jsonData.title,
+        summary: jsonData.summary || jsonData.title,
+        content: jsonData.content,
+        slug: slug,
+        coverImage: jsonData.coverImage,
+        category: jsonData.category || 'general',
+        tags: jsonData.tags || [],
+        featured: jsonData.featured || false,
+        source: jsonData.source || 'kstarpick',
+        author: {
+          id: session.user.id,
+          name: session.user.name,
+          email: session.user.email,
+          image: session.user.image || '',
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        publishedAt: new Date(),
+      };
+
+      console.log('[createNews] News data to be inserted:', newsData);
+
+      // 데이터베이스에 뉴스 저장
+      const result = await db.collection('news').insertOne(newsData);
+
+      if (client) await client.close();
+      console.log('[createNews] MongoDB 연결 종료');
+
+      return res.status(201).json({
+        success: true,
+        message: '뉴스가 성공적으로 등록되었습니다.',
+        _id: result.insertedId,
+        news: { ...newsData, _id: result.insertedId },
+      });
+    }
+
+    // FormData 요청인 경우 (기존 로직)
     // formidable 설정
     const form = formidable({
       keepExtensions: true,
@@ -360,7 +451,7 @@ async function createNews(req, res, session) {
 
         try {
           console.log('[createNews] Fields received:', fields);
-        
+
         // formidable은 모든 필드를 배열로 전달하므로 문자열로 변환
         const processedFields = {};
         Object.keys(fields).forEach(key => {

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useSession, signOut } from 'next-auth/react';
-import { Home, FileText, Video, Users, Settings, LogOut, Menu, X, AlertCircle, Film, Newspaper, Tv, Layers, Music, Star, BarChart3 } from 'lucide-react';
+import { Home, FileText, Video, Users, Settings, LogOut, Menu, X, AlertCircle, Film, Newspaper, Tv, Layers, Music, Star, Vote, Sparkles } from 'lucide-react';
 
 const AdminLayout = ({ children }) => {
   const router = useRouter();
@@ -140,13 +140,27 @@ const AdminLayout = ({ children }) => {
                   셀럽 관리
                 </Link>
               </li>
+
+              {/* 마이원픽 섹션 */}
+              <li className="pt-4 mt-4 border-t">
+                <span className="px-4 text-xs font-semibold text-gray-400 uppercase">마이원픽</span>
+              </li>
               <li>
                 <Link
-                  href="/admin/user-dashboard"
-                  className={`flex items-center px-4 py-2 rounded-lg ${router.pathname.startsWith('/admin/user-dashboard') ? 'bg-blue-600 text-white' : 'text-gray-800 hover:bg-blue-100'}`}
+                  href="/admin/my1pick/theme-votes"
+                  className={`flex items-center px-4 py-2 rounded-lg ${router.pathname === '/admin/my1pick/theme-votes' ? 'bg-purple-600 text-white' : 'text-gray-800 hover:bg-purple-100'}`}
                 >
-                  <BarChart3 className="mr-3 h-5 w-5" />
-                  유저 분석
+                  <Vote className="mr-3 h-5 w-5" />
+                  테마 투표 관리
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/my1pick/draft-articles"
+                  className={`flex items-center px-4 py-2 rounded-lg ${router.pathname === '/admin/my1pick/draft-articles' ? 'bg-purple-600 text-white' : 'text-gray-800 hover:bg-purple-100'}`}
+                >
+                  <Sparkles className="mr-3 h-5 w-5" />
+                  AI 기사 관리
                 </Link>
               </li>
             </ul>
