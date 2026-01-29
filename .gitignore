@@ -1,0 +1,34 @@
+# Backup folders
+kstarpick-local-backup-*/
+kstarpick-production-download-*/
+
+# Nested kstarpick folder (duplicate)
+kstarpick/kstarpick/
+
+# Credentials
+*.json
+!kstarpick/package.json
+!kstarpick/package-lock.json
+!kstarpick/jsconfig.json
+!kstarpick/next.config.js
+!kstarpick/tsconfig.json
+
+# Next.js build
+kstarpick/.next/
+
+# Node modules
+kstarpick/node_modules/
+
+# Uploads (local only)
+kstarpick/public/uploads/
+
+# Misc
+.DS_Store
+*.pem
+*.tar.gz
+
+# Temp files
+kstarpick/check_news.js
+kstarpick/find_syntax_error.js
+kstarpick/DAU_IMPROVEMENT_PLAN.md
+kstarpick/public/favicon_old_backup/
