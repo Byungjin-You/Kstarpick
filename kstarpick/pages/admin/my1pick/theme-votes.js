@@ -1,21 +1,18 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import AdminLayout from '../../../components/AdminLayout';
 import {
   Vote,
-  Calendar,
   Users,
   Clock,
   CheckCircle,
-  XCircle,
   PlayCircle,
   ChevronLeft,
   ChevronRight,
   Filter,
   RefreshCw,
   Trophy,
-  TrendingUp,
   FileText,
   Sparkles,
   AlertCircle,
@@ -33,8 +30,37 @@ export default function My1PickThemeVotes() {
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
     status: 'all',
+    type: 'all',
+    month: 'all',
     page: 1
   });
+
+  // 타입 목록
+  const TYPE_OPTIONS = [
+    { code: 'all', label: '전체' },
+    { code: 'S', label: 'SOLO' },
+    { code: 'G', label: 'GROUP' },
+    { code: 'T', label: 'TROT' },
+    { code: 'C', label: 'CELEBRITY' },
+    { code: 'L', label: 'GLOBAL' }
+  ];
+
+  // 월 목록 생성 (최근 12개월)
+  const getMonthOptions = () => {
+    const months = [{ code: 'all', label: '전체 (최근 6개월)' }];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      months.push({
+        code: `${year}-${month}`,
+        label: `${year}년 ${date.getMonth() + 1}월`
+      });
+    }
+    return months;
+  };
+  const MONTH_OPTIONS = getMonthOptions();
   const [expandedCampaign, setExpandedCampaign] = useState(null);
   const [dataLoaded, setDataLoaded] = useState(false);
   const ITEMS_PER_PAGE = 15;
@@ -52,18 +78,19 @@ export default function My1PickThemeVotes() {
     }
   }, [status, router]);
 
-  // 최초 한 번만 전체 데이터 로드
+  // 데이터 로드 (월 변경 시 다시 로드)
   useEffect(() => {
-    if (session?.user?.role === 'admin' && !dataLoaded) {
+    if (session?.user?.role === 'admin') {
       fetchAllData();
     }
-  }, [session, dataLoaded]);
+  }, [session, filters.month]);
 
   // 전체 데이터 로드 (한 번만)
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/my1pick/theme-votes?status=all&page=1&limit=1000`);
+      const monthParam = filters.month !== 'all' ? `&month=${filters.month}` : '';
+      const res = await fetch(`/api/my1pick/theme-votes?status=all&page=1&limit=1000${monthParam}`);
       const result = await res.json();
 
       if (result.success) {
@@ -171,16 +198,21 @@ export default function My1PickThemeVotes() {
   const getFilteredData = () => {
     let filtered = allCampaigns;
 
-    // 상태 필터링
-    if (filters.status !== 'all') {
-      filtered = allCampaigns.filter(c => c.computed_status === filters.status);
+    // 타입 필터링
+    if (filters.type !== 'all') {
+      filtered = filtered.filter(c => c.type_code === filters.type);
     }
 
-    // 통계 계산
+    // 상태 필터링
+    if (filters.status !== 'all') {
+      filtered = filtered.filter(c => c.computed_status === filters.status);
+    }
+
+    // 통계 계산 (타입 필터 적용 후)
     const stats = {
-      ongoing: allCampaigns.filter(c => c.computed_status === 'ongoing').length,
-      scheduled: allCampaigns.filter(c => c.computed_status === 'scheduled').length,
-      ended: allCampaigns.filter(c => c.computed_status === 'ended').length
+      ongoing: filtered.filter(c => c.computed_status === 'ongoing').length,
+      scheduled: filtered.filter(c => c.computed_status === 'scheduled').length,
+      ended: filtered.filter(c => c.computed_status === 'ended').length
     };
 
     // 페이지네이션
@@ -252,11 +284,8 @@ export default function My1PickThemeVotes() {
       'T': 'bg-purple-100 text-purple-700',
       'S': 'bg-pink-100 text-pink-700',
       'G': 'bg-indigo-100 text-indigo-700',
-      'K': 'bg-yellow-100 text-yellow-700',
-      'M': 'bg-orange-100 text-orange-700',
       'L': 'bg-cyan-100 text-cyan-700',
-      'C': 'bg-red-100 text-red-700',
-      'U': 'bg-emerald-100 text-emerald-700'
+      'C': 'bg-red-100 text-red-700'
     };
 
     return (
@@ -334,6 +363,26 @@ export default function My1PickThemeVotes() {
             </div>
 
             <select
+              value={filters.month}
+              onChange={(e) => setFilters({ ...filters, month: e.target.value, page: 1 })}
+              className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            >
+              {MONTH_OPTIONS.map(m => (
+                <option key={m.code} value={m.code}>{m.label}</option>
+              ))}
+            </select>
+
+            <select
+              value={filters.type}
+              onChange={(e) => setFilters({ ...filters, type: e.target.value, page: 1 })}
+              className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            >
+              {TYPE_OPTIONS.map(t => (
+                <option key={t.code} value={t.code}>{t.label}</option>
+              ))}
+            </select>
+
+            <select
               value={filters.status}
               onChange={(e) => setFilters({ ...filters, status: e.target.value, page: 1 })}
               className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
@@ -367,6 +416,7 @@ export default function My1PickThemeVotes() {
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">타입</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">제목</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">상태</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">기간</th>
@@ -376,9 +426,8 @@ export default function My1PickThemeVotes() {
             </thead>
             <tbody className="divide-y">
               {data?.campaigns?.map((campaign) => (
-                <>
+                <React.Fragment key={campaign.idx}>
                   <tr
-                    key={campaign.idx}
                     className={`hover:bg-gray-50 cursor-pointer transition-colors ${
                       expandedCampaign === campaign.idx ? 'bg-purple-50' : ''
                     }`}
@@ -388,9 +437,12 @@ export default function My1PickThemeVotes() {
                   >
                     <td className="px-4 py-3 text-sm text-gray-600">{campaign.idx}</td>
                     <td className="px-4 py-3">
+                      {getTypeBadge(campaign.type_code, campaign.type_label)}
+                    </td>
+                    <td className="px-4 py-3">
                       <div className="font-medium text-gray-800">{campaign.title}</div>
-                      {campaign.jucha && (
-                        <div className="text-xs text-gray-500">{campaign.jucha}</div>
+                      {campaign.month && (
+                        <div className="text-xs text-gray-500">{campaign.month}</div>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -427,7 +479,7 @@ export default function My1PickThemeVotes() {
                   {/* 확장된 후보자 목록 */}
                   {expandedCampaign === campaign.idx && (
                     <tr>
-                      <td colSpan={6} className="bg-purple-50 px-4 py-4">
+                      <td colSpan={7} className="bg-purple-50 px-4 py-4">
                         <div className="text-sm font-medium text-purple-700 mb-3 flex items-center gap-2">
                           <Trophy size={16} />
                           후보자 순위 (투표수 기준)
@@ -490,12 +542,12 @@ export default function My1PickThemeVotes() {
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               ))}
 
               {(!data?.campaigns || data.campaigns.length === 0) && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
                     해당하는 투표가 없습니다.
                   </td>
                 </tr>

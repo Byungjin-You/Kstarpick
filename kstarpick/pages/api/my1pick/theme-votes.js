@@ -1,6 +1,50 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
-import { query } from '../../../lib/my1pick-db';
+
+// S3에서 월별 데이터 가져오기
+async function fetchMonthData(yearMonth) {
+  const url = `https://my1pick.s3.ap-northeast-2.amazonaws.com/kstarpick/prd-ranking-${yearMonth}.json`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.log(`[theme-votes] No data for ${yearMonth}`);
+      return null;
+    }
+    return await response.json();
+  } catch (error) {
+    console.error(`[theme-votes] Failed to fetch ${yearMonth}:`, error.message);
+    return null;
+  }
+}
+
+// 여러 월의 데이터 가져오기
+async function fetchMultipleMonths(months) {
+  const promises = months.map(month => fetchMonthData(month));
+  const results = await Promise.all(promises);
+  return results.filter(r => r !== null);
+}
+
+// 최근 N개월 목록 생성
+function getRecentMonths(count = 6) {
+  const months = [];
+  const now = new Date();
+  for (let i = 0; i < count; i++) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    months.push(`${year}-${month}`);
+  }
+  return months;
+}
+
+// 타입 코드를 라벨로 변환
+const TYPE_LABELS = {
+  'S': 'SOLO',
+  'G': 'GROUP',
+  'T': 'TROT',
+  'C': 'CELEBRITY',
+  'L': 'GLOBAL'
+};
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -14,122 +58,120 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { status, page = 1, limit = 20 } = req.query;
+    const { status, page = 1, limit = 20, month, type } = req.query;
     const pageNum = parseInt(page) || 1;
     const limitNum = parseInt(limit) || 20;
-    const offset = (pageNum - 1) * limitNum;
 
-    // Season Chart 투표만 필터링
-    let whereConditions = ["vc.title LIKE '%season chart%'"];
-    let params = [];
-
-    // 상태 필터 (진행중/종료/예정)
-    if (status === 'ongoing') {
-      whereConditions.push("NOW() BETWEEN vc.start_at AND vc.end_at AND vc.states = 'Y'");
-    } else if (status === 'ended') {
-      whereConditions.push('vc.end_at < NOW()');
-    } else if (status === 'scheduled') {
-      whereConditions.push('vc.start_at > NOW()');
+    // 특정 월 지정 또는 최근 6개월
+    let monthsToFetch;
+    if (month) {
+      monthsToFetch = [month];
+    } else {
+      monthsToFetch = getRecentMonths(6);
     }
 
-    const whereClause = 'WHERE ' + whereConditions.join(' AND ');
+    // S3에서 데이터 가져오기
+    const allMonthData = await fetchMultipleMonths(monthsToFetch);
 
-    // 1. 캠페인 목록 조회 (간단한 쿼리)
-    const listSql = `
-      SELECT
-        vc.idx,
-        vc.title,
-        vc.states,
-        vc.start_at,
-        vc.end_at,
-        CASE
-          WHEN NOW() < vc.start_at THEN 'scheduled'
-          WHEN NOW() BETWEEN vc.start_at AND vc.end_at AND vc.states = 'Y' THEN 'ongoing'
-          ELSE 'ended'
-        END as computed_status
-      FROM vote_campaign vc
-      ${whereClause}
-      ORDER BY vc.idx DESC
-      LIMIT ${limitNum} OFFSET ${offset}
-    `;
-    const campaigns = await query(listSql, params);
-
-    if (campaigns.length === 0) {
+    if (allMonthData.length === 0) {
       return res.status(200).json({
         success: true,
         data: {
           campaigns: [],
           pagination: { total: 0, page: pageNum, limit: limitNum, totalPages: 0 },
-          stats: { scheduled: 0, ongoing: 0, ended: 0 }
+          stats: { scheduled: 0, ongoing: 0, ended: 0 },
+          types: Object.entries(TYPE_LABELS).map(([code, label]) => ({ code, label }))
         }
       });
     }
 
-    // 2. 캠페인 idx 목록 추출
-    const campaignIds = campaigns.map(c => c.idx);
+    // 모든 캠페인을 하나의 배열로 변환
+    let allCampaigns = [];
 
-    // 3. 한 번에 모든 후보자 데이터 조회 (report_vote_detail_daily만 사용 - season chart는 최근 데이터)
-    const candidatesSql = `
-      SELECT
-        vote_campaign_idx as campaign_idx,
-        star_idx as idx,
-        star_name as candidate_name,
-        group_name as candidate_group_name,
-        SUM(vote_count) as total_vote
-      FROM report_vote_detail_daily
-      WHERE vote_campaign_idx IN (${campaignIds.join(',')})
-      GROUP BY vote_campaign_idx, star_idx, star_name, group_name
-      ORDER BY vote_campaign_idx, total_vote DESC
-    `;
-    const allCandidates = await query(candidatesSql, []);
+    for (const monthData of allMonthData) {
+      for (const typeData of monthData.types || []) {
+        for (const campaign of typeData.campaigns || []) {
+          const now = new Date();
+          const startAt = new Date(campaign.startAt);
+          const endAt = new Date(campaign.endAt);
 
-    // 4. 캠페인별로 후보자 매핑 (상위 20명만)
-    const candidatesByCampaign = {};
-    for (const candidate of allCandidates) {
-      const cid = candidate.campaign_idx;
-      if (!candidatesByCampaign[cid]) {
-        candidatesByCampaign[cid] = [];
-      }
-      if (candidatesByCampaign[cid].length < 20) {
-        candidatesByCampaign[cid].push(candidate);
+          // 상태 계산
+          let computedStatus;
+          if (now < startAt) {
+            computedStatus = 'scheduled';
+          } else if (now >= startAt && now <= endAt) {
+            computedStatus = 'ongoing';
+          } else {
+            computedStatus = 'ended';
+          }
+
+          // 후보자 데이터 변환
+          const candidates = (campaign.rankings || []).map((r, idx) => ({
+            idx: r.starIdx || idx + 1,
+            candidate_name: r.name,
+            candidate_group_name: r.groupName || '',
+            total_vote: r.total_vote,
+            rank: r.rank,
+            prev_rank: r.prevRanking
+          }));
+
+          allCampaigns.push({
+            idx: campaign.campaignIdx,
+            title: campaign.title,
+            type_code: typeData.type,
+            type_label: typeData.label,
+            states: computedStatus === 'ongoing' ? 'Y' : 'N',
+            start_at: campaign.startAt,
+            end_at: campaign.endAt,
+            computed_status: computedStatus,
+            candidates: candidates,
+            candidate_count: candidates.length,
+            month: monthData.month
+          });
+        }
       }
     }
 
-    // 5. 캠페인에 후보자 정보 추가
-    const campaignsWithDetails = campaigns.map(campaign => ({
-      ...campaign,
-      candidates: candidatesByCampaign[campaign.idx] || [],
-      candidate_count: (candidatesByCampaign[campaign.idx] || []).length
-    }));
+    // 타입 필터
+    if (type) {
+      allCampaigns = allCampaigns.filter(c => c.type_code === type);
+    }
 
-    // 6. 총 개수 및 통계 (Season Chart만)
-    const statsSql = `
-      SELECT
-        COUNT(*) as total,
-        SUM(CASE WHEN NOW() < start_at THEN 1 ELSE 0 END) as scheduled_count,
-        SUM(CASE WHEN NOW() BETWEEN start_at AND end_at AND states = 'Y' THEN 1 ELSE 0 END) as ongoing_count,
-        SUM(CASE WHEN end_at < NOW() THEN 1 ELSE 0 END) as ended_count
-      FROM vote_campaign
-      WHERE title LIKE '%season chart%'
-    `;
-    const statsResult = await query(statsSql, []);
-    const stats = statsResult[0] || {};
+    // 상태 필터
+    if (status && status !== 'all') {
+      allCampaigns = allCampaigns.filter(c => c.computed_status === status);
+    }
+
+    // 정렬 (최신순)
+    allCampaigns.sort((a, b) => new Date(b.start_at) - new Date(a.start_at));
+
+    // 통계 계산
+    const stats = {
+      scheduled: allCampaigns.filter(c => c.computed_status === 'scheduled').length,
+      ongoing: allCampaigns.filter(c => c.computed_status === 'ongoing').length,
+      ended: allCampaigns.filter(c => c.computed_status === 'ended').length
+    };
+
+    // 페이지네이션
+    const total = allCampaigns.length;
+    const totalPages = Math.ceil(total / limitNum);
+    const offset = (pageNum - 1) * limitNum;
+    const paginatedCampaigns = allCampaigns.slice(offset, offset + limitNum);
 
     return res.status(200).json({
       success: true,
       data: {
-        campaigns: campaignsWithDetails,
+        campaigns: paginatedCampaigns,
         pagination: {
-          total: parseInt(stats.total) || 0,
+          total,
           page: pageNum,
           limit: limitNum,
-          totalPages: Math.ceil((parseInt(stats.total) || 0) / limitNum)
+          totalPages
         },
-        stats: {
-          scheduled: parseInt(stats.scheduled_count) || 0,
-          ongoing: parseInt(stats.ongoing_count) || 0,
-          ended: parseInt(stats.ended_count) || 0
-        }
+        stats,
+        types: Object.entries(TYPE_LABELS).map(([code, label]) => ({ code, label })),
+        months: monthsToFetch,
+        generatedAt: allMonthData[0]?.generatedAt
       }
     });
 
@@ -137,7 +179,7 @@ export default async function handler(req, res) {
     console.error('My1Pick Theme Votes Error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Database error',
+      message: 'Failed to fetch data',
       error: error.message
     });
   }
