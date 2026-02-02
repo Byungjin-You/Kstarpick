@@ -33,17 +33,14 @@ const options = {
 // DocumentDB 설정 (원격인 경우만)
 if (!isLocalMongoDB) {
   options.authMechanism = 'SCRAM-SHA-1'; // DocumentDB 호환성을 위한 인증 메커니즘
-  options.tls = true; // DocumentDB는 TLS 필요
+  options.tls = false; // TLS 비활성화 (utils/mongodb.js와 동일하게)
   options.tlsAllowInvalidCertificates = true; // DocumentDB 인증서 검증 비활성화
   options.tlsAllowInvalidHostnames = true; // 호스트네임 검증 비활성화
   options.retryWrites = false; // DocumentDB에서 지원하지 않음
-  // DocumentDB 전용 추가 옵션
-  options.tlsCAFile = undefined; // CA 파일 사용 안함
-  options.tlsCertificateKeyFile = undefined; // 인증서 키 파일 사용 안함
 }
 
-let client;
-let clientPromise;
+let client = null;
+let clientPromise = null;
 
 console.log('[실제 런타임 MONGODB_URI]', process.env.MONGODB_URI);
 
@@ -55,81 +52,100 @@ if (!uri) {
 console.log('[MongoDB] Connecting to MongoDB with uri:', uri.replace(/:[^:]*@/, ':***@'));
 console.log('[MongoDB] Connection options:', { ...options, authMechanism: options.authMechanism, tls: options.tls });
 
-// 연결 재시도 함수
-async function createConnection() {
+// 새로운 연결 생성 함수
+async function createNewConnection() {
   const maxRetries = 3;
-  let retryCount = 0;
-  
-  while (retryCount < maxRetries) {
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`[MongoDB] Connection attempt ${retryCount + 1}/${maxRetries}`);
-      const client = new MongoClient(uri, options);
-      await client.connect();
-      
+      console.log(`[MongoDB] Connection attempt ${attempt}/${maxRetries}`);
+      const newClient = new MongoClient(uri, options);
+      await newClient.connect();
+
       // 연결 테스트
-      await client.db('kstarpick').admin().ping();
+      await newClient.db('kstarpick').command({ ping: 1 });
       console.log('[MongoDB] Connection successful and ping test passed');
-      
-      // 연결 이벤트 리스너 추가
-      client.on('error', (err) => {
-        console.error('[MongoDB] Client error:', err);
-      });
-      
-      client.on('close', () => {
-        console.log('[MongoDB] Connection closed');
-      });
-      
-      client.on('reconnect', () => {
-        console.log('[MongoDB] Reconnected to MongoDB');
-      });
-      
-      return client;
+
+      return newClient;
     } catch (error) {
-      retryCount++;
-      console.error(`[MongoDB] Connection attempt ${retryCount} failed:`, error.message);
-      
-      if (retryCount >= maxRetries) {
+      console.error(`[MongoDB] Connection attempt ${attempt} failed:`, error.message);
+
+      if (attempt >= maxRetries) {
         console.error('[MongoDB] All connection attempts failed');
         throw error;
       }
-      
+
       // 재시도 전 대기 (지수 백오프)
-      const delay = Math.pow(2, retryCount) * 1000; // 2초, 4초, 8초
+      const delay = Math.pow(2, attempt) * 1000;
       console.log(`[MongoDB] Retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
 }
 
-if (process.env.NODE_ENV === 'development') {
-  // In development mode, use a global variable so that the value
-  // is preserved across module reloads caused by HMR (Hot Module Replacement).
-  if (!global._mongoClientPromise) {
-    global._mongoClientPromise = createConnection()
-      .then((client) => {
-        console.log('[MongoDB] Successfully connected to MongoDB (development)');
-        return client;
-      })
-      .catch(err => {
-        console.error('[MongoDB] Connection error (development):', err);
-        throw err;
-      });
-  }
-  clientPromise = global._mongoClientPromise;
-} else {
-  // In production mode, it's best to not use a global variable.
-  clientPromise = createConnection()
-    .then((client) => {
-      console.log('[MongoDB] Successfully connected to MongoDB (production)');
+// 연결 가져오기 (실패 시 재생성)
+async function getClient() {
+  // 기존 클라이언트가 있으면 연결 테스트
+  if (client) {
+    try {
+      await client.db('kstarpick').command({ ping: 1 });
       return client;
-    })
-    .catch(err => {
-      console.error('[MongoDB] Connection error (production):', err);
-      throw err;
-    });
+    } catch (error) {
+      console.log('[MongoDB] Existing connection invalid, creating new one');
+      try {
+        await client.close();
+      } catch (e) {
+        // ignore close errors
+      }
+      client = null;
+    }
+  }
+
+  // 새 연결 생성
+  client = await createNewConnection();
+  return client;
 }
 
-// Export a module-scoped connection promise
+// 초기 연결 시도
+if (process.env.NODE_ENV === 'development') {
+  if (!global._mongoClient) {
+    global._mongoClient = null;
+  }
+  clientPromise = {
+    then: async (resolve, reject) => {
+      try {
+        if (!global._mongoClient) {
+          global._mongoClient = await createNewConnection();
+        } else {
+          // 연결 테스트
+          try {
+            await global._mongoClient.db('kstarpick').command({ ping: 1 });
+          } catch (e) {
+            console.log('[MongoDB] Dev connection invalid, recreating...');
+            global._mongoClient = await createNewConnection();
+          }
+        }
+        resolve(global._mongoClient);
+      } catch (err) {
+        reject(err);
+      }
+    }
+  };
+} else {
+  // Production: 매 요청마다 연결 상태 확인
+  clientPromise = {
+    then: async (resolve, reject) => {
+      try {
+        const activeClient = await getClient();
+        resolve(activeClient);
+      } catch (err) {
+        reject(err);
+      }
+    }
+  };
+}
+
+// Export
 export default clientPromise;
 
 // Direct database connection helper with retry logic

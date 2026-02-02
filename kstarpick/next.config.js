@@ -182,6 +182,11 @@ const nextConfig = {
 
   async rewrites() {
     return [
+      // uploads 폴더 정적 파일 서빙
+      {
+        source: '/uploads/:path*',
+        destination: '/api/uploads/:path*',
+      },
       // API 프록시 설정
       {
         source: '/api/proxy/:path*',

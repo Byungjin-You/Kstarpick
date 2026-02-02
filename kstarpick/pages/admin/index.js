@@ -33,7 +33,15 @@ import {
   MousePointer,
   Share2,
   ExternalLink,
-  Search
+  Search,
+  TrendingUp,
+  Database,
+  Server,
+  CheckCircle2,
+  XCircle,
+  Flame,
+  Calendar,
+  Layers
 } from 'lucide-react';
 import AdminLayout from '../../components/AdminLayout';
 
@@ -67,6 +75,8 @@ export default function AdminDashboard() {
   const [dataMultiplier, setDataMultiplier] = useState(1);
   const [isMultiplierOpen, setIsMultiplierOpen] = useState(false);
   const [isSavingMultiplier, setIsSavingMultiplier] = useState(false);
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [dashboardStatsLoading, setDashboardStatsLoading] = useState(false);
 
   // 배율 설정을 변경할 수 있는 슈퍼 관리자 이메일
   const SUPER_ADMIN_EMAIL = 'y@fsn.co.kr';
@@ -201,7 +211,11 @@ export default function AdminDashboard() {
         avgPageViewsPerSession: varyDecimal(gaData.engagement.avgPageViewsPerSession, 8, 2),
         retentionRate: varyRate(gaData.engagement.retentionRate, 5, 3, true),
       },
-      dailyTrends: gaData.dailyTrends?.map((day, i) => ({
+      dailyTrends: gaData.dailyTrends?.filter(day => {
+        // 오늘 날짜 제외 (오늘 데이터는 불완전하므로)
+        const today = new Date().toISOString().split('T')[0];
+        return day.date !== today;
+      }).map((day, i) => ({
         ...day,
         dau: scale(day.dau),
         sessions: scale(day.sessions),
@@ -265,28 +279,124 @@ export default function AdminDashboard() {
         })),
       },
       userFlow: {
-        landingPages: gaData.userFlow?.landingPages?.map((lp, i) => ({
+        landingPages: gaData.userFlow?.landingPages?.map((lp) => ({
           ...lp,
           sessions: scale(lp.sessions),
-          bounceRate: varyRate(lp.bounceRate, 10, 80 + i, false),
+          // bounceRate는 sessions 수와 무관한 독립적인 비율이므로 원본 값 유지
+          bounceRate: lp.bounceRate,
         })),
-        exitPages: gaData.userFlow?.exitPages?.map((ep, i) => ({
-          ...ep,
-          pageViews: scale(ep.pageViews),
-          exits: scale(ep.exits),
-          exitRate: varyRate(ep.exitRate, 10, 90 + i, false),
-        })),
+        exitPages: gaData.userFlow?.exitPages?.map((ep, i) => {
+          const scaledPageViews = scale(ep.pageViews);
+          const scaledExits = scale(ep.exits);
+          // scale 적용 후 비율 재계산
+          const calculatedExitRate = scaledPageViews > 0 ? ((scaledExits / scaledPageViews) * 100).toFixed(1) : '0.0';
+          return {
+            ...ep,
+            pageViews: scaledPageViews,
+            exits: scaledExits,
+            exitRate: calculatedExitRate,
+          };
+        }),
         sessionMetrics: gaData.userFlow?.sessionMetrics,
         navigationPaths: gaData.userFlow?.navigationPaths?.map(np => ({
           ...np,
           pageViews: scale(np.pageViews),
           users: scale(np.users),
-        })),
+        })).sort((a, b) => b.pageViews - a.pageViews), // pageViews 기준 내림차순 정렬
         landingToNextPaths: gaData.userFlow?.landingToNextPaths?.map(lnp => ({
           ...lnp,
           sessions: scale(lnp.sessions),
-        })),
+        })).sort((a, b) => b.sessions - a.sessions), // sessions 기준 내림차순 정렬
       },
+
+      // 새로운 데이터 섹션들
+      hourlyTraffic: gaData.hourlyTraffic ? {
+        ...gaData.hourlyTraffic,
+        today: gaData.hourlyTraffic.today?.map(h => ({
+          ...h,
+          users: scale(h.users),
+          pageViews: scale(h.pageViews),
+          sessions: scale(h.sessions),
+        })),
+        avgHourlyUsers: scale(gaData.hourlyTraffic.avgHourlyUsers),
+      } : null,
+
+      contentPerformance: gaData.contentPerformance ? {
+        ...gaData.contentPerformance,
+        byCategory: gaData.contentPerformance.byCategory?.map(c => ({
+          ...c,
+          views: scale(c.views),
+        })),
+        topArticles: gaData.contentPerformance.topArticles?.map(a => ({
+          ...a,
+          views: scale(a.views),
+          shares: scale(a.shares),
+        })),
+      } : null,
+
+      engagementAdvanced: gaData.engagementAdvanced ? {
+        scrollDepth: {
+          '25%': scale(gaData.engagementAdvanced.scrollDepth?.['25%'] || 0),
+          '50%': scale(gaData.engagementAdvanced.scrollDepth?.['50%'] || 0),
+          '75%': scale(gaData.engagementAdvanced.scrollDepth?.['75%'] || 0),
+          '100%': scale(gaData.engagementAdvanced.scrollDepth?.['100%'] || 0),
+        },
+        avgReadTime: gaData.engagementAdvanced.avgReadTime,
+        commentsPerArticle: gaData.engagementAdvanced.commentsPerArticle,
+        reactionsPerArticle: gaData.engagementAdvanced.reactionsPerArticle,
+        shareRate: gaData.engagementAdvanced.shareRate,
+        ctr: gaData.engagementAdvanced.ctr,
+      } : null,
+
+      searchAnalytics: gaData.searchAnalytics ? {
+        ...gaData.searchAnalytics,
+        topKeywords: gaData.searchAnalytics.topKeywords?.map(k => ({
+          ...k,
+          searches: scale(k.searches),
+        })),
+        totalSearches: scale(gaData.searchAnalytics.totalSearches),
+      } : null,
+
+      cohortAnalysis: gaData.cohortAnalysis ? {
+        ...gaData.cohortAnalysis,
+        weekly: gaData.cohortAnalysis.weekly?.map(w => ({
+          ...w,
+          cohortSize: scale(w.cohortSize),
+        })),
+      } : null,
+
+      acquisitionDetails: gaData.acquisitionDetails ? {
+        ...gaData.acquisitionDetails,
+        byChannel: gaData.acquisitionDetails.byChannel?.map(c => ({
+          ...c,
+          sessions: scale(c.sessions),
+        })),
+        topReferrers: gaData.acquisitionDetails.topReferrers?.map(r => ({
+          ...r,
+          sessions: scale(r.sessions),
+          users: scale(r.users),
+        })),
+      } : null,
+
+      performance: gaData.performance || null,
+
+      artistPopularity: gaData.artistPopularity ? {
+        ...gaData.artistPopularity,
+        topArtists: gaData.artistPopularity.topArtists?.map(a => ({
+          ...a,
+          views: scale(a.views),
+          searches: scale(a.searches),
+        })),
+        risingArtists: gaData.artistPopularity.risingArtists?.map(a => ({
+          ...a,
+          views: scale(a.views),
+        })),
+        fandomActivity: {
+          totalComments: scale(gaData.artistPopularity.fandomActivity?.totalComments || 0),
+          totalVotes: scale(gaData.artistPopularity.fandomActivity?.totalVotes || 0),
+          avgParticipationRate: gaData.artistPopularity.fandomActivity?.avgParticipationRate,
+        },
+      } : null,
     };
   };
 
@@ -501,6 +611,8 @@ export default function AdminDashboard() {
         credentials: 'include',
       });
       const data = await response.json();
+      console.log('[GA Data] hourlyTraffic:', data.data?.hourlyTraffic ? 'exists' : 'missing');
+      console.log('[GA Data] artistPopularity:', data.data?.artistPopularity ? 'exists' : 'missing');
       if (data.success) {
         setGaData(data.data);
       }
@@ -515,6 +627,32 @@ export default function AdminDashboard() {
     if (session?.user?.role === 'admin') {
       fetchGAData();
       const interval = setInterval(fetchGAData, 5 * 60 * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [session]);
+
+  // Dashboard Stats (콘텐츠 현황, 시스템 상태) 가져오기
+  const fetchDashboardStats = async () => {
+    try {
+      setDashboardStatsLoading(true);
+      const response = await fetch('/api/admin/dashboard-stats', {
+        credentials: 'include',
+      });
+      const data = await response.json();
+      if (data.success) {
+        setDashboardStats(data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching dashboard stats:', err);
+    } finally {
+      setDashboardStatsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (session?.user?.role === 'admin') {
+      fetchDashboardStats();
+      const interval = setInterval(fetchDashboardStats, 60 * 1000); // 1분마다 갱신
       return () => clearInterval(interval);
     }
   }, [session]);
@@ -534,14 +672,29 @@ export default function AdminDashboard() {
     }
   };
 
+  // 국가 코드 매핑 (flagcdn.com 이미지 사용 - 윈도우/맥 모두 호환)
   const getCountryFlag = (country) => {
-    const flags = {
-      'United States': '🇺🇸', 'South Korea': '🇰🇷', 'Japan': '🇯🇵',
-      'Philippines': '🇵🇭', 'Indonesia': '🇮🇩', 'Thailand': '🇹🇭',
-      'Vietnam': '🇻🇳', 'Malaysia': '🇲🇾', 'Brazil': '🇧🇷',
-      'Mexico': '🇲🇽', 'India': '🇮🇳', 'United Kingdom': '🇬🇧',
+    const countryCodes = {
+      'United States': 'us', 'South Korea': 'kr', 'Japan': 'jp',
+      'Philippines': 'ph', 'Indonesia': 'id', 'Thailand': 'th',
+      'Vietnam': 'vn', 'Malaysia': 'my', 'Brazil': 'br',
+      'Mexico': 'mx', 'India': 'in', 'United Kingdom': 'gb',
+      'Canada': 'ca', 'Australia': 'au', 'Germany': 'de',
+      'France': 'fr', 'Singapore': 'sg', 'Taiwan': 'tw',
+      'Hong Kong': 'hk', 'China': 'cn',
     };
-    return flags[country] || '🌍';
+    const code = countryCodes[country] || 'un';
+    return (
+      <img
+        src={`https://flagcdn.com/24x18/${code}.png`}
+        srcSet={`https://flagcdn.com/48x36/${code}.png 2x`}
+        width="24"
+        height="18"
+        alt={country}
+        className="inline-block rounded-sm shadow-sm"
+        style={{ verticalAlign: 'middle' }}
+      />
+    );
   };
 
   // Get current date
@@ -731,571 +884,1077 @@ export default function AdminDashboard() {
 
             {isUserAnalyticsOpen && scaledGaData && (
               <div className="px-6 pb-6 border-t border-gray-100">
-                {/* Realtime + Key Metrics - Modern Gradient Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mt-6">
-                  {/* Realtime - Glassmorphism */}
-                  <div className="relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br from-emerald-500 via-green-500 to-teal-500 text-white shadow-xl shadow-green-500/30">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16"></div>
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-12 -translate-x-12"></div>
-                    <div className="relative">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Zap className="w-5 h-5" />
-                        <span className="text-xs font-bold tracking-wider opacity-90">LIVE NOW</span>
-                      </div>
-                      <h3 className="text-4xl font-black">{formatNumber(scaledGaData.realtime.activeUsers)}</h3>
-                      <p className="text-sm opacity-80 mt-1">Active users</p>
-                    </div>
+                {/* Premium Dark Theme Metrics Dashboard */}
+                <div className="mt-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 border border-slate-700/50 shadow-2xl overflow-hidden relative">
+                  {/* Animated background effects */}
+                  <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                    <div className="absolute -top-32 -right-32 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl animate-pulse"></div>
+                    <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-violet-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl"></div>
                   </div>
 
-                  {/* DAU - Modern Card */}
-                  <div className="relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 group hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300">
-                    <div className="absolute top-3 right-3">
-                      <span className="text-xs font-semibold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">{d2DateStr}</span>
-                    </div>
-                    <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl w-fit shadow-lg shadow-blue-500/30">
-                      <Users className="w-5 h-5 text-white" />
-                    </div>
-                    <h3 className="text-3xl font-black text-gray-800 mt-3">{formatNumber(scaledGaData.summary.dau.users)}</h3>
-                    <p className="text-sm text-gray-500 font-medium">Daily Active Users</p>
-                  </div>
-
-                  {/* WAU - Modern Card */}
-                  <div className="relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-100 group hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300">
-                    <div className="absolute top-3 right-3">
-                      <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-3 py-1 rounded-full">7 Days</span>
-                    </div>
-                    <div className="p-2.5 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl w-fit shadow-lg shadow-purple-500/30">
-                      <Activity className="w-5 h-5 text-white" />
-                    </div>
-                    <h3 className="text-3xl font-black text-gray-800 mt-3">{formatNumber(scaledGaData.summary.wau.users)}</h3>
-                    <p className="text-sm text-gray-500 font-medium">Weekly Active Users</p>
-                  </div>
-
-                  {/* MAU - Modern Card */}
-                  <div className="relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-100 group hover:shadow-lg hover:shadow-orange-500/10 transition-all duration-300">
-                    <div className="absolute top-3 right-3">
-                      <span className="text-xs font-semibold text-orange-600 bg-orange-100 px-3 py-1 rounded-full">30 Days</span>
-                    </div>
-                    <div className="p-2.5 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl w-fit shadow-lg shadow-orange-500/30">
-                      <Globe className="w-5 h-5 text-white" />
-                    </div>
-                    <h3 className="text-3xl font-black text-gray-800 mt-3">{formatNumber(scaledGaData.summary.mau.users)}</h3>
-                    <p className="text-sm text-gray-500 font-medium">Monthly Active Users</p>
-                  </div>
-                </div>
-
-                {/* Engagement Metrics - Modern Compact Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                  <div className="bg-gradient-to-br from-slate-50 to-gray-100 rounded-xl p-4 border border-gray-200/50 hover:shadow-md transition-all duration-200">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sessions/User</p>
-                    <p className="text-2xl font-black text-gray-800 mt-1">{scaledGaData.engagement.avgSessionsPerUser}</p>
-                  </div>
-                  <div className="bg-gradient-to-br from-slate-50 to-gray-100 rounded-xl p-4 border border-gray-200/50 hover:shadow-md transition-all duration-200">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pages/Session</p>
-                    <p className="text-2xl font-black text-gray-800 mt-1">{scaledGaData.engagement.avgPageViewsPerSession}</p>
-                  </div>
-                  <div className="bg-gradient-to-br from-emerald-50 to-green-100 rounded-xl p-4 border border-green-200/50 hover:shadow-md transition-all duration-200">
-                    <div className="flex items-center gap-2">
-                      <UserPlus className="w-4 h-4 text-emerald-600" />
-                      <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">New Users</p>
-                    </div>
-                    <p className="text-2xl font-black text-gray-800 mt-1">{formatNumber(scaledGaData.engagement.newUsers)}</p>
-                  </div>
-                  <div className="bg-gradient-to-br from-amber-50 to-yellow-100 rounded-xl p-4 border border-amber-200/50 hover:shadow-md transition-all duration-200">
-                    <div className="flex items-center gap-2">
-                      <UserCheck className="w-4 h-4 text-amber-600" />
-                      <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Retention</p>
-                    </div>
-                    <p className="text-2xl font-black text-gray-800 mt-1">{scaledGaData.engagement.retentionRate}%</p>
-                  </div>
-                </div>
-
-                {/* DAU Chart - Modern Design with Inline Labels */}
-                <div className="mt-8 bg-gradient-to-br from-gray-50 to-slate-100 rounded-2xl p-6 border border-gray-200/50">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-800">Daily Active Users</h3>
-                      <p className="text-sm text-gray-500">Last 30 days trend</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      {scaledGaData.dailyTrends && scaledGaData.dailyTrends.length > 0 && (
-                        <div className="text-right">
-                          <p className="text-xs text-gray-500">Max</p>
-                          <p className="text-sm font-bold text-violet-600">{formatNumber(Math.max(...scaledGaData.dailyTrends.map(d => d.dau)))}</p>
+                  <div className="relative z-10">
+                    {/* Key Metrics Row */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {/* Realtime - Dynamic Animated Card */}
+                      <div className="relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br from-emerald-600/30 via-teal-600/20 to-cyan-600/10 border border-emerald-400/40 group hover:border-emerald-300/60 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-emerald-500/20">
+                        {/* Animated pulse rings */}
+                        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full border border-emerald-400/20 animate-ping" style={{ animationDuration: '2s' }}></div>
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full border border-emerald-400/10 animate-ping" style={{ animationDuration: '2.5s', animationDelay: '0.5s' }}></div>
+                          <div className="absolute -top-10 -right-10 w-24 h-24 bg-emerald-400/20 rounded-full blur-2xl animate-pulse"></div>
+                          <div className="absolute -bottom-10 -left-10 w-20 h-20 bg-cyan-400/20 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '1s' }}></div>
                         </div>
-                      )}
-                      <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-gray-200 shadow-sm">
-                        <div className="w-3 h-3 rounded-full bg-gradient-to-r from-blue-500 to-violet-500"></div>
-                        <span className="text-sm font-medium text-gray-600">Users</span>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Chart with inline data labels */}
-                  <div className="relative" style={{ height: '280px' }}>
-                    {(() => {
-                      const data = scaledGaData.dailyTrends;
-                      if (!data || data.length === 0) return null;
-                      const maxDAU = Math.max(...data.map(d => d.dau));
-
-                      return (
-                        <div className="relative w-full h-full">
-                          {/* SVG Chart */}
-                          <svg width="100%" height="220" viewBox="0 0 1000 220" preserveAspectRatio="none" className="overflow-visible">
-                            {/* Grid lines */}
-                            {[0, 1, 2, 3, 4].map((i) => (
-                              <g key={i}>
-                                <line x1="0" y1={i * 50 + 10} x2="1000" y2={i * 50 + 10} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="5,5" />
-                              </g>
-                            ))}
-
-                            {/* Area and Line */}
-                            <defs>
-                              <linearGradient id="dauGradientModern" x1="0%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.4" />
-                                <stop offset="50%" stopColor="#3b82f6" stopOpacity="0.2" />
-                                <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.05" />
-                              </linearGradient>
-                              <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" stopColor="#8b5cf6" />
-                                <stop offset="50%" stopColor="#3b82f6" />
-                                <stop offset="100%" stopColor="#06b6d4" />
-                              </linearGradient>
-                            </defs>
-
-                            {(() => {
-                              const chartStartX = 20;
-                              const chartWidth = 960;
-                              const pointSpacing = chartWidth / (data.length - 1);
-                              const areaPath = data.map((day, index) => {
-                                const x = chartStartX + index * pointSpacing;
-                                const y = 200 - ((day.dau / maxDAU) * 170);
-                                return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
-                              }).join(' ') + ` L ${chartStartX + (data.length - 1) * pointSpacing} 210 L ${chartStartX} 210 Z`;
-                              const linePath = data.map((day, index) => {
-                                const x = chartStartX + index * pointSpacing;
-                                const y = 200 - ((day.dau / maxDAU) * 170);
-                                return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
-                              }).join(' ');
-
-                              return (
-                                <>
-                                  <path d={areaPath} fill="url(#dauGradientModern)" />
-                                  <path d={linePath} fill="none" stroke="url(#lineGradient)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-
-                                  {/* Data points with hover interaction */}
-                                  {data.map((day, index) => {
-                                    const x = chartStartX + index * pointSpacing;
-                                    const y = 200 - ((day.dau / maxDAU) * 170);
-
-                                    return (
-                                      <g key={index}>
-                                        {/* Invisible hover area for better UX */}
-                                        <rect
-                                          x={x - pointSpacing / 2}
-                                          y={0}
-                                          width={pointSpacing}
-                                          height={220}
-                                          fill="transparent"
-                                          style={{ cursor: 'pointer' }}
-                                          onMouseEnter={(e) => {
-                                            const rect = e.currentTarget.closest('svg').getBoundingClientRect();
-                                            setChartTooltip({
-                                              visible: true,
-                                              x: (x / 1000) * rect.width,
-                                              y: (y / 220) * rect.height,
-                                              date: new Date(day.date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' }),
-                                              value: day.dau
-                                            });
-                                          }}
-                                          onMouseLeave={() => setChartTooltip({ ...chartTooltip, visible: false })}
-                                        />
-                                        {/* Point */}
-                                        <circle
-                                          cx={x}
-                                          cy={y}
-                                          r="3"
-                                          fill="white"
-                                          stroke="#3b82f6"
-                                          strokeWidth="2"
-                                          style={{ pointerEvents: 'none' }}
-                                        />
-                                      </g>
-                                    );
-                                  })}
-                                </>
-                              );
-                            })()}
-                          </svg>
-
-                          {/* Date Labels - 5일마다 표시 */}
-                          <div className="relative w-full mt-1" style={{ height: '20px' }}>
-                            {(() => {
-                              const dateIndices = data.map((_, i) => i).filter(i => i % 5 === 0 || i === data.length - 1);
-                              return dateIndices.map(index => {
-                                const position = (index / (data.length - 1)) * 100;
-                                return (
-                                  <span
-                                    key={index}
-                                    className="absolute text-xs text-gray-400 font-medium transform -translate-x-1/2"
-                                    style={{ left: `${position}%` }}
-                                  >
-                                    {new Date(data[index].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                  </span>
-                                );
-                              });
-                            })()}
+                        {/* LIVE badge with glow */}
+                        <div className="absolute top-3 right-3">
+                          <div className="flex items-center gap-2 bg-emerald-500/20 backdrop-blur-sm px-3 py-1.5 rounded-full border border-emerald-400/30">
+                            <div className="relative">
+                              <div className="w-2.5 h-2.5 bg-emerald-400 rounded-full animate-pulse shadow-lg shadow-emerald-400/80"></div>
+                              <div className="absolute inset-0 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping opacity-75"></div>
+                            </div>
+                            <span className="text-xs font-black text-emerald-300 tracking-widest">LIVE</span>
                           </div>
-
-                          {/* Tooltip */}
-                          {chartTooltip.visible && (
-                            <div
-                              className="absolute pointer-events-none z-50 transform -translate-x-1/2 -translate-y-full"
-                              style={{
-                                left: chartTooltip.x,
-                                top: chartTooltip.y - 10,
-                              }}
-                            >
-                              <div className="bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg text-sm whitespace-nowrap">
-                                <div className="font-semibold text-center">{formatNumber(chartTooltip.value)} users</div>
-                                <div className="text-gray-300 text-xs text-center mt-0.5">{chartTooltip.date}</div>
-                              </div>
-                              <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-gray-900 mx-auto"></div>
-                            </div>
-                          )}
                         </div>
-                      );
-                    })()}
+
+                        <div className="relative z-10">
+                          <div className="p-3 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl w-fit shadow-lg shadow-emerald-500/40 mb-3 group-hover:shadow-emerald-400/50 transition-shadow">
+                            <Zap className="w-6 h-6 text-white" />
+                          </div>
+                          <h3 className="text-4xl font-black text-white drop-shadow-lg">{formatNumber(scaledGaData.realtime.activeUsers)}</h3>
+                          <p className="text-sm text-emerald-200/80 font-semibold mt-1">Active Users Now</p>
+                        </div>
+                      </div>
+
+                      {/* DAU */}
+                      <div className="relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br from-blue-600/20 to-indigo-600/10 border border-blue-500/30 group hover:border-blue-400/50 transition-all duration-300">
+                        <div className="absolute top-3 right-3">
+                          <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2.5 py-1 rounded-full border border-blue-500/30">{d2DateStr}</span>
+                        </div>
+                        <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl w-fit shadow-lg shadow-blue-500/30 mb-3">
+                          <Users className="w-5 h-5 text-white" />
+                        </div>
+                        <h3 className="text-3xl font-black text-white">{formatNumber(scaledGaData.summary.dau.users)}</h3>
+                        <p className="text-sm text-slate-400 font-medium mt-1">Daily Active</p>
+                      </div>
+
+                      {/* WAU */}
+                      <div className="relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br from-violet-600/20 to-purple-600/10 border border-violet-500/30 group hover:border-violet-400/50 transition-all duration-300">
+                        <div className="absolute top-3 right-3">
+                          <span className="text-xs font-semibold text-violet-400 bg-violet-500/20 px-2.5 py-1 rounded-full border border-violet-500/30">7 Days</span>
+                        </div>
+                        <div className="p-2.5 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl w-fit shadow-lg shadow-violet-500/30 mb-3">
+                          <Activity className="w-5 h-5 text-white" />
+                        </div>
+                        <h3 className="text-3xl font-black text-white">{formatNumber(scaledGaData.summary.wau.users)}</h3>
+                        <p className="text-sm text-slate-400 font-medium mt-1">Weekly Active</p>
+                      </div>
+
+                      {/* MAU */}
+                      <div className="relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br from-orange-600/20 to-amber-600/10 border border-orange-500/30 group hover:border-orange-400/50 transition-all duration-300">
+                        <div className="absolute top-3 right-3">
+                          <span className="text-xs font-semibold text-orange-400 bg-orange-500/20 px-2.5 py-1 rounded-full border border-orange-500/30">30 Days</span>
+                        </div>
+                        <div className="p-2.5 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl w-fit shadow-lg shadow-orange-500/30 mb-3">
+                          <Globe className="w-5 h-5 text-white" />
+                        </div>
+                        <h3 className="text-3xl font-black text-white">{formatNumber(scaledGaData.summary.mau.users)}</h3>
+                        <p className="text-sm text-slate-400 font-medium mt-1">Monthly Active</p>
+                      </div>
+                    </div>
+
+                    {/* Engagement Metrics Row */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                      <div className="relative overflow-hidden rounded-xl p-4 bg-slate-800/50 border border-slate-700/50 hover:border-slate-600/50 transition-all duration-200 group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="relative">
+                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Sessions/User</p>
+                          <p className="text-2xl font-black text-cyan-400 mt-1">{scaledGaData.userFlow?.sessionMetrics?.sessionsPerUser || scaledGaData.engagement.avgSessionsPerUser}</p>
+                        </div>
+                      </div>
+                      <div className="relative overflow-hidden rounded-xl p-4 bg-slate-800/50 border border-slate-700/50 hover:border-slate-600/50 transition-all duration-200 group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-pink-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="relative">
+                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pages/Session</p>
+                          <p className="text-2xl font-black text-pink-400 mt-1">{scaledGaData.userFlow?.sessionMetrics?.pageViewsPerSession || scaledGaData.engagement.avgPageViewsPerSession}</p>
+                        </div>
+                      </div>
+                      <div className="relative overflow-hidden rounded-xl p-4 bg-slate-800/50 border border-slate-700/50 hover:border-slate-600/50 transition-all duration-200 group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="relative">
+                          <div className="flex items-center gap-2">
+                            <UserPlus className="w-4 h-4 text-emerald-400" />
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">New Users</p>
+                          </div>
+                          <p className="text-2xl font-black text-emerald-400 mt-1">{formatNumber(scaledGaData.engagement.newUsers)}</p>
+                        </div>
+                      </div>
+                      <div className="relative overflow-hidden rounded-xl p-4 bg-slate-800/50 border border-slate-700/50 hover:border-slate-600/50 transition-all duration-200 group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="relative">
+                          <div className="flex items-center gap-2">
+                            <UserCheck className="w-4 h-4 text-amber-400" />
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Retention</p>
+                          </div>
+                          <p className="text-2xl font-black text-amber-400 mt-1">{scaledGaData.engagement.retentionRate}%</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Demographics Row - Modern Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">
-                  {/* Countries */}
-                  <div className="bg-white rounded-2xl p-5 border border-gray-200/50 shadow-sm hover:shadow-md transition-all duration-300">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="p-2.5 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-md shadow-blue-500/20">
-                        <Globe className="w-4 h-4 text-white" />
-                      </div>
-                      <h4 className="text-sm font-bold text-gray-800">Top Countries</h4>
-                    </div>
-                    <div className="space-y-3">
-                      {scaledGaData.demographics.countries.slice(0, 5).map((c, i) => (
-                        <div key={i} className="flex items-center justify-between text-sm group">
-                          <span className="flex items-center gap-3">
-                            <span className="text-lg">{getCountryFlag(c.country)}</span>
-                            <span className="text-gray-700 font-medium group-hover:text-blue-600 transition-colors">{c.country}</span>
-                          </span>
-                          <span className="font-bold text-gray-800 bg-gray-100 px-2.5 py-1 rounded-lg text-xs">{formatNumber(c.users)}</span>
-                        </div>
-                      ))}
-                    </div>
+                {/* DAU Chart - Premium Animated Design */}
+                <div className="mt-8 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 border border-slate-700/50 shadow-2xl overflow-hidden relative">
+                  {/* Animated background effects */}
+                  <div className="absolute inset-0 overflow-hidden">
+                    <div className="absolute -top-24 -right-24 w-48 h-48 bg-violet-500/20 rounded-full blur-3xl animate-pulse"></div>
+                    <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-cyan-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
                   </div>
 
-                  {/* Devices */}
-                  <div className="bg-white rounded-2xl p-5 border border-gray-200/50 shadow-sm hover:shadow-md transition-all duration-300">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="p-2.5 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl shadow-md shadow-purple-500/20">
-                        <Smartphone className="w-4 h-4 text-white" />
+                  <div className="relative z-10">
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-gradient-to-br from-violet-500 to-cyan-500 rounded-xl shadow-lg shadow-violet-500/30">
+                            <TrendingUp className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-bold text-white">Daily Active Users</h3>
+                            <p className="text-sm text-slate-400">Last 30 days performance</p>
+                          </div>
+                        </div>
                       </div>
-                      <h4 className="text-sm font-bold text-gray-800">Device Distribution</h4>
+                      <div className="flex items-center gap-6">
+                        {scaledGaData.dailyTrends && scaledGaData.dailyTrends.length > 0 && (() => {
+                          const maxDAU = Math.max(...scaledGaData.dailyTrends.map(d => d.dau));
+                          const minDAU = Math.min(...scaledGaData.dailyTrends.map(d => d.dau));
+                          const avgDAU = Math.floor(scaledGaData.dailyTrends.reduce((sum, d) => sum + d.dau, 0) / scaledGaData.dailyTrends.length);
+                          return (
+                            <>
+                              <div className="text-center px-4 py-2 bg-slate-800/50 rounded-xl border border-slate-700/50">
+                                <p className="text-xs text-slate-500 uppercase tracking-wider">Min</p>
+                                <p className="text-lg font-bold text-cyan-400">{formatNumber(minDAU)}</p>
+                              </div>
+                              <div className="text-center px-4 py-2 bg-slate-800/50 rounded-xl border border-slate-700/50">
+                                <p className="text-xs text-slate-500 uppercase tracking-wider">Avg</p>
+                                <p className="text-lg font-bold text-blue-400">{formatNumber(avgDAU)}</p>
+                              </div>
+                              <div className="text-center px-4 py-2 bg-slate-800/50 rounded-xl border border-slate-700/50">
+                                <p className="text-xs text-slate-500 uppercase tracking-wider">Max</p>
+                                <p className="text-lg font-bold text-violet-400">{formatNumber(maxDAU)}</p>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
                     </div>
-                    <div className="space-y-4">
-                      {scaledGaData.demographics.devices.map((d, i) => {
-                        const total = scaledGaData.demographics.devices.reduce((sum, x) => sum + x.users, 0);
-                        const pct = ((d.users / total) * 100).toFixed(0);
-                        const gradients = [
-                          'from-blue-500 to-cyan-400',
-                          'from-violet-500 to-purple-400',
-                          'from-emerald-500 to-green-400'
-                        ];
+
+                    {/* Chart */}
+                    <div className="relative" style={{ height: '320px' }}>
+                      {(() => {
+                        const data = scaledGaData.dailyTrends;
+                        if (!data || data.length === 0) return null;
+                        const maxDAU = Math.max(...data.map(d => d.dau));
+                        const minDAU = Math.min(...data.map(d => d.dau));
+                        const padding = (maxDAU - minDAU) * 0.1 || maxDAU * 0.1;
+                        const chartMax = maxDAU + padding;
+
                         return (
-                          <div key={i}>
-                            <div className="flex items-center justify-between text-sm mb-2">
-                              <span className="flex items-center gap-2 text-gray-700 font-medium capitalize">
-                                {getDeviceIcon(d.device)}
-                                {d.device}
-                              </span>
-                              <span className="font-bold text-gray-800">{pct}%</span>
+                          <div className="relative w-full h-full">
+                            {/* Y-axis labels */}
+                            <div className="absolute left-0 top-0 bottom-8 w-12 flex flex-col justify-between text-right pr-2">
+                              {[0, 1, 2, 3, 4].map((i) => (
+                                <span key={i} className="text-xs text-slate-500 font-medium">
+                                  {formatNumber(Math.round(chartMax - (chartMax / 4) * i))}
+                                </span>
+                              ))}
                             </div>
-                            <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full bg-gradient-to-r ${gradients[i]} rounded-full transition-all duration-500`}
-                                style={{ width: `${pct}%` }}
-                              />
+
+                            {/* SVG Chart */}
+                            <div className="absolute left-14 right-0 top-0 bottom-0">
+                              <svg width="100%" height="260" viewBox="0 0 1000 260" preserveAspectRatio="none" className="overflow-visible">
+                                {/* Animated Grid lines */}
+                                {[0, 1, 2, 3, 4].map((i) => (
+                                  <line
+                                    key={i}
+                                    x1="0"
+                                    y1={i * 60 + 10}
+                                    x2="1000"
+                                    y2={i * 60 + 10}
+                                    stroke="#334155"
+                                    strokeWidth="1"
+                                    strokeDasharray="8,8"
+                                    opacity="0.5"
+                                  />
+                                ))}
+
+                                {/* Gradient Definitions */}
+                                <defs>
+                                  {/* Main area gradient */}
+                                  <linearGradient id="dauAreaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.6" />
+                                    <stop offset="30%" stopColor="#6366f1" stopOpacity="0.4" />
+                                    <stop offset="60%" stopColor="#3b82f6" stopOpacity="0.2" />
+                                    <stop offset="100%" stopColor="#06b6d4" stopOpacity="0" />
+                                  </linearGradient>
+
+                                  {/* Line gradient */}
+                                  <linearGradient id="dauLineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stopColor="#a78bfa" />
+                                    <stop offset="25%" stopColor="#8b5cf6" />
+                                    <stop offset="50%" stopColor="#6366f1" />
+                                    <stop offset="75%" stopColor="#3b82f6" />
+                                    <stop offset="100%" stopColor="#06b6d4" />
+                                  </linearGradient>
+
+                                  {/* Glow filter */}
+                                  <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                                    <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                                    <feMerge>
+                                      <feMergeNode in="coloredBlur"/>
+                                      <feMergeNode in="SourceGraphic"/>
+                                    </feMerge>
+                                  </filter>
+
+                                  {/* Point glow */}
+                                  <radialGradient id="pointGlow" cx="50%" cy="50%" r="50%">
+                                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.8" />
+                                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
+                                  </radialGradient>
+
+                                  {/* Trend line gradient */}
+                                  <linearGradient id="trendLineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.3" />
+                                    <stop offset="50%" stopColor="#f59e0b" stopOpacity="0.8" />
+                                    <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.3" />
+                                  </linearGradient>
+                                </defs>
+
+                                {(() => {
+                                  const chartStartX = 0;
+                                  const chartWidth = 1000;
+                                  const chartHeight = 230;
+                                  const pointSpacing = chartWidth / (data.length - 1);
+
+                                  // Smooth curve using quadratic bezier
+                                  const getY = (dau) => chartHeight - ((dau / chartMax) * (chartHeight - 20)) + 10;
+
+                                  // Create smooth path
+                                  let linePath = '';
+                                  let areaPath = '';
+
+                                  data.forEach((day, index) => {
+                                    const x = chartStartX + index * pointSpacing;
+                                    const y = getY(day.dau);
+
+                                    if (index === 0) {
+                                      linePath = `M ${x} ${y}`;
+                                      areaPath = `M ${x} ${chartHeight + 10}  L ${x} ${y}`;
+                                    } else {
+                                      const prevX = chartStartX + (index - 1) * pointSpacing;
+                                      const prevY = getY(data[index - 1].dau);
+                                      const cpX = (prevX + x) / 2;
+                                      linePath += ` C ${cpX} ${prevY}, ${cpX} ${y}, ${x} ${y}`;
+                                      areaPath += ` C ${cpX} ${prevY}, ${cpX} ${y}, ${x} ${y}`;
+                                    }
+                                  });
+
+                                  areaPath += ` L ${chartStartX + (data.length - 1) * pointSpacing} ${chartHeight + 10} Z`;
+
+                                  // Calculate trend line (linear regression)
+                                  const n = data.length;
+                                  const sumX = data.reduce((sum, _, i) => sum + i, 0);
+                                  const sumY = data.reduce((sum, d) => sum + d.dau, 0);
+                                  const sumXY = data.reduce((sum, d, i) => sum + i * d.dau, 0);
+                                  const sumX2 = data.reduce((sum, _, i) => sum + i * i, 0);
+                                  const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+                                  const intercept = (sumY - slope * sumX) / n;
+
+                                  const trendStartY = getY(intercept);
+                                  const trendEndY = getY(slope * (n - 1) + intercept);
+
+                                  return (
+                                    <>
+                                      {/* Area fill with animation */}
+                                      <path
+                                        d={areaPath}
+                                        fill="url(#dauAreaGradient)"
+                                        className="transition-all duration-1000"
+                                      />
+
+                                      {/* Trend line */}
+                                      <line
+                                        x1={chartStartX}
+                                        y1={trendStartY}
+                                        x2={chartStartX + (n - 1) * pointSpacing}
+                                        y2={trendEndY}
+                                        stroke="url(#trendLineGradient)"
+                                        strokeWidth="2"
+                                        strokeDasharray="8,4"
+                                        strokeLinecap="round"
+                                        opacity="0.9"
+                                      />
+
+                                      {/* Main line with glow */}
+                                      <path
+                                        d={linePath}
+                                        fill="none"
+                                        stroke="url(#dauLineGradient)"
+                                        strokeWidth="4"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        filter="url(#glow)"
+                                        className="transition-all duration-500"
+                                      />
+
+                                      {/* Vertical hover lines and points */}
+                                      {data.map((day, index) => {
+                                        const x = chartStartX + index * pointSpacing;
+                                        const y = getY(day.dau);
+                                        const isWeekend = new Date(day.date).getDay() === 0 || new Date(day.date).getDay() === 6;
+
+                                        return (
+                                          <g key={index} className="group cursor-pointer">
+                                            {/* Hover area */}
+                                            <rect
+                                              x={x - pointSpacing / 2}
+                                              y={0}
+                                              width={pointSpacing}
+                                              height={260}
+                                              fill="transparent"
+                                              onMouseEnter={(e) => {
+                                                const rect = e.currentTarget.closest('svg').getBoundingClientRect();
+                                                setChartTooltip({
+                                                  visible: true,
+                                                  x: (x / 1000) * rect.width,
+                                                  y: (y / 260) * rect.height,
+                                                  date: new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' }),
+                                                  value: day.dau,
+                                                  sessions: day.sessions,
+                                                  pageViews: day.pageViews
+                                                });
+                                              }}
+                                              onMouseLeave={() => setChartTooltip({ ...chartTooltip, visible: false })}
+                                            />
+
+                                            {/* Vertical hover line */}
+                                            <line
+                                              x1={x}
+                                              y1={y}
+                                              x2={x}
+                                              y2={chartHeight + 10}
+                                              stroke="#8b5cf6"
+                                              strokeWidth="1"
+                                              strokeDasharray="4,4"
+                                              opacity="0"
+                                              className="group-hover:opacity-50 transition-opacity duration-200"
+                                            />
+
+                                            {/* Outer glow circle */}
+                                            <circle
+                                              cx={x}
+                                              cy={y}
+                                              r="12"
+                                              fill="url(#pointGlow)"
+                                              opacity="0"
+                                              className="group-hover:opacity-100 transition-opacity duration-200"
+                                            />
+
+                                            {/* Point with animation */}
+                                            <circle
+                                              cx={x}
+                                              cy={y}
+                                              r="4"
+                                              fill={isWeekend ? "#f97316" : "#8b5cf6"}
+                                              stroke="#1e293b"
+                                              strokeWidth="2"
+                                              className="group-hover:r-6 transition-all duration-200"
+                                              style={{
+                                                filter: 'drop-shadow(0 0 4px rgba(139, 92, 246, 0.5))',
+                                              }}
+                                            />
+
+                                            {/* Hover ring */}
+                                            <circle
+                                              cx={x}
+                                              cy={y}
+                                              r="8"
+                                              fill="none"
+                                              stroke="#8b5cf6"
+                                              strokeWidth="2"
+                                              opacity="0"
+                                              className="group-hover:opacity-100 transition-opacity duration-200"
+                                            />
+                                          </g>
+                                        );
+                                      })}
+                                    </>
+                                  );
+                                })()}
+                              </svg>
+
+                              {/* Date Labels */}
+                              <div className="relative w-full mt-2" style={{ height: '24px' }}>
+                                {(() => {
+                                  const dateIndices = data.map((_, i) => i).filter(i => i % 5 === 0 || i === data.length - 1);
+                                  return dateIndices.map(index => {
+                                    const position = (index / (data.length - 1)) * 100;
+                                    const isWeekend = new Date(data[index].date).getDay() === 0 || new Date(data[index].date).getDay() === 6;
+                                    return (
+                                      <span
+                                        key={index}
+                                        className={`absolute text-xs font-medium transform -translate-x-1/2 ${isWeekend ? 'text-orange-400' : 'text-slate-500'}`}
+                                        style={{ left: `${position}%` }}
+                                      >
+                                        {new Date(data[index].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                      </span>
+                                    );
+                                  });
+                                })()}
+                              </div>
+
+                              {/* Enhanced Tooltip */}
+                              {chartTooltip.visible && (
+                                <div
+                                  className="absolute pointer-events-none z-50 transform -translate-x-1/2"
+                                  style={{
+                                    left: chartTooltip.x,
+                                    top: Math.max(0, chartTooltip.y - 120),
+                                  }}
+                                >
+                                  <div className="bg-slate-800/95 backdrop-blur-xl text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-600/50 min-w-[140px]">
+                                    <div className="text-center mb-2 pb-2 border-b border-slate-600/50">
+                                      <p className="text-slate-400 text-xs">{chartTooltip.date}</p>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-center justify-between gap-4">
+                                        <span className="text-slate-400 text-xs">Users</span>
+                                        <span className="font-bold text-violet-400">{formatNumber(chartTooltip.value)}</span>
+                                      </div>
+                                      {chartTooltip.sessions && (
+                                        <div className="flex items-center justify-between gap-4">
+                                          <span className="text-slate-400 text-xs">Sessions</span>
+                                          <span className="font-semibold text-blue-400">{formatNumber(chartTooltip.sessions)}</span>
+                                        </div>
+                                      )}
+                                      {chartTooltip.pageViews && (
+                                        <div className="flex items-center justify-between gap-4">
+                                          <span className="text-slate-400 text-xs">Page Views</span>
+                                          <span className="font-semibold text-cyan-400">{formatNumber(chartTooltip.pageViews)}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="w-3 h-3 bg-slate-800/95 border-r border-b border-slate-600/50 transform rotate-45 mx-auto -mt-1.5"></div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         );
-                      })}
+                      })()}
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Content Stats & System Status - Premium Dark Theme */}
+                {dashboardStats && (
+                  <div className="mt-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 border border-slate-700/50 shadow-2xl overflow-hidden relative">
+                    {/* Animated background */}
+                    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                      <div className="absolute -top-20 -left-20 w-40 h-40 bg-rose-500/10 rounded-full blur-3xl animate-pulse"></div>
+                      <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1.5s' }}></div>
+                    </div>
+
+                    <div className="relative z-10">
+                      {/* Section Header */}
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-gradient-to-br from-rose-500 to-orange-500 rounded-xl shadow-lg shadow-rose-500/30">
+                            <Layers className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-white">Content & System</h3>
+                            <p className="text-xs text-slate-400">Real-time content metrics & server health</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={fetchDashboardStats}
+                          disabled={dashboardStatsLoading}
+                          className="p-2 bg-slate-800/50 hover:bg-slate-700/50 rounded-xl transition-all border border-slate-700/50"
+                        >
+                          <RefreshCw className={`w-4 h-4 text-slate-400 ${dashboardStatsLoading ? 'animate-spin' : ''}`} />
+                        </button>
+                      </div>
+
+                      {/* Content Overview Cards */}
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+                        {/* Total Articles */}
+                        <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-violet-600/20 to-purple-600/10 border border-violet-500/30 hover:border-violet-400/50 transition-all">
+                          <div className="flex items-center gap-2 mb-2">
+                            <FileText className="w-4 h-4 text-violet-400" />
+                            <span className="text-xs font-semibold text-slate-400 uppercase">Total</span>
+                          </div>
+                          <p className="text-2xl font-black text-white">{dashboardStats.contentStats.totalArticles.toLocaleString()}</p>
+                          <p className="text-xs text-slate-500 mt-1">Articles</p>
+                        </div>
+
+                        {/* Total Views */}
+                        <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-cyan-600/20 to-blue-600/10 border border-cyan-500/30 hover:border-cyan-400/50 transition-all">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Eye className="w-4 h-4 text-cyan-400" />
+                            <span className="text-xs font-semibold text-slate-400 uppercase">Views</span>
+                          </div>
+                          <p className="text-2xl font-black text-white">{(dashboardStats.contentStats.totalViews * dataMultiplier).toLocaleString()}</p>
+                          <p className="text-xs text-slate-500 mt-1">All Time</p>
+                        </div>
+
+                        {/* Today Published */}
+                        <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-emerald-600/20 to-green-600/10 border border-emerald-500/30 hover:border-emerald-400/50 transition-all">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Calendar className="w-4 h-4 text-emerald-400" />
+                            <span className="text-xs font-semibold text-slate-400 uppercase">Today</span>
+                          </div>
+                          <p className="text-2xl font-black text-emerald-400">{dashboardStats.contentStats.todayPublished}</p>
+                          <p className="text-xs text-slate-500 mt-1">Published</p>
+                        </div>
+
+                        {/* Week Published */}
+                        <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-amber-600/20 to-orange-600/10 border border-amber-500/30 hover:border-amber-400/50 transition-all">
+                          <div className="flex items-center gap-2 mb-2">
+                            <TrendingUp className="w-4 h-4 text-amber-400" />
+                            <span className="text-xs font-semibold text-slate-400 uppercase">Week</span>
+                          </div>
+                          <p className="text-2xl font-black text-amber-400">{dashboardStats.contentStats.weekPublished}</p>
+                          <p className="text-xs text-slate-500 mt-1">Published</p>
+                        </div>
+
+                        {/* System Status */}
+                        <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-slate-600/20 to-slate-700/10 border border-slate-500/30 hover:border-slate-400/50 transition-all">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Server className="w-4 h-4 text-slate-400" />
+                            <span className="text-xs font-semibold text-slate-400 uppercase">System</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {dashboardStats.systemStatus.dbConnected ? (
+                              <>
+                                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                                <span className="text-sm font-bold text-emerald-400">Healthy</span>
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="w-5 h-5 text-red-400" />
+                                <span className="text-sm font-bold text-red-400">Error</span>
+                              </>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">{dashboardStats.systemStatus.dbResponseTime}ms</p>
+                        </div>
+                      </div>
+
+                      {/* Two Column Layout */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Category Stats */}
+                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+                          <div className="flex items-center gap-2 mb-4">
+                            <BarChart3 className="w-4 h-4 text-rose-400" />
+                            <h4 className="text-sm font-bold text-white">Articles by Category</h4>
+                          </div>
+                          <div className="space-y-3">
+                            {dashboardStats.contentStats.categories.slice(0, 6).map((cat, i) => {
+                              const maxCount = Math.max(...dashboardStats.contentStats.categories.map(c => c.count));
+                              const percentage = maxCount > 0 ? (cat.count / maxCount) * 100 : 0;
+                              const colors = [
+                                'from-rose-500 to-pink-500',
+                                'from-violet-500 to-purple-500',
+                                'from-blue-500 to-cyan-500',
+                                'from-emerald-500 to-green-500',
+                                'from-amber-500 to-orange-500',
+                                'from-slate-500 to-gray-500'
+                              ];
+                              return (
+                                <div key={i}>
+                                  <div className="flex items-center justify-between text-sm mb-1.5">
+                                    <span className="text-slate-300 font-medium">{cat.displayName}</span>
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-slate-500 text-xs">{(cat.totalViews * dataMultiplier).toLocaleString()} views</span>
+                                      <span className="font-bold text-white bg-slate-700/50 px-2 py-0.5 rounded text-xs">{cat.count}</span>
+                                    </div>
+                                  </div>
+                                  <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full bg-gradient-to-r ${colors[i % colors.length]} rounded-full transition-all duration-500`}
+                                      style={{ width: `${percentage}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Popular Articles */}
+                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+                          <div className="flex items-center gap-2 mb-4">
+                            <Flame className="w-4 h-4 text-orange-400" />
+                            <h4 className="text-sm font-bold text-white">Trending Articles</h4>
+                            <span className="text-xs text-slate-500 ml-auto">Last 7 days</span>
+                          </div>
+                          <div className="space-y-2">
+                            {dashboardStats.popularArticles.slice(0, 5).map((article, i) => (
+                              <div key={article._id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-700/30 transition-colors group">
+                                <span className={`w-6 h-6 flex items-center justify-center rounded-lg text-xs font-bold ${
+                                  i === 0 ? 'bg-amber-500/20 text-amber-400' :
+                                  i === 1 ? 'bg-slate-400/20 text-slate-300' :
+                                  i === 2 ? 'bg-orange-600/20 text-orange-400' :
+                                  'bg-slate-700/50 text-slate-500'
+                                }`}>
+                                  {i + 1}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-slate-300 truncate group-hover:text-white transition-colors">
+                                    {article.title}
+                                  </p>
+                                  <p className="text-xs text-slate-500">{article.category}</p>
+                                </div>
+                                <div className="flex items-center gap-1 text-xs text-cyan-400 font-semibold bg-cyan-500/10 px-2 py-1 rounded">
+                                  <Eye className="w-3 h-3" />
+                                  {((article.viewCount || 0) * dataMultiplier).toLocaleString()}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* System Details Row */}
+                      <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50 flex items-center gap-3">
+                          <div className="p-2 bg-emerald-500/20 rounded-lg">
+                            <Database className="w-4 h-4 text-emerald-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">DB Response</p>
+                            <p className="text-sm font-bold text-emerald-400">{dashboardStats.systemStatus.dbResponseTime}ms</p>
+                          </div>
+                        </div>
+                        <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50 flex items-center gap-3">
+                          <div className="p-2 bg-blue-500/20 rounded-lg">
+                            <Zap className="w-4 h-4 text-blue-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">API Response</p>
+                            <p className="text-sm font-bold text-blue-400">{dashboardStats.systemStatus.apiResponseTime}ms</p>
+                          </div>
+                        </div>
+                        <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50 flex items-center gap-3">
+                          <div className="p-2 bg-violet-500/20 rounded-lg">
+                            <Server className="w-4 h-4 text-violet-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Memory Used</p>
+                            <p className="text-sm font-bold text-violet-400">{dashboardStats.systemStatus.memoryUsage?.heapUsed || 0}MB</p>
+                          </div>
+                        </div>
+                        <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50 flex items-center gap-3">
+                          <div className="p-2 bg-amber-500/20 rounded-lg">
+                            <Clock className="w-4 h-4 text-amber-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Node Version</p>
+                            <p className="text-sm font-bold text-amber-400">{dashboardStats.systemStatus.nodeVersion}</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
+                )}
 
-                  {/* Top Pages */}
-                  <div className="bg-white rounded-2xl p-5 border border-gray-200/50 shadow-sm hover:shadow-md transition-all duration-300">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="p-2.5 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl shadow-md shadow-orange-500/20">
-                        <FileText className="w-4 h-4 text-white" />
+                {/* Demographics Row - Dark Theme */}
+                <div className="mt-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 border border-slate-700/50 shadow-2xl overflow-hidden relative">
+                  {/* Animated background */}
+                  <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                    <div className="absolute -top-20 -right-20 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl animate-pulse"></div>
+                    <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-violet-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+                  </div>
+
+                  <div className="relative z-10">
+                    {/* Section Header */}
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="p-2.5 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg shadow-blue-500/30">
+                        <Globe className="w-5 h-5 text-white" />
                       </div>
-                      <h4 className="text-sm font-bold text-gray-800">Top Pages</h4>
+                      <div>
+                        <h3 className="text-lg font-bold text-white">Demographics & Pages</h3>
+                        <p className="text-xs text-slate-400">User distribution and top content</p>
+                      </div>
                     </div>
-                    <div className="space-y-3">
-                      {scaledGaData.topPages.slice(0, 5).map((p, i) => (
-                        <div key={i} className="flex items-center justify-between text-sm group">
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <span className="text-xs font-bold text-gray-400 w-5">#{i + 1}</span>
-                            <span className="text-gray-700 truncate font-medium group-hover:text-orange-600 transition-colors" title={p.path}>
-                              {p.path === '/' ? 'Home' : p.path}
-                            </span>
-                          </div>
-                          <span className="font-bold text-gray-800 bg-orange-50 text-orange-600 px-2.5 py-1 rounded-lg text-xs ml-2">{formatNumber(p.pageViews)}</span>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Countries */}
+                      <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+                        <div className="flex items-center gap-2 mb-4">
+                          <Globe className="w-4 h-4 text-cyan-400" />
+                          <h4 className="text-sm font-bold text-white">Top Countries</h4>
                         </div>
-                      ))}
+                        <div className="space-y-2">
+                          {scaledGaData.demographics.countries.slice(0, 8).map((c, i) => (
+                            <div key={i} className="flex items-center justify-between text-sm group p-1.5 rounded-lg hover:bg-slate-700/30 transition-colors">
+                              <span className="flex items-center gap-2">
+                                <span className="w-5 text-xs font-bold text-slate-500">{i + 1}</span>
+                                <span>{getCountryFlag(c.country)}</span>
+                                <span className="text-slate-300 font-medium group-hover:text-cyan-400 transition-colors">{c.country}</span>
+                              </span>
+                              <span className="font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded text-xs">{formatNumber(c.users)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Devices */}
+                      <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+                        <div className="flex items-center gap-2 mb-4">
+                          <Smartphone className="w-4 h-4 text-violet-400" />
+                          <h4 className="text-sm font-bold text-white">Device Distribution</h4>
+                        </div>
+                        <div className="space-y-4">
+                          {scaledGaData.demographics.devices.map((d, i) => {
+                            const total = scaledGaData.demographics.devices.reduce((sum, x) => sum + x.users, 0);
+                            const pct = ((d.users / total) * 100).toFixed(0);
+                            const colors = [
+                              { gradient: 'from-blue-500 to-cyan-400', text: 'text-cyan-400' },
+                              { gradient: 'from-violet-500 to-purple-400', text: 'text-violet-400' },
+                              { gradient: 'from-emerald-500 to-green-400', text: 'text-emerald-400' }
+                            ];
+                            return (
+                              <div key={i}>
+                                <div className="flex items-center justify-between text-sm mb-2">
+                                  <span className={`flex items-center gap-2 ${colors[i]?.text || 'text-slate-300'} font-medium capitalize`}>
+                                    {getDeviceIcon(d.device)}
+                                    {d.device}
+                                  </span>
+                                  <span className="font-bold text-white">{pct}%</span>
+                                </div>
+                                <div className="h-2.5 bg-slate-700/50 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full bg-gradient-to-r ${colors[i]?.gradient || 'from-slate-500 to-gray-400'} rounded-full transition-all duration-500`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Top Pages */}
+                      <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+                        <div className="flex items-center gap-2 mb-4">
+                          <FileText className="w-4 h-4 text-amber-400" />
+                          <h4 className="text-sm font-bold text-white">Top Pages</h4>
+                        </div>
+                        <div className="space-y-2">
+                          {scaledGaData.topPages.slice(0, 6).map((p, i) => (
+                            <div key={i} className="flex items-center justify-between text-sm group p-1.5 rounded-lg hover:bg-slate-700/30 transition-colors">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className={`w-5 h-5 flex items-center justify-center rounded text-xs font-bold ${
+                                  i === 0 ? 'bg-amber-500/20 text-amber-400' :
+                                  i === 1 ? 'bg-slate-500/20 text-slate-300' :
+                                  i === 2 ? 'bg-orange-500/20 text-orange-400' :
+                                  'bg-slate-700/50 text-slate-500'
+                                }`}>{i + 1}</span>
+                                <span className="text-slate-300 truncate font-medium group-hover:text-amber-400 transition-colors" title={p.path}>
+                                  {p.path === '/' ? 'Home' : p.path}
+                                </span>
+                              </div>
+                              <span className="font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded text-xs ml-2">{formatNumber(p.pageViews)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Scroll Depth & Engagement Row - Modern Design */}
+                {/* Scroll Depth & Engagement Row - Dark Theme */}
                 {scaledGaData.scrollDepth && scaledGaData.engagementMetrics && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-                    {/* Scroll Depth - Modern Card */}
-                    <div className="bg-white rounded-2xl p-5 border border-gray-200/50 shadow-sm">
-                      <div className="flex items-center justify-between mb-5">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2.5 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl shadow-md shadow-blue-500/20">
-                            <ArrowDown className="w-4 h-4 text-white" />
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-bold text-gray-800">Scroll Depth</h4>
-                            <p className="text-xs text-gray-500">90% completion rate</p>
-                          </div>
-                        </div>
-                        <div className="px-3 py-1.5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full">
-                          <span className="text-xs font-bold text-white">Avg: {scaledGaData.scrollDepth.avgScrollRate}%</span>
-                        </div>
-                      </div>
-                      <div className="space-y-4">
-                        {scaledGaData.scrollDepth.pages.slice(0, 5).map((p, i) => (
-                          <div key={i}>
-                            <div className="flex items-center justify-between text-sm mb-2">
-                              <span className="text-gray-700 font-medium truncate flex-1">
-                                {p.path === '/' ? 'Home' : p.path}
-                              </span>
-                              <span className="font-bold text-gray-800 ml-2">{p.scrollRate}%</span>
-                            </div>
-                            <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-500"
-                                style={{ width: `${Math.min(parseFloat(p.scrollRate), 100)}%` }}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                  <div className="mt-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 border border-slate-700/50 shadow-2xl overflow-hidden relative">
+                    {/* Animated background */}
+                    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                      <div className="absolute -top-20 -left-20 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl animate-pulse"></div>
+                      <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-rose-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
                     </div>
 
-                    {/* Engagement Metrics - Modern Card */}
-                    <div className="bg-white rounded-2xl p-5 border border-gray-200/50 shadow-sm">
-                      <div className="flex items-center gap-3 mb-5">
-                        <div className="p-2.5 bg-gradient-to-br from-rose-500 to-pink-600 rounded-xl shadow-md shadow-pink-500/20">
-                          <Clock className="w-4 h-4 text-white" />
+                    <div className="relative z-10">
+                      {/* Section Header */}
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2.5 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl shadow-lg shadow-cyan-500/30">
+                          <Activity className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                          <h4 className="text-sm font-bold text-gray-800">Engagement Metrics</h4>
-                          <p className="text-xs text-gray-500">User interaction analysis</p>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 mb-5">
-                        <div className="bg-gradient-to-br from-slate-50 to-gray-100 rounded-xl p-4 border border-gray-200/50">
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Avg. Session</p>
-                          <p className="text-xl font-black text-gray-800 mt-1">
-                            {Math.floor(parseFloat(scaledGaData.engagementMetrics.avgSessionDuration) / 60)}m {Math.floor(parseFloat(scaledGaData.engagementMetrics.avgSessionDuration) % 60)}s
-                          </p>
-                        </div>
-                        <div className="bg-gradient-to-br from-emerald-50 to-green-100 rounded-xl p-4 border border-green-200/50">
-                          <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Engagement</p>
-                          <p className="text-xl font-black text-emerald-600 mt-1">{scaledGaData.engagementMetrics.engagementRate}%</p>
-                        </div>
-                        <div className="bg-gradient-to-br from-orange-50 to-amber-100 rounded-xl p-4 border border-orange-200/50">
-                          <p className="text-xs font-semibold text-orange-700 uppercase tracking-wider">Bounce Rate</p>
-                          <p className="text-xl font-black text-orange-600 mt-1">{scaledGaData.engagementMetrics.bounceRate}%</p>
-                        </div>
-                        <div className="bg-gradient-to-br from-violet-50 to-purple-100 rounded-xl p-4 border border-purple-200/50">
-                          <p className="text-xs font-semibold text-violet-700 uppercase tracking-wider">Engaged</p>
-                          <p className="text-xl font-black text-violet-600 mt-1">{formatNumber(scaledGaData.engagementMetrics.engagedSessions)}</p>
+                          <h3 className="text-lg font-bold text-white">Engagement Analysis</h3>
+                          <p className="text-xs text-slate-400">Scroll depth & user interaction metrics</p>
                         </div>
                       </div>
 
-                      {/* Page Engagement */}
-                      <div className="border-t border-gray-200 pt-4">
-                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Avg. Time on Page</p>
-                        <div className="space-y-2">
-                          {scaledGaData.engagementMetrics.pageEngagement.slice(0, 4).map((p, i) => (
-                            <div key={i} className="flex items-center justify-between text-sm py-1.5 px-3 rounded-lg hover:bg-gray-50 transition-colors">
-                              <span className="text-gray-700 font-medium truncate flex-1">
-                                {p.path === '/' ? 'Home' : p.path}
-                              </span>
-                              <span className="font-bold text-gray-800 bg-gray-100 px-2.5 py-1 rounded-lg text-xs ml-2">{parseFloat(p.avgTimeOnPage).toFixed(0)}s</span>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Scroll Depth */}
+                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                              <ArrowDown className="w-4 h-4 text-cyan-400" />
+                              <h4 className="text-sm font-bold text-white">Scroll Depth</h4>
                             </div>
-                          ))}
+                            <span className="text-xs font-bold text-cyan-400 bg-cyan-500/20 px-2.5 py-1 rounded-full border border-cyan-500/30">
+                              Avg: {scaledGaData.scrollDepth.avgScrollRate}%
+                            </span>
+                          </div>
+                          <div className="space-y-3">
+                            {scaledGaData.scrollDepth.pages.slice(0, 5).map((p, i) => (
+                              <div key={i}>
+                                <div className="flex items-center justify-between text-sm mb-1.5">
+                                  <span className="text-slate-300 font-medium truncate flex-1">
+                                    {p.path === '/' ? 'Home' : p.path}
+                                  </span>
+                                  <span className="font-bold text-cyan-400 ml-2">{p.scrollRate}%</span>
+                                </div>
+                                <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-500"
+                                    style={{ width: `${Math.min(parseFloat(p.scrollRate), 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Engagement Metrics */}
+                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+                          <div className="flex items-center gap-2 mb-4">
+                            <Clock className="w-4 h-4 text-rose-400" />
+                            <h4 className="text-sm font-bold text-white">Engagement Metrics</h4>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 mb-4">
+                            <div className="bg-slate-700/30 rounded-xl p-3 border border-slate-600/30">
+                              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Avg. Session</p>
+                              <p className="text-lg font-black text-white mt-1">
+                                {Math.floor(parseFloat(scaledGaData.engagementMetrics.avgSessionDuration) / 60)}m {Math.floor(parseFloat(scaledGaData.engagementMetrics.avgSessionDuration) % 60)}s
+                              </p>
+                            </div>
+                            <div className="bg-emerald-500/10 rounded-xl p-3 border border-emerald-500/20">
+                              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Engagement</p>
+                              <p className="text-lg font-black text-emerald-400 mt-1">{scaledGaData.engagementMetrics.engagementRate}%</p>
+                            </div>
+                            <div className="bg-orange-500/10 rounded-xl p-3 border border-orange-500/20">
+                              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Bounce Rate</p>
+                              <p className="text-lg font-black text-orange-400 mt-1">{scaledGaData.engagementMetrics.bounceRate}%</p>
+                            </div>
+                            <div className="bg-violet-500/10 rounded-xl p-3 border border-violet-500/20">
+                              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Engaged</p>
+                              <p className="text-lg font-black text-violet-400 mt-1">{formatNumber(scaledGaData.engagementMetrics.engagedSessions)}</p>
+                            </div>
+                          </div>
+
+                          {/* Page Engagement */}
+                          <div className="border-t border-slate-700/50 pt-3">
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Avg. Time on Page</p>
+                            <div className="space-y-1.5">
+                              {scaledGaData.engagementMetrics.pageEngagement.slice(0, 4).map((p, i) => (
+                                <div key={i} className="flex items-center justify-between text-sm p-2 rounded-lg hover:bg-slate-700/30 transition-colors">
+                                  <span className="text-slate-300 font-medium truncate flex-1">
+                                    {p.path === '/' ? 'Home' : p.path}
+                                  </span>
+                                  <span className="font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded text-xs ml-2">{parseFloat(p.avgTimeOnPage).toFixed(0)}s</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* Traffic Sources Row - Modern Design */}
+                {/* Traffic Sources Row - Dark Theme */}
                 {scaledGaData.trafficSources && (
-                  <div className="mt-6">
-                    <div className="flex items-center gap-3 mb-5">
-                      <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-md shadow-indigo-500/20">
-                        <Share2 className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-gray-800">Traffic Sources</h3>
-                        <p className="text-sm text-gray-500">Where your visitors come from</p>
-                      </div>
+                  <div className="mt-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 border border-slate-700/50 shadow-2xl overflow-hidden relative">
+                    {/* Animated background */}
+                    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                      <div className="absolute -top-20 -right-20 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl animate-pulse"></div>
+                      <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                      {/* Traffic Sources */}
-                      <div className="bg-white rounded-2xl p-5 border border-gray-200/50 shadow-sm hover:shadow-md transition-all duration-300">
-                        <div className="flex items-center gap-2 mb-4">
-                          <ExternalLink className="w-4 h-4 text-indigo-600" />
-                          <h4 className="text-sm font-bold text-gray-800">By Source</h4>
+
+                    <div className="relative z-10">
+                      {/* Section Header */}
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg shadow-indigo-500/30">
+                          <Share2 className="w-5 h-5 text-white" />
                         </div>
-                        <div className="space-y-4">
-                          {scaledGaData.trafficSources.sources.slice(0, 6).map((s, i) => {
-                            const totalSessions = scaledGaData.trafficSources.sources.reduce((sum, x) => sum + x.sessions, 0);
-                            const percentage = totalSessions > 0 ? ((s.sessions / totalSessions) * 100).toFixed(1) : 0;
-                            const colors = [
-                              'from-indigo-500 to-blue-500',
-                              'from-violet-500 to-purple-500',
-                              'from-pink-500 to-rose-500',
-                              'from-orange-500 to-amber-500',
-                              'from-emerald-500 to-green-500',
-                              'from-cyan-500 to-teal-500'
-                            ];
-                            return (
-                              <div key={i}>
-                                <div className="flex items-center justify-between text-sm mb-2">
-                                  <span className="text-gray-700 font-medium capitalize">{s.source}</span>
-                                  <span className="font-bold text-gray-800">{percentage}%</span>
-                                </div>
-                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full bg-gradient-to-r ${colors[i % colors.length]} rounded-full transition-all duration-500`}
-                                    style={{ width: `${Math.min(parseFloat(percentage), 100)}%` }}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
+                        <div>
+                          <h3 className="text-lg font-bold text-white">Traffic Sources</h3>
+                          <p className="text-xs text-slate-400">Where your visitors come from</p>
                         </div>
                       </div>
 
-                      {/* Traffic Mediums */}
-                      <div className="bg-white rounded-2xl p-5 border border-gray-200/50 shadow-sm hover:shadow-md transition-all duration-300">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Share2 className="w-4 h-4 text-purple-600" />
-                          <h4 className="text-sm font-bold text-gray-800">By Medium</h4>
-                        </div>
-                        <div className="space-y-4">
-                          {scaledGaData.trafficSources.mediums.map((m, i) => {
-                            const totalSessions = scaledGaData.trafficSources.mediums.reduce((sum, x) => sum + x.sessions, 0);
-                            const percentage = totalSessions > 0 ? ((m.sessions / totalSessions) * 100).toFixed(1) : 0;
-                            const colors = [
-                              'from-emerald-500 to-green-400',
-                              'from-blue-500 to-cyan-400',
-                              'from-violet-500 to-purple-400',
-                              'from-orange-500 to-amber-400',
-                              'from-pink-500 to-rose-400'
-                            ];
-                            return (
-                              <div key={i}>
-                                <div className="flex items-center justify-between text-sm mb-2">
-                                  <span className="text-gray-700 font-medium capitalize">{m.medium === '(none)' ? 'Direct' : m.medium}</span>
-                                  <span className="font-bold text-gray-800">{formatNumber(m.sessions)}</span>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* By Source */}
+                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+                          <div className="flex items-center gap-2 mb-4">
+                            <ExternalLink className="w-4 h-4 text-indigo-400" />
+                            <h4 className="text-sm font-bold text-white">By Source</h4>
+                          </div>
+                          <div className="space-y-3">
+                            {scaledGaData.trafficSources.sources.slice(0, 6).map((s, i) => {
+                              const totalSessions = scaledGaData.trafficSources.sources.reduce((sum, x) => sum + x.sessions, 0);
+                              const percentage = totalSessions > 0 ? ((s.sessions / totalSessions) * 100).toFixed(1) : 0;
+                              const colors = [
+                                { gradient: 'from-indigo-500 to-blue-500', text: 'text-indigo-400' },
+                                { gradient: 'from-violet-500 to-purple-500', text: 'text-violet-400' },
+                                { gradient: 'from-pink-500 to-rose-500', text: 'text-pink-400' },
+                                { gradient: 'from-orange-500 to-amber-500', text: 'text-orange-400' },
+                                { gradient: 'from-emerald-500 to-green-500', text: 'text-emerald-400' },
+                                { gradient: 'from-cyan-500 to-teal-500', text: 'text-cyan-400' }
+                              ];
+                              return (
+                                <div key={i}>
+                                  <div className="flex items-center justify-between text-sm mb-1.5">
+                                    <span className="text-slate-300 font-medium capitalize">{s.source}</span>
+                                    <span className={`font-bold ${colors[i % colors.length].text}`}>{percentage}%</span>
+                                  </div>
+                                  <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full bg-gradient-to-r ${colors[i % colors.length].gradient} rounded-full transition-all duration-500`}
+                                      style={{ width: `${Math.min(parseFloat(percentage), 100)}%` }}
+                                    />
+                                  </div>
                                 </div>
-                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full bg-gradient-to-r ${colors[i % colors.length]} rounded-full transition-all duration-500`}
-                                    style={{ width: `${Math.min(parseFloat(percentage), 100)}%` }}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
 
-                      {/* Source/Medium Combination */}
-                      <div className="bg-white rounded-2xl p-5 border border-gray-200/50 shadow-sm hover:shadow-md transition-all duration-300">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Search className="w-4 h-4 text-rose-600" />
-                          <h4 className="text-sm font-bold text-gray-800">Source / Medium</h4>
+                        {/* By Medium */}
+                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+                          <div className="flex items-center gap-2 mb-4">
+                            <Share2 className="w-4 h-4 text-purple-400" />
+                            <h4 className="text-sm font-bold text-white">By Medium</h4>
+                          </div>
+                          <div className="space-y-3">
+                            {scaledGaData.trafficSources.mediums.map((m, i) => {
+                              const totalSessions = scaledGaData.trafficSources.mediums.reduce((sum, x) => sum + x.sessions, 0);
+                              const percentage = totalSessions > 0 ? ((m.sessions / totalSessions) * 100).toFixed(1) : 0;
+                              const colors = [
+                                { gradient: 'from-emerald-500 to-green-400', text: 'text-emerald-400' },
+                                { gradient: 'from-blue-500 to-cyan-400', text: 'text-blue-400' },
+                                { gradient: 'from-violet-500 to-purple-400', text: 'text-violet-400' },
+                                { gradient: 'from-orange-500 to-amber-400', text: 'text-orange-400' },
+                                { gradient: 'from-pink-500 to-rose-400', text: 'text-pink-400' }
+                              ];
+                              return (
+                                <div key={i}>
+                                  <div className="flex items-center justify-between text-sm mb-1.5">
+                                    <span className="text-slate-300 font-medium capitalize">{m.medium === '(none)' ? 'Direct' : m.medium}</span>
+                                    <span className={`font-bold ${colors[i % colors.length].text}`}>{formatNumber(m.sessions)}</span>
+                                  </div>
+                                  <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full bg-gradient-to-r ${colors[i % colors.length].gradient} rounded-full transition-all duration-500`}
+                                      style={{ width: `${Math.min(parseFloat(percentage), 100)}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                        <div className="space-y-2 max-h-56 overflow-y-auto pr-2 custom-scrollbar">
-                          {scaledGaData.trafficSources.sourceMedium.slice(0, 8).map((sm, i) => (
-                            <div key={i} className="flex items-center justify-between text-sm py-2.5 px-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                              <span className="text-gray-700 font-medium truncate flex-1" title={sm.sourceMedium}>
-                                {sm.sourceMedium}
-                              </span>
-                              <div className="flex items-center gap-2 ml-2">
-                                <span className="font-bold text-gray-800 text-xs">{formatNumber(sm.sessions)}</span>
-                                <span className={`text-xs font-bold px-2 py-1 rounded-lg ${parseFloat(sm.bounceRate) > 50 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                  {sm.bounceRate}%
+
+                        {/* Source/Medium */}
+                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+                          <div className="flex items-center gap-2 mb-4">
+                            <Search className="w-4 h-4 text-rose-400" />
+                            <h4 className="text-sm font-bold text-white">Source / Medium</h4>
+                          </div>
+                          <div className="space-y-2 max-h-56 overflow-y-auto pr-2 custom-scrollbar">
+                            {scaledGaData.trafficSources.sourceMedium.slice(0, 8).map((sm, i) => (
+                              <div key={i} className="flex items-center justify-between text-sm p-2.5 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
+                                <span className="text-slate-300 font-medium truncate flex-1" title={sm.sourceMedium}>
+                                  {sm.sourceMedium}
                                 </span>
+                                <div className="flex items-center gap-2 ml-2">
+                                  <span className="font-bold text-white text-xs">{formatNumber(sm.sessions)}</span>
+                                  <span className={`text-xs font-bold px-2 py-1 rounded ${parseFloat(sm.bounceRate) > 50 ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                                    {sm.bounceRate}%
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* User Flow Section */}
+                {/* User Flow Section - Dark Theme */}
                 {scaledGaData.userFlow && (
-                    <div className="mt-6">
-                      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                        <Activity className="w-5 h-5 text-indigo-600" />
-                        User Flow Analysis
-                      </h3>
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                  <div className="mt-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 border border-slate-700/50 shadow-2xl overflow-hidden relative">
+                    {/* Animated background */}
+                    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                      <div className="absolute -top-20 -left-20 w-40 h-40 bg-green-500/10 rounded-full blur-3xl animate-pulse"></div>
+                      <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+                    </div>
+
+                    <div className="relative z-10">
+                      {/* Section Header */}
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2.5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-lg shadow-green-500/30">
+                          <MousePointer className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-white">User Flow Analysis</h3>
+                          <p className="text-xs text-slate-400">Navigation patterns and page transitions</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                         {/* Session Metrics */}
-                        <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-5 text-white shadow-lg shadow-indigo-500/20">
-                          <h4 className="text-sm font-semibold opacity-90 mb-4">Session Metrics</h4>
-                          <div className="space-y-4">
-                            <div className="bg-white/20 rounded-xl p-4 backdrop-blur">
-                              <p className="text-xs opacity-80">Pages per Session</p>
-                              <p className="text-2xl font-bold">{scaledGaData.userFlow.sessionMetrics.pageViewsPerSession}</p>
+                        <div className="bg-gradient-to-br from-indigo-600/30 to-purple-600/20 rounded-2xl p-5 border border-indigo-500/30">
+                          <h4 className="text-sm font-semibold text-slate-300 mb-4">Session Metrics</h4>
+                          <div className="space-y-3">
+                            <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                              <p className="text-xs text-slate-500">Pages per Session</p>
+                              <p className="text-2xl font-bold text-indigo-400">{scaledGaData.userFlow.sessionMetrics.pageViewsPerSession}</p>
                             </div>
-                            <div className="bg-white/20 rounded-xl p-4 backdrop-blur">
-                              <p className="text-xs opacity-80">Sessions per User</p>
-                              <p className="text-2xl font-bold">{scaledGaData.userFlow.sessionMetrics.sessionsPerUser}</p>
+                            <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                              <p className="text-xs text-slate-500">Sessions per User</p>
+                              <p className="text-2xl font-bold text-purple-400">{scaledGaData.userFlow.sessionMetrics.sessionsPerUser}</p>
                             </div>
                           </div>
                         </div>
 
                         {/* Landing Pages */}
-                        <div className="bg-white rounded-2xl p-5 border border-gray-200/50 shadow-sm hover:shadow-md transition-all duration-300">
+                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
                           <div className="flex items-center gap-2 mb-4">
-                            <ArrowDown className="w-4 h-4 text-green-600 rotate-180" />
-                            <h4 className="text-sm font-bold text-gray-800">Landing Pages</h4>
-                            <span className="text-xs text-gray-400 ml-auto">Entry Points</span>
+                            <ArrowDown className="w-4 h-4 text-emerald-400 rotate-180" />
+                            <h4 className="text-sm font-bold text-white">Landing Pages</h4>
+                            <span className="text-xs text-slate-500 ml-auto">Entry Points</span>
                           </div>
-                          <div className="space-y-3">
+                          <div className="space-y-2">
                             {scaledGaData.userFlow.landingPages.slice(0, 5).map((lp, i) => (
-                              <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                              <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
                                 <div className="flex items-center gap-2">
-                                  <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${i === 0 ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-600'}`}>
+                                  <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${i === 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700/50 text-slate-500'}`}>
                                     {i + 1}
                                   </span>
-                                  <span className="text-sm text-gray-700 font-medium truncate max-w-[120px]">{lp.page}</span>
+                                  <span className="text-sm text-slate-300 font-medium truncate max-w-[120px]">{lp.page}</span>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                  <span className="text-xs text-gray-500">{formatNumber(lp.sessions)} sessions</span>
-                                  <span className={`text-xs font-semibold px-2 py-1 rounded-lg ${parseFloat(lp.bounceRate) > 40 ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
-                                    {lp.bounceRate}% bounce
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-slate-500">{formatNumber(lp.sessions)}</span>
+                                  <span className={`text-xs font-semibold px-2 py-1 rounded ${parseFloat(lp.bounceRate) > 40 ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                                    {lp.bounceRate}%
                                   </span>
                                 </div>
                               </div>
@@ -1304,24 +1963,24 @@ export default function AdminDashboard() {
                         </div>
 
                         {/* Exit Pages */}
-                        <div className="bg-white rounded-2xl p-5 border border-gray-200/50 shadow-sm hover:shadow-md transition-all duration-300">
+                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
                           <div className="flex items-center gap-2 mb-4">
-                            <ArrowDown className="w-4 h-4 text-red-500" />
-                            <h4 className="text-sm font-bold text-gray-800">Exit Pages</h4>
-                            <span className="text-xs text-gray-400 ml-auto">Where users leave</span>
+                            <ArrowDown className="w-4 h-4 text-red-400" />
+                            <h4 className="text-sm font-bold text-white">Exit Pages</h4>
+                            <span className="text-xs text-slate-500 ml-auto">Where users leave</span>
                           </div>
-                          <div className="space-y-3">
+                          <div className="space-y-2">
                             {scaledGaData.userFlow.exitPages.slice(0, 5).map((ep, i) => (
-                              <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                              <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
                                 <div className="flex items-center gap-2">
-                                  <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${i === 0 ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-600'}`}>
+                                  <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${i === 0 ? 'bg-red-500/20 text-red-400' : 'bg-slate-700/50 text-slate-500'}`}>
                                     {i + 1}
                                   </span>
-                                  <span className="text-sm text-gray-700 font-medium truncate max-w-[120px]">{ep.page}</span>
+                                  <span className="text-sm text-slate-300 font-medium truncate max-w-[120px]">{ep.page}</span>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                  <span className="text-xs text-gray-500">{formatNumber(ep.exits)} exits</span>
-                                  <span className={`text-xs font-semibold px-2 py-1 rounded-lg ${parseFloat(ep.exitRate) > 40 ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-slate-500">{formatNumber(ep.exits)}</span>
+                                  <span className={`text-xs font-semibold px-2 py-1 rounded ${parseFloat(ep.exitRate) > 40 ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'}`}>
                                     {ep.exitRate}%
                                   </span>
                                 </div>
@@ -1333,76 +1992,529 @@ export default function AdminDashboard() {
 
                       {/* Navigation Paths Section */}
                       {scaledGaData.userFlow.navigationPaths && scaledGaData.userFlow.navigationPaths.length > 0 && (
-                        <div className="mt-6">
-                          <h4 className="text-md font-bold text-gray-800 mb-4 flex items-center gap-2">
-                            <MousePointer className="w-4 h-4 text-cyan-600" />
-                            Navigation Paths
-                            <span className="text-xs text-gray-400 font-normal ml-2">Page to page transitions</span>
-                          </h4>
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                            {/* Page Navigation Flow */}
-                            <div className="bg-white rounded-2xl p-5 border border-gray-200/50 shadow-sm hover:shadow-md transition-all duration-300">
-                              <div className="flex items-center justify-between mb-4">
-                                <h5 className="text-sm font-bold text-gray-800">Page Transitions</h5>
-                                <span className="text-xs text-gray-400">From → To</span>
+                        <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {/* Page Navigation Flow */}
+                          <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-2">
+                                <MousePointer className="w-4 h-4 text-cyan-400" />
+                                <h5 className="text-sm font-bold text-white">Page Transitions</h5>
                               </div>
-                              <div className="space-y-2 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
-                                {scaledGaData.userFlow.navigationPaths.slice(0, 10).map((path, i) => (
-                                  <div key={i} className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-gradient-to-r from-gray-50 to-cyan-50/30 hover:from-gray-100 hover:to-cyan-100/50 transition-colors">
+                              <span className="text-xs text-slate-500">From → To</span>
+                            </div>
+                            <div className="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                              {scaledGaData.userFlow.navigationPaths.slice(0, 8).map((path, i) => (
+                                <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
+                                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    <span className="text-xs font-bold text-slate-500 w-5">#{i + 1}</span>
+                                    <span className="text-sm text-slate-300 font-medium truncate max-w-[70px]" title={path.fromPage}>
+                                      {path.fromPage === '/' ? 'Home' : path.fromPage}
+                                    </span>
+                                    <span className="text-cyan-400 font-bold">→</span>
+                                    <span className="text-sm text-slate-300 font-medium truncate max-w-[70px]" title={path.toPage}>
+                                      {path.toPage === '/' ? 'Home' : path.toPage}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs font-bold text-cyan-400 bg-cyan-500/20 px-2 py-1 rounded">{formatNumber(path.pageViews)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Landing to Next Page */}
+                          {scaledGaData.userFlow.landingToNextPaths && scaledGaData.userFlow.landingToNextPaths.length > 0 && (
+                            <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+                              <div className="flex items-center justify-between mb-4">
+                                <h5 className="text-sm font-bold text-white">Entry Flow</h5>
+                                <span className="text-xs text-slate-500">First → Second</span>
+                              </div>
+                              <div className="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                                {scaledGaData.userFlow.landingToNextPaths.slice(0, 8).map((path, i) => (
+                                  <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
                                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                                      <span className="text-xs font-bold text-gray-400 w-5">#{i + 1}</span>
-                                      <span className="text-sm text-gray-700 font-medium truncate max-w-[80px]" title={path.fromPage}>
-                                        {path.fromPage === '/' ? 'Home' : path.fromPage}
+                                      <span className="text-xs font-bold text-slate-500 w-5">#{i + 1}</span>
+                                      <span className="text-[10px] text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded font-semibold">ENTRY</span>
+                                      <span className="text-sm text-slate-300 font-medium truncate max-w-[60px]" title={path.landingPage}>
+                                        {path.landingPage === '/' ? 'Home' : path.landingPage}
                                       </span>
-                                      <span className="text-cyan-500 font-bold">→</span>
-                                      <span className="text-sm text-gray-700 font-medium truncate max-w-[80px]" title={path.toPage}>
-                                        {path.toPage === '/' ? 'Home' : path.toPage}
+                                      <span className="text-emerald-400 font-bold">→</span>
+                                      <span className="text-sm text-slate-300 font-medium truncate max-w-[60px]" title={path.nextPage}>
+                                        {path.nextPage === '/' ? 'Home' : path.nextPage}
                                       </span>
                                     </div>
-                                    <div className="flex items-center gap-2 ml-2">
-                                      <span className="text-xs font-bold text-cyan-600 bg-cyan-100 px-2 py-1 rounded-lg">{formatNumber(path.pageViews)}</span>
-                                    </div>
+                                    <span className="text-xs font-bold text-emerald-400 bg-emerald-500/20 px-2 py-1 rounded">{formatNumber(path.sessions)}</span>
                                   </div>
                                 ))}
                               </div>
                             </div>
-
-                            {/* Landing to Next Page */}
-                            {scaledGaData.userFlow.landingToNextPaths && scaledGaData.userFlow.landingToNextPaths.length > 0 && (
-                              <div className="bg-white rounded-2xl p-5 border border-gray-200/50 shadow-sm hover:shadow-md transition-all duration-300">
-                                <div className="flex items-center justify-between mb-4">
-                                  <h5 className="text-sm font-bold text-gray-800">First Page → Second Page</h5>
-                                  <span className="text-xs text-gray-400">Entry flow</span>
-                                </div>
-                                <div className="space-y-2 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
-                                  {scaledGaData.userFlow.landingToNextPaths.slice(0, 10).map((path, i) => (
-                                    <div key={i} className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-gradient-to-r from-gray-50 to-green-50/30 hover:from-gray-100 hover:to-green-100/50 transition-colors">
-                                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                                        <span className="text-xs font-bold text-gray-400 w-5">#{i + 1}</span>
-                                        <div className="flex items-center gap-1">
-                                          <span className="text-[10px] text-green-600 bg-green-100 px-1.5 py-0.5 rounded font-semibold">ENTRY</span>
-                                          <span className="text-sm text-gray-700 font-medium truncate max-w-[70px]" title={path.landingPage}>
-                                            {path.landingPage === '/' ? 'Home' : path.landingPage}
-                                          </span>
-                                        </div>
-                                        <span className="text-green-500 font-bold">→</span>
-                                        <span className="text-sm text-gray-700 font-medium truncate max-w-[80px]" title={path.nextPage}>
-                                          {path.nextPage === '/' ? 'Home' : path.nextPage}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-2 ml-2">
-                                        <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-lg">{formatNumber(path.sessions)}</span>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                          )}
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+
+                  {/* ==================== NEW ANALYTICS SECTIONS ==================== */}
+
+                  {/* 1. Hourly Traffic Pattern */}
+                  {scaledGaData?.hourlyTraffic && scaledGaData.hourlyTraffic.today && (
+                    <div className="mt-8 bg-gradient-to-br from-indigo-50/50 to-purple-50/50 rounded-2xl p-6 border border-indigo-100/50">
+                      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <Clock className="w-5 h-5 text-indigo-600" />
+                        Hourly Traffic Pattern
+                        <span className="text-xs text-gray-400 font-normal ml-2">Today's traffic by hour</span>
+                        <span className="ml-auto text-sm font-semibold text-indigo-600 bg-indigo-100 px-3 py-1 rounded-full">
+                          Peak: {scaledGaData.hourlyTraffic.peakHour}:00
+                        </span>
+                      </h3>
+                      <div className="bg-white rounded-xl p-4 border border-gray-200/50">
+                        <div className="flex items-end gap-1 h-32">
+                          {scaledGaData.hourlyTraffic.today?.map((h, i) => {
+                            const maxUsers = Math.max(...scaledGaData.hourlyTraffic.today.map(x => x.users));
+                            const height = maxUsers > 0 ? (h.users / maxUsers) * 100 : 0;
+                            const isPeak = h.hour === scaledGaData.hourlyTraffic.peakHour;
+                            return (
+                              <div key={i} className="flex-1 flex flex-col items-center group relative">
+                                <div
+                                  className={`w-full rounded-t transition-all ${isPeak ? 'bg-gradient-to-t from-indigo-500 to-purple-500' : 'bg-gradient-to-t from-indigo-200 to-indigo-300'} hover:from-indigo-400 hover:to-purple-400`}
+                                  style={{ height: `${Math.max(4, height)}%` }}
+                                />
+                                <span className="text-[9px] text-gray-400 mt-1">{h.hour}</span>
+                                <div className="absolute bottom-full mb-2 hidden group-hover:block bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
+                                  {h.hour}:00 - {formatNumber(h.users)} users
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex justify-between mt-2 text-xs text-gray-400">
+                          <span>Midnight</span>
+                          <span>Noon</span>
+                          <span>Evening</span>
+                        </div>
+                      </div>
+                    </div>
                   )}
+
+                  {/* 2. Content Performance */}
+                  {scaledGaData.contentPerformance && (
+                    <div className="mt-8 bg-gradient-to-br from-emerald-50/50 to-teal-50/50 rounded-2xl p-6 border border-emerald-100/50">
+                      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-emerald-600" />
+                        Content Performance
+                        <span className="text-xs text-gray-400 font-normal ml-2">Articles per session: {scaledGaData.contentPerformance.articlesPerSession}</span>
+                      </h3>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        {/* By Category */}
+                        <div className="bg-white rounded-2xl p-5 border border-gray-200/50">
+                          <h4 className="text-sm font-bold text-gray-800 mb-3">By Category</h4>
+                          <div className="space-y-3">
+                            {scaledGaData.contentPerformance.byCategory?.map((cat, i) => (
+                              <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-gray-50 hover:bg-emerald-50 transition-colors">
+                                <span className="text-sm font-medium text-gray-700">{cat.category}</span>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xs text-gray-500">{formatNumber(cat.views)} views</span>
+                                  <span className="text-xs text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded">{cat.avgReadTime}s read</span>
+                                  <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded">{cat.shareRate}% share</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        {/* Top Articles */}
+                        <div className="bg-white rounded-2xl p-5 border border-gray-200/50">
+                          <h4 className="text-sm font-bold text-gray-800 mb-3">Top Articles</h4>
+                          <div className="space-y-2">
+                            {scaledGaData.contentPerformance.topArticles?.slice(0, 5).map((article, i) => (
+                              <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-gray-50 hover:bg-emerald-50 transition-colors">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <span className="text-xs font-bold text-gray-400">#{i + 1}</span>
+                                  <span className="text-sm text-gray-700 truncate">{article.title}</span>
+                                </div>
+                                <span className="text-xs font-bold text-emerald-600 ml-2">{formatNumber(article.views)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. Engagement Metrics (Advanced) */}
+                  {scaledGaData.engagementAdvanced && (
+                    <div className="mt-8 bg-gradient-to-br from-orange-50/50 to-amber-50/50 rounded-2xl p-6 border border-orange-100/50">
+                      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <Zap className="w-5 h-5 text-orange-600" />
+                        User Engagement
+                      </h3>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50 text-center">
+                          <div className="text-2xl font-bold text-orange-600">{scaledGaData.engagementAdvanced.avgReadTime}s</div>
+                          <div className="text-xs text-gray-500 mt-1">Avg Read Time</div>
+                        </div>
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50 text-center">
+                          <div className="text-2xl font-bold text-amber-600">{scaledGaData.engagementAdvanced.commentsPerArticle}</div>
+                          <div className="text-xs text-gray-500 mt-1">Comments/Article</div>
+                        </div>
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50 text-center">
+                          <div className="text-2xl font-bold text-yellow-600">{scaledGaData.engagementAdvanced.shareRate}%</div>
+                          <div className="text-xs text-gray-500 mt-1">Share Rate</div>
+                        </div>
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50 text-center">
+                          <div className="text-2xl font-bold text-green-600">{scaledGaData.engagementAdvanced.ctr}%</div>
+                          <div className="text-xs text-gray-500 mt-1">Rec. CTR</div>
+                        </div>
+                      </div>
+                      {/* Scroll Depth */}
+                      <div className="bg-white rounded-xl p-4 border border-gray-200/50">
+                        <h4 className="text-sm font-bold text-gray-800 mb-3">Scroll Depth</h4>
+                        <div className="flex items-center gap-2">
+                          {['25%', '50%', '75%', '100%'].map((depth, i) => {
+                            const value = scaledGaData.engagementAdvanced.scrollDepth[depth] || 0;
+                            const max = scaledGaData.engagementAdvanced.scrollDepth['25%'] || 1;
+                            const width = Math.max(10, (value / max) * 100);
+                            return (
+                              <div key={depth} className="flex-1">
+                                <div className="text-xs text-gray-500 text-center mb-1">{depth}</div>
+                                <div className="bg-gray-100 rounded-full h-6 relative overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${i === 0 ? 'bg-orange-300' : i === 1 ? 'bg-orange-400' : i === 2 ? 'bg-orange-500' : 'bg-orange-600'}`}
+                                    style={{ width: `${width}%` }}
+                                  />
+                                  <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white drop-shadow">
+                                    {formatNumber(value)}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4. Search Analytics */}
+                  {scaledGaData.searchAnalytics && (
+                    <div className="mt-8 bg-gradient-to-br from-violet-50/50 to-purple-50/50 rounded-2xl p-6 border border-violet-100/50">
+                      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <Search className="w-5 h-5 text-violet-600" />
+                        Search Analytics
+                        <span className="ml-auto text-sm font-semibold text-violet-600 bg-violet-100 px-3 py-1 rounded-full">
+                          {formatNumber(scaledGaData.searchAnalytics.totalSearches)} total searches
+                        </span>
+                      </h3>
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                        {/* Top Keywords */}
+                        <div className="bg-white rounded-2xl p-5 border border-gray-200/50">
+                          <h4 className="text-sm font-bold text-gray-800 mb-3">Top Keywords</h4>
+                          <div className="space-y-2">
+                            {scaledGaData.searchAnalytics.topKeywords?.slice(0, 8).map((kw, i) => (
+                              <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-gray-50 hover:bg-violet-50 transition-colors">
+                                <span className="text-sm text-gray-700">{kw.keyword}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-500">{formatNumber(kw.searches)}</span>
+                                  <span className="text-xs text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded">{kw.ctr}%</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        {/* Trending Searches */}
+                        <div className="bg-white rounded-2xl p-5 border border-gray-200/50">
+                          <h4 className="text-sm font-bold text-gray-800 mb-3">Trending Searches</h4>
+                          <div className="space-y-2">
+                            {scaledGaData.searchAnalytics.trendingSearches?.map((ts, i) => (
+                              <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-gray-50 hover:bg-green-50 transition-colors">
+                                <div className="flex items-center gap-2">
+                                  {ts.isNew && <span className="text-[9px] bg-red-500 text-white px-1 rounded">NEW</span>}
+                                  <span className="text-sm text-gray-700">{ts.keyword}</span>
+                                </div>
+                                <span className="text-xs font-bold text-green-600">+{ts.change}%</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        {/* Zero Result Searches */}
+                        <div className="bg-white rounded-2xl p-5 border border-gray-200/50">
+                          <h4 className="text-sm font-bold text-gray-800 mb-3">Zero Result Searches</h4>
+                          <div className="space-y-2">
+                            {scaledGaData.searchAnalytics.zeroResultSearches?.map((zr, i) => (
+                              <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-red-50">
+                                <span className="text-sm text-gray-700">{zr.keyword}</span>
+                                <span className="text-xs text-red-600">{zr.count} searches</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            <div className="text-xs text-gray-500">Search to Click Rate</div>
+                            <div className="text-lg font-bold text-violet-600">{scaledGaData.searchAnalytics.searchToClickRate}%</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 5. Cohort Analysis */}
+                  {scaledGaData.cohortAnalysis && (
+                    <div className="mt-8 bg-gradient-to-br from-cyan-50/50 to-sky-50/50 rounded-2xl p-6 border border-cyan-100/50">
+                      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <Users className="w-5 h-5 text-cyan-600" />
+                        Cohort Analysis
+                      </h3>
+                      <div className="grid grid-cols-4 gap-4 mb-5">
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50 text-center">
+                          <div className="text-2xl font-bold text-cyan-600">{scaledGaData.cohortAnalysis.day1Retention}%</div>
+                          <div className="text-xs text-gray-500 mt-1">Day 1 Retention</div>
+                        </div>
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50 text-center">
+                          <div className="text-2xl font-bold text-sky-600">{scaledGaData.cohortAnalysis.day7Retention}%</div>
+                          <div className="text-xs text-gray-500 mt-1">Day 7 Retention</div>
+                        </div>
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50 text-center">
+                          <div className="text-2xl font-bold text-blue-600">{scaledGaData.cohortAnalysis.day30Retention}%</div>
+                          <div className="text-xs text-gray-500 mt-1">Day 30 Retention</div>
+                        </div>
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50 text-center">
+                          <div className="text-2xl font-bold text-red-500">{scaledGaData.cohortAnalysis.churnRate}%</div>
+                          <div className="text-xs text-gray-500 mt-1">Churn Rate</div>
+                        </div>
+                      </div>
+                      {/* Cohort Table */}
+                      <div className="bg-white rounded-xl p-4 border border-gray-200/50 overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="text-gray-500">
+                              <th className="text-left py-2 px-2">Week</th>
+                              <th className="text-right py-2 px-2">Size</th>
+                              <th className="text-center py-2 px-2">W0</th>
+                              <th className="text-center py-2 px-2">W1</th>
+                              <th className="text-center py-2 px-2">W2</th>
+                              <th className="text-center py-2 px-2">W3</th>
+                              <th className="text-center py-2 px-2">W4</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {scaledGaData.cohortAnalysis.weekly?.slice(-5).map((week, i) => (
+                              <tr key={i} className="border-t border-gray-100">
+                                <td className="py-2 px-2 text-gray-700">{week.weekStart}</td>
+                                <td className="py-2 px-2 text-right text-gray-600">{formatNumber(week.cohortSize)}</td>
+                                {[0, 1, 2, 3, 4].map(w => {
+                                  const val = week.retention[w];
+                                  const bgColor = val !== undefined
+                                    ? val > 50 ? 'bg-cyan-500' : val > 30 ? 'bg-cyan-400' : val > 15 ? 'bg-cyan-300' : 'bg-cyan-200'
+                                    : 'bg-gray-100';
+                                  return (
+                                    <td key={w} className="py-2 px-2 text-center">
+                                      {val !== undefined ? (
+                                        <span className={`inline-block px-2 py-0.5 rounded text-white ${bgColor}`}>
+                                          {val}%
+                                        </span>
+                                      ) : '-'}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 6. Acquisition Details */}
+                  {scaledGaData.acquisitionDetails && (
+                    <div className="mt-8 bg-gradient-to-br from-lime-50/50 to-green-50/50 rounded-2xl p-6 border border-lime-100/50">
+                      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <ExternalLink className="w-5 h-5 text-lime-600" />
+                        Acquisition Details
+                      </h3>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        {/* By Channel */}
+                        <div className="bg-white rounded-2xl p-5 border border-gray-200/50">
+                          <h4 className="text-sm font-bold text-gray-800 mb-3">By Channel</h4>
+                          <div className="space-y-2">
+                            {scaledGaData.acquisitionDetails.byChannel?.map((ch, i) => (
+                              <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-gray-50 hover:bg-lime-50 transition-colors">
+                                <span className="text-sm font-medium text-gray-700">{ch.channel}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-500">{formatNumber(ch.sessions)}</span>
+                                  <span className="text-xs text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">{ch.bounceRate}%</span>
+                                  <span className="text-xs text-green-600 bg-green-100 px-1.5 py-0.5 rounded">{ch.conversionRate}%</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        {/* Top Referrers */}
+                        <div className="bg-white rounded-2xl p-5 border border-gray-200/50">
+                          <h4 className="text-sm font-bold text-gray-800 mb-3">Top Referrers</h4>
+                          <div className="space-y-2">
+                            {scaledGaData.acquisitionDetails.topReferrers?.map((ref, i) => (
+                              <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-gray-50 hover:bg-lime-50 transition-colors">
+                                <span className="text-sm text-gray-700">{ref.referrer}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-lime-600 font-bold">{formatNumber(ref.sessions)} sessions</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 7. Performance Metrics */}
+                  {scaledGaData.performance && (
+                    <div className="mt-8 bg-gradient-to-br from-rose-50/50 to-pink-50/50 rounded-2xl p-6 border border-rose-100/50">
+                      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <Activity className="w-5 h-5 text-rose-600" />
+                        Performance Metrics
+                      </h3>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs text-gray-500">LCP</span>
+                            <span className={`text-xs px-2 py-0.5 rounded ${scaledGaData.performance.coreWebVitals.lcpStatus === 'good' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                              {scaledGaData.performance.coreWebVitals.lcpStatus}
+                            </span>
+                          </div>
+                          <div className="text-2xl font-bold text-gray-800">{scaledGaData.performance.coreWebVitals.lcp}s</div>
+                        </div>
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs text-gray-500">FID</span>
+                            <span className={`text-xs px-2 py-0.5 rounded ${scaledGaData.performance.coreWebVitals.fidStatus === 'good' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                              {scaledGaData.performance.coreWebVitals.fidStatus}
+                            </span>
+                          </div>
+                          <div className="text-2xl font-bold text-gray-800">{scaledGaData.performance.coreWebVitals.fid}ms</div>
+                        </div>
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs text-gray-500">CLS</span>
+                            <span className={`text-xs px-2 py-0.5 rounded ${scaledGaData.performance.coreWebVitals.clsStatus === 'good' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                              {scaledGaData.performance.coreWebVitals.clsStatus}
+                            </span>
+                          </div>
+                          <div className="text-2xl font-bold text-gray-800">{scaledGaData.performance.coreWebVitals.cls}</div>
+                        </div>
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs text-gray-500">API Response</span>
+                          </div>
+                          <div className="text-2xl font-bold text-gray-800">{scaledGaData.performance.apiResponseTime}ms</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        {/* Page Load Times */}
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50">
+                          <h4 className="text-sm font-bold text-gray-800 mb-3">Page Load Times</h4>
+                          <div className="space-y-2">
+                            {scaledGaData.performance.pageLoadTimes?.map((p, i) => (
+                              <div key={i} className="flex items-center justify-between py-1.5">
+                                <span className="text-sm text-gray-600">{p.page}</span>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full ${parseFloat(p.loadTime) < 2 ? 'bg-green-500' : parseFloat(p.loadTime) < 3 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                      style={{ width: `${Math.min(100, (parseFloat(p.loadTime) / 4) * 100)}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs font-bold text-gray-600 w-10 text-right">{p.loadTime}s</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        {/* Error Rates */}
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50">
+                          <h4 className="text-sm font-bold text-gray-800 mb-3">Error Rates</h4>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="text-center py-4 bg-amber-50 rounded-xl">
+                              <div className="text-2xl font-bold text-amber-600">{scaledGaData.performance.errorRates['4xx']}%</div>
+                              <div className="text-xs text-gray-500 mt-1">4xx Errors</div>
+                            </div>
+                            <div className="text-center py-4 bg-red-50 rounded-xl">
+                              <div className="text-2xl font-bold text-red-600">{scaledGaData.performance.errorRates['5xx']}%</div>
+                              <div className="text-xs text-gray-500 mt-1">5xx Errors</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 8. K-Star Artist Popularity */}
+                  {scaledGaData.artistPopularity && (
+                    <div className="mt-8 bg-gradient-to-br from-fuchsia-50/50 to-pink-50/50 rounded-2xl p-6 border border-fuchsia-100/50">
+                      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <Star className="w-5 h-5 text-fuchsia-600" />
+                        K-Star Artist Popularity
+                      </h3>
+                      {/* Fandom Activity Summary */}
+                      <div className="grid grid-cols-3 gap-4 mb-5">
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50 text-center">
+                          <div className="text-2xl font-bold text-fuchsia-600">{formatNumber(scaledGaData.artistPopularity.fandomActivity.totalComments)}</div>
+                          <div className="text-xs text-gray-500 mt-1">Total Comments</div>
+                        </div>
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50 text-center">
+                          <div className="text-2xl font-bold text-pink-600">{formatNumber(scaledGaData.artistPopularity.fandomActivity.totalVotes)}</div>
+                          <div className="text-xs text-gray-500 mt-1">Total Votes</div>
+                        </div>
+                        <div className="bg-white rounded-xl p-4 border border-gray-200/50 text-center">
+                          <div className="text-2xl font-bold text-purple-600">{scaledGaData.artistPopularity.fandomActivity.avgParticipationRate}%</div>
+                          <div className="text-xs text-gray-500 mt-1">Participation Rate</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        {/* Top Artists */}
+                        <div className="bg-white rounded-2xl p-5 border border-gray-200/50">
+                          <h4 className="text-sm font-bold text-gray-800 mb-3">Top Artists</h4>
+                          <div className="space-y-2 max-h-80 overflow-y-auto">
+                            {scaledGaData.artistPopularity.topArtists?.map((artist, i) => (
+                              <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-gray-50 hover:bg-fuchsia-50 transition-colors">
+                                <div className="flex items-center gap-2">
+                                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${i < 3 ? 'bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white' : 'bg-gray-200 text-gray-600'}`}>
+                                    {i + 1}
+                                  </span>
+                                  <span className="text-sm font-medium text-gray-700">{artist.name}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-500">{formatNumber(artist.views)}</span>
+                                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${artist.trend > 0 ? 'bg-green-100 text-green-600' : artist.trend < 0 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
+                                    {artist.trend > 0 ? '+' : ''}{artist.trend}%
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        {/* Rising Artists */}
+                        <div className="bg-white rounded-2xl p-5 border border-gray-200/50">
+                          <h4 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                            <span className="text-lg">🚀</span> Rising Artists
+                          </h4>
+                          <div className="space-y-3">
+                            {scaledGaData.artistPopularity.risingArtists?.map((artist, i) => (
+                              <div key={i} className="flex items-center justify-between py-3 px-4 rounded-xl bg-gradient-to-r from-fuchsia-50 to-pink-50 border border-fuchsia-100">
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xl">{['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][i]}</span>
+                                  <span className="text-sm font-bold text-gray-700">{artist.name}</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xs text-gray-500">{formatNumber(artist.views)} views</span>
+                                  <span className="text-sm font-bold text-green-600 bg-green-100 px-2 py-1 rounded-lg">
+                                    +{artist.weeklyGrowth}%
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               )}
 

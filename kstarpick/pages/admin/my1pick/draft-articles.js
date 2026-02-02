@@ -478,18 +478,18 @@ export default function DraftArticles() {
   const renderContentWithImages = (content) => {
     if (!content) return null;
 
-    // [이미지: /path/to/image.jpg] 패턴을 찾아서 분리
-    const parts = content.split(/(\[이미지:\s*[^\]]+\])/g);
+    // [이미지: /path] 또는 [Image: /path] 패턴을 찾아서 분리
+    const parts = content.split(/(\[(이미지|Image):\s*[^\]]+\])/gi);
 
     return parts.map((part, index) => {
-      const imageMatch = part.match(/\[이미지:\s*([^\]]+)\]/);
+      const imageMatch = part.match(/\[(이미지|Image):\s*([^\]]+)\]/i);
       if (imageMatch) {
-        const imageUrl = imageMatch[1].trim();
+        const imageUrl = imageMatch[2].trim();
         return (
           <div key={index} className="my-4">
             <img
               src={imageUrl}
-              alt="본문 이미지"
+              alt="Article image"
               className="max-w-full h-auto rounded-lg border shadow-sm"
               style={{ maxHeight: '400px', objectFit: 'contain' }}
             />
@@ -1230,9 +1230,18 @@ export default function DraftArticles() {
                         <textarea
                           value={contentEn}
                           onChange={(e) => setContentEn(e.target.value)}
-                          className="w-full min-h-[350px] text-sm text-gray-700 border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-pre-wrap"
+                          className="w-full min-h-[200px] text-sm text-gray-700 border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-pre-wrap"
                           placeholder="English content..."
                         />
+                        {/* 영문 Content 미리보기 */}
+                        {contentEn && (
+                          <div className="mt-3 bg-gray-50 rounded-lg p-4 border max-h-[250px] overflow-y-auto">
+                            <p className="text-xs text-gray-500 mb-2">📷 미리보기 (Preview)</p>
+                            <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                              {renderContentWithImages(contentEn)}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

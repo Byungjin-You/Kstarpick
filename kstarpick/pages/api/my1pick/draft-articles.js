@@ -3,6 +3,35 @@ import { authOptions } from '../auth/[...nextauth]';
 import clientPromise from '../../../lib/mongodb';
 import { ObjectId } from 'mongodb';
 
+// MongoDB 연결 재시도 함수
+async function getDbWithRetry(maxRetries = 3) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const client = await clientPromise;
+      const db = client.db('kstarpick');
+
+      // 연결 테스트
+      await db.command({ ping: 1 });
+
+      return { client, db };
+    } catch (error) {
+      lastError = error;
+      console.error(`[draft-articles] DB connection attempt ${attempt}/${maxRetries} failed:`, error.message);
+
+      if (attempt < maxRetries) {
+        // 재시도 전 대기 (지수 백오프)
+        const delay = Math.pow(2, attempt) * 500; // 1초, 2초, 4초
+        console.log(`[draft-articles] Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions);
 
@@ -10,9 +39,19 @@ export default async function handler(req, res) {
     return res.status(401).json({ success: false, message: '관리자 권한이 필요합니다.' });
   }
 
-  const client = await clientPromise;
-  const db = client.db('kstarpick');
-  const collection = db.collection('draft_articles');
+  let db, collection;
+
+  try {
+    const connection = await getDbWithRetry();
+    db = connection.db;
+    collection = db.collection('draft_articles');
+  } catch (error) {
+    console.error('[draft-articles] Failed to connect to database:', error);
+    return res.status(503).json({
+      success: false,
+      message: '데이터베이스 연결에 실패했습니다. 잠시 후 다시 시도해주세요.'
+    });
+  }
 
   // GET - 임시 기사 목록 조회
   if (req.method === 'GET') {

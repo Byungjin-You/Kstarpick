@@ -35,6 +35,20 @@ fi
 # SSH 키 권한 확인 및 수정
 chmod 400 "$SSH_KEY" 2>/dev/null || true
 
+# ⚠️ .env.local 환경변수 확인 (로컬/운영 설정 체크)
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}⚠️  배포 전 .env.local 설정을 확인하세요!${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+echo -e "${BLUE}현재 로컬 .env.local 설정:${NC}"
+echo -e "────────────────────────────────────────"
+grep -E "^(MONGODB_URI|NEXTAUTH_URL|NEXT_PUBLIC_API_URL)=" "$LOCAL_PROJECT_PATH/.env.local" 2>/dev/null || echo "파일을 읽을 수 없습니다"
+echo -e "────────────────────────────────────────"
+echo ""
+echo -e "${GREEN}✅ 로컬 개발용 설정 (localhost)이면 정상입니다.${NC}"
+echo -e "${GREEN}   (배포 시 서버의 .env.local은 변경되지 않습니다)${NC}"
+echo ""
+
 # 사용자 확인
 echo -e "${YELLOW}⚠️  실제 운영 서버에 배포하시겠습니까?${NC}"
 echo -e "${YELLOW}   서버: ${SERVER_HOST}${NC}"

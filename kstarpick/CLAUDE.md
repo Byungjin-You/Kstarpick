@@ -108,6 +108,39 @@ All models extend Mongoose Schema with multilingual support:
 - **Process Manager**: PM2 (see ecosystem.config.js)
 - **Logs**: `/doohub/service/kstarpick/logs/`
 
+## ⚠️ 운영서버 배포 시 필수 확인사항
+
+**배포 전 반드시 확인해야 할 사항:**
+
+### 1. 로컬 .env.local 설정 확인
+로컬 개발용 설정이 되어 있어야 합니다 (localhost). 운영서버 설정이 아닌지 확인:
+```bash
+cat kstarpick/.env.local | grep -E "MONGODB_URI|NEXTAUTH_URL"
+```
+
+**정상 (로컬 개발용):**
+```
+MONGODB_URI=mongodb://localhost:27017/kstarpick
+NEXTAUTH_URL=http://localhost:3000
+```
+
+**주의: 배포 스크립트(deploy-to-production.sh)는 .env.local을 서버에 업로드하지 않습니다.**
+서버의 .env.local은 별도로 관리됩니다.
+
+### 2. 배포 명령어
+```bash
+# 프로젝트 루트에서 실행 (kstarpick-server-backup/)
+./deploy-to-production.sh
+```
+
+### 3. 배포 후 서버 확인
+```bash
+ssh -i ~/Desktop/key_kstarpick.pem ec2-user@43.202.38.79
+cd /doohub/service/kstarpick
+pm2 status
+pm2 logs kstarpick --lines 50
+```
+
 ## Database Connections
 
 Environment variables in `.env.local`:

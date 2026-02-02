@@ -546,10 +546,17 @@ function getMockData() {
   const totalDAU = dailyTrends.reduce((sum, d) => sum + d.dau, 0);
   const avgDAU = Math.floor(totalDAU / 30);
 
-  // 실시간 사용자는 매 요청마다 약간씩 변동 (실제 실시간 느낌)
-  // 기본값 + 랜덤 변동 (DAU의 약 5~15% 수준)
-  const baseRealtime = Math.max(5, Math.floor(d2DAU * 0.08)); // DAU의 8% 기준
-  const realtimeVariation = Math.floor(Math.random() * Math.max(3, Math.floor(d2DAU * 0.05))); // ±5% 변동
+  // 오늘 예상 DAU 계산 (오늘 요일에 따른 multiplier 적용)
+  const todayWeekday = today.getDay();
+  const todayMultiplier = todayWeekday === 0 || todayWeekday === 6 ? 0.7 : 1.2; // 주말 0.7, 평일 1.2
+  const todayExpectedDAU = Math.floor(avgDAU * todayMultiplier);
+
+  // 실시간 사용자는 5분마다 변동 (시간 기반 시드 사용)
+  // 오늘 예상 DAU의 약 12~18% 수준으로 설정
+  const baseRealtime = Math.max(10, Math.floor(todayExpectedDAU * 0.12)); // 오늘 예상 DAU의 12% 기준
+  // 5분 단위 시드 생성 (같은 5분 구간에는 같은 값)
+  const fiveMinuteSeed = dayHash * 288 + Math.floor(today.getHours() * 12 + today.getMinutes() / 5);
+  const realtimeVariation = Math.floor(seededRandom(fiveMinuteSeed, 999) * Math.max(5, Math.floor(todayExpectedDAU * 0.06))); // 시드 기반 변동 (6%)
   const realtimeUsers = baseRealtime + realtimeVariation;
 
   return {
@@ -563,25 +570,26 @@ function getMockData() {
       mau: { users: Math.floor(avgDAU * 8), sessions: Math.floor(avgDAU * 12), pageViews: Math.floor(avgDAU * 35) },
     },
     engagement: {
-      avgSessionsPerUser: '1.57',
-      avgPageViewsPerSession: '3.21',
-      newUsers: Math.floor(avgDAU * 4),
-      returningUsers: Math.floor(avgDAU * 4),
-      retentionRate: '52.3',
+      // 날짜 기반 시드로 변동
+      avgSessionsPerUser: (1.8 + seededRandom(dayHash, 301) * 1.4).toFixed(2),
+      avgPageViewsPerSession: (3.5 + seededRandom(dayHash, 302) * 3.0).toFixed(2),
+      newUsers: Math.floor(avgDAU * (3.5 + seededRandom(dayHash, 303) * 1.5)),
+      returningUsers: Math.floor(avgDAU * (3.5 + seededRandom(dayHash, 304) * 1.5)),
+      retentionRate: (45 + seededRandom(dayHash, 305) * 20).toFixed(1), // 45~65%
     },
     dailyTrends,
     demographics: {
       countries: [
-        { country: 'United States', users: Math.floor(avgDAU * 2.5) },
-        { country: 'South Korea', users: Math.floor(avgDAU * 1.8) },
-        { country: 'Japan', users: Math.floor(avgDAU * 1.2) },
-        { country: 'Philippines', users: Math.floor(avgDAU * 0.8) },
-        { country: 'Indonesia', users: Math.floor(avgDAU * 0.7) },
-        { country: 'Thailand', users: Math.floor(avgDAU * 0.5) },
-        { country: 'Vietnam', users: Math.floor(avgDAU * 0.4) },
-        { country: 'Malaysia', users: Math.floor(avgDAU * 0.3) },
-        { country: 'Brazil', users: Math.floor(avgDAU * 0.25) },
-        { country: 'Mexico', users: Math.floor(avgDAU * 0.2) },
+        { country: 'United States', users: Math.floor(avgDAU * (2.3 + seededRandom(dayHash, 801) * 0.4)) },
+        { country: 'Japan', users: Math.floor(avgDAU * (1.1 + seededRandom(dayHash, 802) * 0.3)) },
+        { country: 'Philippines', users: Math.floor(avgDAU * (0.7 + seededRandom(dayHash, 803) * 0.2)) },
+        { country: 'Indonesia', users: Math.floor(avgDAU * (0.6 + seededRandom(dayHash, 804) * 0.2)) },
+        { country: 'Thailand', users: Math.floor(avgDAU * (0.4 + seededRandom(dayHash, 805) * 0.2)) },
+        { country: 'Vietnam', users: Math.floor(avgDAU * (0.35 + seededRandom(dayHash, 806) * 0.15)) },
+        { country: 'Malaysia', users: Math.floor(avgDAU * (0.25 + seededRandom(dayHash, 807) * 0.1)) },
+        { country: 'Brazil', users: Math.floor(avgDAU * (0.2 + seededRandom(dayHash, 808) * 0.1)) },
+        { country: 'South Korea', users: Math.floor(avgDAU * (0.18 + seededRandom(dayHash, 809) * 0.08)) },
+        { country: 'Mexico', users: Math.floor(avgDAU * (0.15 + seededRandom(dayHash, 810) * 0.1)) },
       ],
       devices: [
         { device: 'mobile', users: Math.floor(avgDAU * 5.5) },
@@ -590,11 +598,11 @@ function getMockData() {
       ],
     },
     topPages: [
-      { path: '/', pageViews: Math.floor(avgDAU * 3), users: Math.floor(avgDAU * 2) },
-      { path: '/news', pageViews: Math.floor(avgDAU * 2), users: Math.floor(avgDAU * 1.5) },
-      { path: '/music', pageViews: Math.floor(avgDAU * 1.5), users: Math.floor(avgDAU * 1) },
-      { path: '/drama', pageViews: Math.floor(avgDAU * 1.2), users: Math.floor(avgDAU * 0.8) },
-      { path: '/ranking', pageViews: Math.floor(avgDAU * 1), users: Math.floor(avgDAU * 0.7) },
+      { path: '/', pageViews: Math.floor(avgDAU * (2.5 + seededRandom(dayHash, 501) * 1.5)), users: Math.floor(avgDAU * (1.5 + seededRandom(dayHash, 502) * 1.0)) },
+      { path: '/news', pageViews: Math.floor(avgDAU * (1.5 + seededRandom(dayHash, 503) * 1.2)), users: Math.floor(avgDAU * (1.0 + seededRandom(dayHash, 504) * 0.8)) },
+      { path: '/music', pageViews: Math.floor(avgDAU * (1.0 + seededRandom(dayHash, 505) * 1.0)), users: Math.floor(avgDAU * (0.7 + seededRandom(dayHash, 506) * 0.6)) },
+      { path: '/drama', pageViews: Math.floor(avgDAU * (0.8 + seededRandom(dayHash, 507) * 0.8)), users: Math.floor(avgDAU * (0.5 + seededRandom(dayHash, 508) * 0.5)) },
+      { path: '/ranking', pageViews: Math.floor(avgDAU * (0.6 + seededRandom(dayHash, 509) * 0.8)), users: Math.floor(avgDAU * (0.4 + seededRandom(dayHash, 510) * 0.5)) },
     ],
     scrollDepth: {
       pages: [
@@ -608,17 +616,17 @@ function getMockData() {
       avgScrollRate: (30 + seededRandom(dayHash, 15) * 15).toFixed(1),
     },
     engagementMetrics: {
-      avgSessionDuration: '125.5',
-      engagedSessions: Math.floor(avgDAU * 4.2),
-      totalSessions: Math.floor(avgDAU * 5.5),
-      engagementRate: '76.4',
-      bounceRate: '35.2',
+      avgSessionDuration: (90 + seededRandom(dayHash, 410) * 80).toFixed(1), // 90~170초
+      engagedSessions: Math.floor(avgDAU * (3.8 + seededRandom(dayHash, 411) * 1.0)),
+      totalSessions: Math.floor(avgDAU * (5.0 + seededRandom(dayHash, 412) * 1.5)),
+      engagementRate: (68 + seededRandom(dayHash, 413) * 18).toFixed(1), // 68~86%
+      bounceRate: (25 + seededRandom(dayHash, 414) * 20).toFixed(1), // 25~45%
       pageEngagement: [
-        { path: '/', engagementDuration: Math.floor(avgDAU * 45), pageViews: Math.floor(avgDAU * 3), avgTimeOnPage: '15.0' },
-        { path: '/news', engagementDuration: Math.floor(avgDAU * 80), pageViews: Math.floor(avgDAU * 2), avgTimeOnPage: '40.0' },
-        { path: '/music', engagementDuration: Math.floor(avgDAU * 52.5), pageViews: Math.floor(avgDAU * 1.5), avgTimeOnPage: '35.0' },
-        { path: '/drama', engagementDuration: Math.floor(avgDAU * 54), pageViews: Math.floor(avgDAU * 1.2), avgTimeOnPage: '45.0' },
-        { path: '/ranking', engagementDuration: Math.floor(avgDAU * 20), pageViews: Math.floor(avgDAU * 1), avgTimeOnPage: '20.0' },
+        { path: '/', engagementDuration: Math.floor(avgDAU * 45), pageViews: Math.floor(avgDAU * 3), avgTimeOnPage: (10 + seededRandom(dayHash, 401) * 15).toFixed(1) },
+        { path: '/news', engagementDuration: Math.floor(avgDAU * 80), pageViews: Math.floor(avgDAU * 2), avgTimeOnPage: (30 + seededRandom(dayHash, 402) * 25).toFixed(1) },
+        { path: '/music', engagementDuration: Math.floor(avgDAU * 52.5), pageViews: Math.floor(avgDAU * 1.5), avgTimeOnPage: (25 + seededRandom(dayHash, 403) * 20).toFixed(1) },
+        { path: '/drama', engagementDuration: Math.floor(avgDAU * 54), pageViews: Math.floor(avgDAU * 1.2), avgTimeOnPage: (35 + seededRandom(dayHash, 404) * 25).toFixed(1) },
+        { path: '/ranking', engagementDuration: Math.floor(avgDAU * 20), pageViews: Math.floor(avgDAU * 1), avgTimeOnPage: (15 + seededRandom(dayHash, 405) * 15).toFixed(1) },
       ],
     },
     trafficSources: {
@@ -651,44 +659,58 @@ function getMockData() {
     },
     userFlow: {
       landingPages: [
-        { page: '/', sessions: Math.floor(avgDAU * 2.5), bounceRate: '25.3', avgDuration: '145.2' },
-        { page: '/news', sessions: Math.floor(avgDAU * 1.5), bounceRate: '32.1', avgDuration: '180.5' },
-        { page: '/music', sessions: Math.floor(avgDAU * 1.2), bounceRate: '28.7', avgDuration: '210.3' },
-        { page: '/drama', sessions: Math.floor(avgDAU * 0.8), bounceRate: '22.4', avgDuration: '195.8' },
-        { page: '/ranking', sessions: Math.floor(avgDAU * 0.5), bounceRate: '35.2', avgDuration: '120.6' },
+        { page: '/', sessions: Math.floor(avgDAU * 2.5), bounceRate: (22 + seededRandom(dayHash, 701) * 10).toFixed(1), avgDuration: (130 + seededRandom(dayHash, 702) * 40).toFixed(1) },
+        { page: '/news', sessions: Math.floor(avgDAU * 1.5), bounceRate: (28 + seededRandom(dayHash, 703) * 12).toFixed(1), avgDuration: (160 + seededRandom(dayHash, 704) * 50).toFixed(1) },
+        { page: '/music', sessions: Math.floor(avgDAU * 1.2), bounceRate: (25 + seededRandom(dayHash, 705) * 10).toFixed(1), avgDuration: (190 + seededRandom(dayHash, 706) * 45).toFixed(1) },
+        { page: '/drama', sessions: Math.floor(avgDAU * 0.8), bounceRate: (20 + seededRandom(dayHash, 707) * 8).toFixed(1), avgDuration: (180 + seededRandom(dayHash, 708) * 40).toFixed(1) },
+        { page: '/ranking', sessions: Math.floor(avgDAU * 0.5), bounceRate: (32 + seededRandom(dayHash, 709) * 10).toFixed(1), avgDuration: (100 + seededRandom(dayHash, 710) * 45).toFixed(1) },
       ],
-      exitPages: [
-        { page: '/', pageViews: Math.floor(avgDAU * 3), exits: Math.floor(avgDAU * 0.9), exitRate: '30.0' },
-        { page: '/news', pageViews: Math.floor(avgDAU * 2), exits: Math.floor(avgDAU * 0.8), exitRate: '40.0' },
-        { page: '/music', pageViews: Math.floor(avgDAU * 1.5), exits: Math.floor(avgDAU * 0.45), exitRate: '30.0' },
-        { page: '/drama', pageViews: Math.floor(avgDAU * 1.2), exits: Math.floor(avgDAU * 0.36), exitRate: '30.0' },
-        { page: '/ranking', pageViews: Math.floor(avgDAU * 1), exits: Math.floor(avgDAU * 0.5), exitRate: '50.0' },
-      ],
+      exitPages: (() => {
+        // exits가 많은 페이지가 exitRate도 높게 설정 (현실적인 비율)
+        const exitPagesData = [
+          { page: '/', pvMultiplier: 3, exitsMultiplier: 1.2, seedOffset: 711 },      // exits 최다 → exitRate 40%
+          { page: '/news', pvMultiplier: 2, exitsMultiplier: 0.7, seedOffset: 712 },  // exits 2위 → exitRate 35%
+          { page: '/music', pvMultiplier: 1.5, exitsMultiplier: 0.45, seedOffset: 713 }, // exitRate 30%
+          { page: '/drama', pvMultiplier: 1.2, exitsMultiplier: 0.3, seedOffset: 714 },  // exitRate 25%
+          { page: '/ranking', pvMultiplier: 1, exitsMultiplier: 0.2, seedOffset: 715 },  // exits 최소 → exitRate 20%
+        ];
+        return exitPagesData.map(ep => {
+          const pageViews = Math.floor(avgDAU * ep.pvMultiplier);
+          // exits에 약간의 변동 추가
+          const exitsVariation = 1 + (seededRandom(dayHash, ep.seedOffset) - 0.5) * 0.2; // ±10% 변동
+          const exits = Math.floor(avgDAU * ep.exitsMultiplier * exitsVariation);
+          const exitRate = pageViews > 0 ? ((exits / pageViews) * 100).toFixed(1) : '0.0';
+          return { page: ep.page, pageViews, exits, exitRate };
+        });
+      })(),
       sessionMetrics: {
-        pageViewsPerSession: '3.21',
-        sessionsPerUser: '1.57',
+        // 날짜 기반 시드로 변동 (Pages/Session: 3.5~6.5, Sessions/User: 1.8~3.2)
+        pageViewsPerSession: (3.5 + seededRandom(dayHash, 200) * 3.0).toFixed(2),
+        sessionsPerUser: (1.8 + seededRandom(dayHash, 201) * 1.4).toFixed(2),
       },
       navigationPaths: [
-        { fromPage: '/', toPage: '/news', pageViews: Math.floor(avgDAU * 1.8), users: Math.floor(avgDAU * 1.5) },
-        { fromPage: '/', toPage: '/music', pageViews: Math.floor(avgDAU * 1.5), users: Math.floor(avgDAU * 1.2) },
-        { fromPage: '/', toPage: '/drama', pageViews: Math.floor(avgDAU * 1.2), users: Math.floor(avgDAU * 1.0) },
-        { fromPage: '/', toPage: '/ranking', pageViews: Math.floor(avgDAU * 0.9), users: Math.floor(avgDAU * 0.7) },
-        { fromPage: '/news', toPage: '/', pageViews: Math.floor(avgDAU * 0.8), users: Math.floor(avgDAU * 0.6) },
-        { fromPage: '/news', toPage: '/music', pageViews: Math.floor(avgDAU * 0.5), users: Math.floor(avgDAU * 0.4) },
-        { fromPage: '/music', toPage: '/', pageViews: Math.floor(avgDAU * 0.6), users: Math.floor(avgDAU * 0.5) },
-        { fromPage: '/music', toPage: '/news', pageViews: Math.floor(avgDAU * 0.4), users: Math.floor(avgDAU * 0.3) },
-        { fromPage: '/drama', toPage: '/', pageViews: Math.floor(avgDAU * 0.5), users: Math.floor(avgDAU * 0.4) },
-        { fromPage: '/drama', toPage: '/news', pageViews: Math.floor(avgDAU * 0.3), users: Math.floor(avgDAU * 0.25) },
+        { fromPage: '/', toPage: '/news', pageViews: Math.floor(avgDAU * (1.4 + seededRandom(dayHash, 601) * 0.8)), users: Math.floor(avgDAU * (1.1 + seededRandom(dayHash, 602) * 0.6)) },
+        { fromPage: '/', toPage: '/music', pageViews: Math.floor(avgDAU * (1.1 + seededRandom(dayHash, 603) * 0.7)), users: Math.floor(avgDAU * (0.9 + seededRandom(dayHash, 604) * 0.5)) },
+        { fromPage: '/', toPage: '/drama', pageViews: Math.floor(avgDAU * (0.9 + seededRandom(dayHash, 605) * 0.6)), users: Math.floor(avgDAU * (0.7 + seededRandom(dayHash, 606) * 0.5)) },
+        { fromPage: '/', toPage: '/ranking', pageViews: Math.floor(avgDAU * (0.6 + seededRandom(dayHash, 607) * 0.5)), users: Math.floor(avgDAU * (0.5 + seededRandom(dayHash, 608) * 0.4)) },
+        { fromPage: '/news', toPage: '/', pageViews: Math.floor(avgDAU * (0.5 + seededRandom(dayHash, 609) * 0.5)), users: Math.floor(avgDAU * (0.4 + seededRandom(dayHash, 610) * 0.4)) },
+        { fromPage: '/news', toPage: '/news', pageViews: Math.floor(avgDAU * (0.8 + seededRandom(dayHash, 630) * 0.5)), users: Math.floor(avgDAU * (0.6 + seededRandom(dayHash, 631) * 0.4)) }, // 뉴스 내 페이지네이션/다른 기사
+        { fromPage: '/news', toPage: '/music', pageViews: Math.floor(avgDAU * (0.3 + seededRandom(dayHash, 611) * 0.4)), users: Math.floor(avgDAU * (0.2 + seededRandom(dayHash, 612) * 0.3)) },
+        { fromPage: '/music', toPage: '/', pageViews: Math.floor(avgDAU * (0.4 + seededRandom(dayHash, 613) * 0.4)), users: Math.floor(avgDAU * (0.3 + seededRandom(dayHash, 614) * 0.3)) },
+        { fromPage: '/music', toPage: '/news', pageViews: Math.floor(avgDAU * (0.2 + seededRandom(dayHash, 615) * 0.3)), users: Math.floor(avgDAU * (0.2 + seededRandom(dayHash, 616) * 0.2)) },
+        { fromPage: '/drama', toPage: '/', pageViews: Math.floor(avgDAU * (0.3 + seededRandom(dayHash, 617) * 0.4)), users: Math.floor(avgDAU * (0.2 + seededRandom(dayHash, 618) * 0.3)) },
+        { fromPage: '/drama', toPage: '/news', pageViews: Math.floor(avgDAU * (0.2 + seededRandom(dayHash, 619) * 0.2)), users: Math.floor(avgDAU * (0.15 + seededRandom(dayHash, 620) * 0.2)) },
       ],
       landingToNextPaths: [
-        { landingPage: '/', nextPage: '/news', sessions: Math.floor(avgDAU * 1.5) },
-        { landingPage: '/', nextPage: '/music', sessions: Math.floor(avgDAU * 1.2) },
-        { landingPage: '/', nextPage: '/drama', sessions: Math.floor(avgDAU * 0.9) },
-        { landingPage: '/', nextPage: '/ranking', sessions: Math.floor(avgDAU * 0.6) },
-        { landingPage: '/news', nextPage: '/', sessions: Math.floor(avgDAU * 0.5) },
-        { landingPage: '/news', nextPage: '/music', sessions: Math.floor(avgDAU * 0.3) },
-        { landingPage: '/music', nextPage: '/', sessions: Math.floor(avgDAU * 0.4) },
-        { landingPage: '/music', nextPage: '/news', sessions: Math.floor(avgDAU * 0.25) },
+        { landingPage: '/', nextPage: '/news', sessions: Math.floor(avgDAU * (1.2 + seededRandom(dayHash, 621) * 0.6)) },
+        { landingPage: '/', nextPage: '/music', sessions: Math.floor(avgDAU * (0.9 + seededRandom(dayHash, 622) * 0.5)) },
+        { landingPage: '/news', nextPage: '/news', sessions: Math.floor(avgDAU * (0.7 + seededRandom(dayHash, 632) * 0.4)) }, // 뉴스 내 다른 기사 이동
+        { landingPage: '/', nextPage: '/drama', sessions: Math.floor(avgDAU * (0.6 + seededRandom(dayHash, 623) * 0.5)) },
+        { landingPage: '/', nextPage: '/ranking', sessions: Math.floor(avgDAU * (0.4 + seededRandom(dayHash, 624) * 0.4)) },
+        { landingPage: '/news', nextPage: '/', sessions: Math.floor(avgDAU * (0.3 + seededRandom(dayHash, 625) * 0.4)) },
+        { landingPage: '/news', nextPage: '/music', sessions: Math.floor(avgDAU * (0.2 + seededRandom(dayHash, 626) * 0.2)) },
+        { landingPage: '/music', nextPage: '/', sessions: Math.floor(avgDAU * (0.2 + seededRandom(dayHash, 627) * 0.3)) },
+        { landingPage: '/music', nextPage: '/news', sessions: Math.floor(avgDAU * (0.15 + seededRandom(dayHash, 628) * 0.2)) },
       ],
     },
   };
