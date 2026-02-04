@@ -58,7 +58,9 @@ router.get(async (req, res) => {
     
     // Search term query (improved to search in multiple fields)
     if (q) {
-      const searchRegex = new RegExp(q, 'i');
+      // 특수문자 escape 처리 (따옴표, 괄호 등이 regex를 깨뜨리지 않도록)
+      const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escapedQ, 'i');
       query.$or = [
         { title: searchRegex },
         { summary: searchRegex },

@@ -215,6 +215,21 @@ export default function DraftArticles() {
     return htmlContent;
   };
 
+  // 랜덤 작성자 생성 함수
+  const getRandomAuthor = () => {
+    const authors = [
+      { name: 'Sarah Kim', email: 'sarah.kim@kstarpick.com' },
+      { name: 'James Park', email: 'james.park@kstarpick.com' },
+      { name: 'Emily Lee', email: 'emily.lee@kstarpick.com' },
+      { name: 'Michael Choi', email: 'michael.choi@kstarpick.com' },
+      { name: 'Jessica Han', email: 'jessica.han@kstarpick.com' },
+      { name: 'David Jung', email: 'david.jung@kstarpick.com' },
+      { name: 'Rachel Yoon', email: 'rachel.yoon@kstarpick.com' },
+      { name: 'Kevin Song', email: 'kevin.song@kstarpick.com' },
+    ];
+    return authors[Math.floor(Math.random() * authors.length)];
+  };
+
   // 영문 기사 발행
   const handlePublishEnglish = async () => {
     if (!titleEn.trim() || !contentEn.trim()) {
@@ -234,6 +249,9 @@ export default function DraftArticles() {
       const sentences = plainText.split(/[.!?]\s+/).filter(s => s.trim().length > 10);
       const summaryEn = sentences.slice(0, 2).join('. ') + (sentences.length > 0 ? '.' : '');
 
+      // 랜덤 작성자 선택
+      const author = getRandomAuthor();
+
       // News API에 영문 기사 등록
       const res = await fetch('/api/news', {
         method: 'POST',
@@ -243,8 +261,9 @@ export default function DraftArticles() {
           content: htmlContent,
           summary: summaryEn || titleEn,
           coverImage: articleCoverImage,
-          category: 'season-chart',
+          category: 'kpop',
           source: 'my1pick',
+          author: author,
           isPublished: true
         })
       });
@@ -297,6 +316,9 @@ export default function DraftArticles() {
       const sentences = contentText.split(/[.!?]\s+/).filter(s => s.trim().length > 10);
       const summary = sentences.slice(0, 2).join('. ') + (sentences.length > 0 ? '.' : '');
 
+      // 랜덤 작성자 선택
+      const author = getRandomAuthor();
+
       // News API에 기사 등록
       const res = await fetch('/api/news', {
         method: 'POST',
@@ -306,8 +328,9 @@ export default function DraftArticles() {
           content: htmlContent,
           summary: summary || article.title,
           coverImage: articleCoverImage,
-          category: 'season-chart',
+          category: 'kpop',
           source: 'my1pick',
+          author: author,
           isPublished: true
         })
       });

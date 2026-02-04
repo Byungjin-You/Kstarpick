@@ -398,6 +398,14 @@ async function createNews(req, res, session) {
       });
 
       // 뉴스 데이터 준비
+      // body에서 author가 전달되면 사용, 아니면 세션 사용자 정보 사용
+      const authorData = jsonData.author || {
+        id: session.user.id,
+        name: session.user.name,
+        email: session.user.email,
+        image: session.user.image || '',
+      };
+
       const newsData = {
         title: jsonData.title,
         summary: jsonData.summary || jsonData.title,
@@ -408,18 +416,11 @@ async function createNews(req, res, session) {
         tags: jsonData.tags || [],
         featured: jsonData.featured || false,
         source: jsonData.source || 'kstarpick',
-        author: {
-          id: session.user.id,
-          name: session.user.name,
-          email: session.user.email,
-          image: session.user.image || '',
-        },
+        author: authorData,
         createdAt: new Date(),
         updatedAt: new Date(),
         publishedAt: new Date(),
       };
-
-      console.log('[createNews] News data to be inserted:', newsData);
 
       // 데이터베이스에 뉴스 저장
       const result = await db.collection('news').insertOne(newsData);

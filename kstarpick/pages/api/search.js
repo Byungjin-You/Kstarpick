@@ -1,6 +1,11 @@
 import { connectToDatabase } from '../../utils/mongodb';
 import { ObjectId } from 'mongodb';
 
+// MongoDB $regex에 사용할 수 있도록 특수문자를 escape
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ message: 'Method not allowed' });
@@ -67,65 +72,71 @@ export default async function handler(req, res) {
       case 'popular':
         sortOptions = { viewCount: -1 };
         break;
-      default: // relevance
-        sortOptions = { score: { $meta: 'textScore' } };
+      default: // relevance - $regex 검색에서는 textScore 사용 불가하므로 최신순 정렬
+        sortOptions = { createdAt: -1 };
     }
 
-    // 검색어를 개별 단어로 분리
-    const searchTerms = q.trim().split(/\s+/).filter(term => term.length > 1);
+    // 검색어를 개별 단어로 분리 (2글자 이상, 단 숫자는 보존)
+    const searchTerms = q.trim().split(/\s+/).filter(term => term.length > 1 || /\d/.test(term));
     console.log(`[SEARCH] Search terms: `, searchTerms);
-    
+
+    // 검색어를 regex-safe하게 escape
+    const escapedQ = escapeRegex(q);
+
     // 다양한 데이터 구조를 고려한 검색 쿼리 생성
     // 1. 완전히 단순화된 OR 쿼리 - 어떤 필드든 검색어가 포함되어 있으면 결과에 포함
     const createSimpleSearchQuery = (query, additionalFilter = {}) => {
+      // 특수문자 escape 처리
+      const safeQuery = escapeRegex(query);
+
       // 모든 텍스트 필드에 대해 OR 조건으로 검색
       const orConditions = [
-        { title: { $regex: query, $options: 'i' } },
-        { name: { $regex: query, $options: 'i' } },
-        { content: { $regex: query, $options: 'i' } },
-        { contentHtml: { $regex: query, $options: 'i' } },
-        { summary: { $regex: query, $options: 'i' } },
-        { description: { $regex: query, $options: 'i' } },
-        { cast: { $regex: query, $options: 'i' } },
-        { actors: { $regex: query, $options: 'i' } },
-        { director: { $regex: query, $options: 'i' } },
-        { starring: { $regex: query, $options: 'i' } },
-        { "cast.name": { $regex: query, $options: 'i' } },
-        { "actors.name": { $regex: query, $options: 'i' } },
-        { biography: { $regex: query, $options: 'i' } },
-        { knownAs: { $regex: query, $options: 'i' } },
-        { alternateNames: { $regex: query, $options: 'i' } },
-        { body: { $regex: query, $options: 'i' } },
-        { 'tags.name': { $regex: query, $options: 'i' } }
+        { title: { $regex: safeQuery, $options: 'i' } },
+        { name: { $regex: safeQuery, $options: 'i' } },
+        { content: { $regex: safeQuery, $options: 'i' } },
+        { contentHtml: { $regex: safeQuery, $options: 'i' } },
+        { summary: { $regex: safeQuery, $options: 'i' } },
+        { description: { $regex: safeQuery, $options: 'i' } },
+        { cast: { $regex: safeQuery, $options: 'i' } },
+        { actors: { $regex: safeQuery, $options: 'i' } },
+        { director: { $regex: safeQuery, $options: 'i' } },
+        { starring: { $regex: safeQuery, $options: 'i' } },
+        { "cast.name": { $regex: safeQuery, $options: 'i' } },
+        { "actors.name": { $regex: safeQuery, $options: 'i' } },
+        { biography: { $regex: safeQuery, $options: 'i' } },
+        { knownAs: { $regex: safeQuery, $options: 'i' } },
+        { alternateNames: { $regex: safeQuery, $options: 'i' } },
+        { body: { $regex: safeQuery, $options: 'i' } },
+        { 'tags.name': { $regex: safeQuery, $options: 'i' } }
       ];
-      
+
       // Add specialized cast search for actor names
       // This is especially important for multi-word actor names
       if (query.includes(' ')) {
         console.log(`[SEARCH] Adding specialized cast member search for multi-word query: "${query}"`);
-        
+
         // For multi-word queries (like actor names), add a specific query to match actor names in cast arrays
         orConditions.push({
           cast: {
             $elemMatch: {
-              name: { $regex: query, $options: 'i' }
+              name: { $regex: safeQuery, $options: 'i' }
             }
           }
         });
-        
+
         // Also try to match in credits fields for dramas
         orConditions.push({
           "credits.mainCast": {
             $elemMatch: {
-              name: { $regex: query, $options: 'i' }
+              name: { $regex: safeQuery, $options: 'i' }
             }
           }
         });
-        
+
         orConditions.push({
           "credits.supportCast": {
             $elemMatch: {
-              name: { $regex: query, $options: 'i' }
+              name: { $regex: safeQuery, $options: 'i' }
             }
           }
         });
@@ -157,9 +168,9 @@ export default async function handler(req, res) {
         // Search in title and content with the keyword
         const searchQuery = {
           $or: [
-            { title: { $regex: q, $options: 'i' } },
-            { content: { $regex: q, $options: 'i' } },
-            { contentHtml: { $regex: q, $options: 'i' } }
+            { title: { $regex: escapedQ, $options: 'i' } },
+            { content: { $regex: escapedQ, $options: 'i' } },
+            { contentHtml: { $regex: escapedQ, $options: 'i' } }
           ],
           ...dateFilter
         };
@@ -256,24 +267,24 @@ export default async function handler(req, res) {
         const castQuery = {
           cast: {
             $elemMatch: {
-              name: { $regex: q, $options: 'i' }
+              name: { $regex: escapedQ, $options: 'i' }
             }
           }
         };
-        
+
         console.log(`[SEARCH] Cast query: ${JSON.stringify(castQuery)}`);
-        
+
         const castMatches = await tvfilmsCollection
           .find(castQuery)
           .limit(parseInt(limit))
           .toArray();
-          
+
         console.log(`[SEARCH] Found ${castMatches.length} cast matches for "${q}" in TVFilms`);
-        
+
         // Also check news titles for this celebrity name
         const newsCollection = db.collection('news');
         const titleQuery = {
-          title: { $regex: q, $options: 'i' }
+          title: { $regex: escapedQ, $options: 'i' }
         };
         
         const newsMatches = await newsCollection
@@ -312,8 +323,8 @@ export default async function handler(req, res) {
       'actors': { name: 'celebrities', filter: {} }
     };
     
-    // 모든 컬렉션 검색 (타입이 지정되지 않은 경우)
-    const collections = ['news', 'dramas', 'movies', 'actors'];
+    // 모든 컬렉션 검색 (타입이 지정되지 않은 경우) - actors(celebrities) 제외
+    const collections = ['news', 'dramas', 'movies'];
     const searchPromises = collections.map(async (collectionType) => {
       const { name: collectionName, filter } = collectionMap[collectionType];
       const collection = db.collection(collectionName);
@@ -354,8 +365,11 @@ export default async function handler(req, res) {
       // Add special handling for cast members in tvfilms
       if (collectionName === 'tvfilms') {
         console.log(`[SEARCH] Adding special cast member query for "${q}" in ${collectionName}`);
-        // Add more specific cast name queries with higher relevance
-        exactQuery.$or.push({ "cast.name": { $regex: q, $options: 'i' } });
+        // $and 구조일 수 있으므로 안전하게 $or 배열 접근
+        const orArray = exactQuery.$or || (exactQuery.$and && exactQuery.$and[0] && exactQuery.$and[0].$or);
+        if (orArray) {
+          orArray.push({ "cast.name": { $regex: escapedQ, $options: 'i' } });
+        }
       }
       
       let results = await collection
@@ -374,17 +388,17 @@ export default async function handler(req, res) {
           // Look specifically for cast members with the exact name
           const castResults = await collection.find({
             ...filter,
-            "cast.name": { $regex: q, $options: 'i' }
+            "cast.name": { $regex: escapedQ, $options: 'i' }
           }).limit(parseInt(limit)).toArray();
-          
+
           if (castResults.length > 0) {
             console.log(`[SEARCH] Found ${castResults.length} results with cast member "${q}" in ${collectionName}`);
-            
+
             // Add matchInfo to each result to highlight which cast members matched
             castResults.forEach(result => {
               if (result.cast && Array.isArray(result.cast)) {
-                const matchingCast = result.cast.filter(actor => 
-                  new RegExp(q, 'i').test(actor.name || '')
+                const matchingCast = result.cast.filter(actor =>
+                  new RegExp(escapedQ, 'i').test(actor.name || '')
                 );
                 
                 if (matchingCast.length > 0) {
@@ -429,7 +443,7 @@ export default async function handler(req, res) {
           
           // Perform direct title search in news
           const titleResults = await collection.find({
-            title: { $regex: q, $options: 'i' }
+            title: { $regex: escapedQ, $options: 'i' }
           }).limit(parseInt(limit)).toArray();
           
           console.log(`[SEARCH] Direct title search found ${titleResults.length} news results for "${q}"`);
@@ -454,55 +468,62 @@ export default async function handler(req, res) {
       if (results.length === 0 && searchTerms.length > 1) {
         // 각 단어가 어느 필드든 하나라도 존재하는지 검색
         const termQueries = searchTerms.map(term => {
-          const termsOr = [
-            { title: { $regex: term, $options: 'i' } },
-            { name: { $regex: term, $options: 'i' } },
-            { content: { $regex: term, $options: 'i' } },
-            { contentHtml: { $regex: term, $options: 'i' } },
-            { summary: { $regex: term, $options: 'i' } },
-            { description: { $regex: term, $options: 'i' } },
-            { cast: { $regex: term, $options: 'i' } },
-            { actors: { $regex: term, $options: 'i' } },
-            { director: { $regex: term, $options: 'i' } },
-            { starring: { $regex: term, $options: 'i' } },
-            { "cast.name": { $regex: term, $options: 'i' } },
-            { "actors.name": { $regex: term, $options: 'i' } },
-            { biography: { $regex: term, $options: 'i' } },
-            { knownAs: { $regex: term, $options: 'i' } },
-            { alternateNames: { $regex: term, $options: 'i' } },
-            { body: { $regex: term, $options: 'i' } },
-            { 'tags.name': { $regex: term, $options: 'i' } }
+          const safeTerm = escapeRegex(term);
+
+          // celebrities 컬렉션은 이름 관련 필드만 검색 (부분 매칭 방지)
+          const termsOr = collectionName === 'celebrities' ? [
+            { name: { $regex: safeTerm, $options: 'i' } },
+            { knownAs: { $regex: safeTerm, $options: 'i' } },
+            { alternateNames: { $regex: safeTerm, $options: 'i' } }
+          ] : [
+            { title: { $regex: safeTerm, $options: 'i' } },
+            { name: { $regex: safeTerm, $options: 'i' } },
+            { content: { $regex: safeTerm, $options: 'i' } },
+            { contentHtml: { $regex: safeTerm, $options: 'i' } },
+            { summary: { $regex: safeTerm, $options: 'i' } },
+            { description: { $regex: safeTerm, $options: 'i' } },
+            { cast: { $regex: safeTerm, $options: 'i' } },
+            { actors: { $regex: safeTerm, $options: 'i' } },
+            { director: { $regex: safeTerm, $options: 'i' } },
+            { starring: { $regex: safeTerm, $options: 'i' } },
+            { "cast.name": { $regex: safeTerm, $options: 'i' } },
+            { "actors.name": { $regex: safeTerm, $options: 'i' } },
+            { biography: { $regex: safeTerm, $options: 'i' } },
+            { knownAs: { $regex: safeTerm, $options: 'i' } },
+            { alternateNames: { $regex: safeTerm, $options: 'i' } },
+            { body: { $regex: safeTerm, $options: 'i' } },
+            { 'tags.name': { $regex: safeTerm, $options: 'i' } }
           ];
-          
+
           // Add element matching for cast arrays
           // This helps with finding actors with multi-word names
           if (collectionName === 'tvfilms') {
             termsOr.push({
               cast: {
                 $elemMatch: {
-                  name: { $regex: term, $options: 'i' }
+                  name: { $regex: safeTerm, $options: 'i' }
                 }
               }
             });
-            
+
             // Also try to match in credits fields for dramas
             termsOr.push({
               "credits.mainCast": {
                 $elemMatch: {
-                  name: { $regex: term, $options: 'i' }
+                  name: { $regex: safeTerm, $options: 'i' }
                 }
               }
             });
-            
+
             termsOr.push({
               "credits.supportCast": {
                 $elemMatch: {
-                  name: { $regex: term, $options: 'i' }
+                  name: { $regex: safeTerm, $options: 'i' }
                 }
               }
             });
           }
-          
+
           return { $or: termsOr };
         });
         
@@ -528,26 +549,30 @@ export default async function handler(req, res) {
       }
       
       // 3) 그래도 결과가 없으면, 가장 관대한 쿼리 사용 (OR 조건으로 단어 검색)
-      if (results.length === 0 && searchTerms.length > 1) {
-        const allTermsOr = searchTerms.flatMap(term => [
-          { title: { $regex: term, $options: 'i' } },
-          { name: { $regex: term, $options: 'i' } },
-          { content: { $regex: term, $options: 'i' } },
-          { contentHtml: { $regex: term, $options: 'i' } },
-          { summary: { $regex: term, $options: 'i' } },
-          { description: { $regex: term, $options: 'i' } },
-          { cast: { $regex: term, $options: 'i' } },
-          { actors: { $regex: term, $options: 'i' } },
-          { director: { $regex: term, $options: 'i' } },
-          { starring: { $regex: term, $options: 'i' } },
-          { "cast.name": { $regex: term, $options: 'i' } },
-          { "actors.name": { $regex: term, $options: 'i' } },
-          { biography: { $regex: term, $options: 'i' } },
-          { knownAs: { $regex: term, $options: 'i' } },
-          { alternateNames: { $regex: term, $options: 'i' } },
-          { body: { $regex: term, $options: 'i' } },
-          { 'tags.name': { $regex: term, $options: 'i' } }
-        ]);
+      // celebrities 컬렉션은 제외 - 개별 단어 매칭이 너무 관대하여 "Ji" → "JIHYO" 같은 잘못된 매칭 발생
+      if (results.length === 0 && searchTerms.length > 1 && collectionName !== 'celebrities') {
+        const allTermsOr = searchTerms.flatMap(term => {
+          const safeTerm = escapeRegex(term);
+          return [
+            { title: { $regex: safeTerm, $options: 'i' } },
+            { name: { $regex: safeTerm, $options: 'i' } },
+            { content: { $regex: safeTerm, $options: 'i' } },
+            { contentHtml: { $regex: safeTerm, $options: 'i' } },
+            { summary: { $regex: safeTerm, $options: 'i' } },
+            { description: { $regex: safeTerm, $options: 'i' } },
+            { cast: { $regex: safeTerm, $options: 'i' } },
+            { actors: { $regex: safeTerm, $options: 'i' } },
+            { director: { $regex: safeTerm, $options: 'i' } },
+            { starring: { $regex: safeTerm, $options: 'i' } },
+            { "cast.name": { $regex: safeTerm, $options: 'i' } },
+            { "actors.name": { $regex: safeTerm, $options: 'i' } },
+            { biography: { $regex: safeTerm, $options: 'i' } },
+            { knownAs: { $regex: safeTerm, $options: 'i' } },
+            { alternateNames: { $regex: safeTerm, $options: 'i' } },
+            { body: { $regex: safeTerm, $options: 'i' } },
+            { 'tags.name': { $regex: safeTerm, $options: 'i' } }
+          ];
+        });
         
         const permissiveQuery = { 
           $and: [
@@ -621,7 +646,7 @@ export default async function handler(req, res) {
       results: searchResults.reduce((acc, result) => ({
         ...acc,
         [result.type]: result.results
-      }), {}),
+      }), { actors: [] }),
       total: totalResults,
       page: parseInt(page),
       totalPages: Math.ceil(totalResults / parseInt(limit))

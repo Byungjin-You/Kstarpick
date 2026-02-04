@@ -663,6 +663,18 @@ export default function AdminDashboard() {
     return num?.toLocaleString() || '0';
   };
 
+  const formatCompactNumber = (num) => {
+    // 백의 자리까지 표현 (2.5k, 12.3k, 1.2M 형식)
+    if (!num) return '0';
+    if (num >= 1000000) {
+      return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    }
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    }
+    return num.toString();
+  };
+
   const getDeviceIcon = (device) => {
     switch (device?.toLowerCase()) {
       case 'mobile': return <Smartphone className="w-5 h-5" />;
@@ -1521,7 +1533,7 @@ export default function AdminDashboard() {
                                 </div>
                                 <div className="flex items-center gap-1 text-xs text-cyan-400 font-semibold bg-cyan-500/10 px-2 py-1 rounded">
                                   <Eye className="w-3 h-3" />
-                                  {((article.viewCount || 0) * dataMultiplier).toLocaleString()}
+                                  {formatCompactNumber((article.viewCount || 0) * dataMultiplier)}
                                 </div>
                               </div>
                             ))}
@@ -1878,19 +1890,33 @@ export default function AdminDashboard() {
                             <h4 className="text-sm font-bold text-white">Source / Medium</h4>
                           </div>
                           <div className="space-y-2 max-h-56 overflow-y-auto pr-2 custom-scrollbar">
-                            {scaledGaData.trafficSources.sourceMedium.slice(0, 8).map((sm, i) => (
-                              <div key={i} className="flex items-center justify-between text-sm p-2.5 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
-                                <span className="text-slate-300 font-medium truncate flex-1" title={sm.sourceMedium}>
-                                  {sm.sourceMedium}
-                                </span>
-                                <div className="flex items-center gap-2 ml-2">
-                                  <span className="font-bold text-white text-xs">{formatNumber(sm.sessions)}</span>
-                                  <span className={`text-xs font-bold px-2 py-1 rounded ${parseFloat(sm.bounceRate) > 50 ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                                    {sm.bounceRate}%
+                            {scaledGaData.trafficSources.sourceMedium.slice(0, 8).map((sm, i) => {
+                              const totalSessions = scaledGaData.trafficSources.sourceMedium.reduce((sum, x) => sum + x.sessions, 0);
+                              const percentage = totalSessions > 0 ? ((sm.sessions / totalSessions) * 100).toFixed(1) : 0;
+                              const colors = [
+                                { bg: 'bg-violet-500/20', text: 'text-violet-400' },
+                                { bg: 'bg-cyan-500/20', text: 'text-cyan-400' },
+                                { bg: 'bg-amber-500/20', text: 'text-amber-400' },
+                                { bg: 'bg-rose-500/20', text: 'text-rose-400' },
+                                { bg: 'bg-emerald-500/20', text: 'text-emerald-400' },
+                                { bg: 'bg-blue-500/20', text: 'text-blue-400' },
+                                { bg: 'bg-pink-500/20', text: 'text-pink-400' },
+                                { bg: 'bg-indigo-500/20', text: 'text-indigo-400' },
+                              ];
+                              return (
+                                <div key={i} className="flex items-center justify-between text-sm p-2.5 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
+                                  <span className="text-slate-300 font-medium truncate flex-1" title={sm.sourceMedium}>
+                                    {sm.sourceMedium}
                                   </span>
+                                  <div className="flex items-center gap-2 ml-2">
+                                    <span className="font-bold text-white text-xs">{formatNumber(sm.sessions)}</span>
+                                    <span className={`text-xs font-bold px-2 py-1 rounded ${colors[i % colors.length].bg} ${colors[i % colors.length].text}`}>
+                                      {percentage}%
+                                    </span>
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       </div>
@@ -1943,22 +1969,33 @@ export default function AdminDashboard() {
                             <span className="text-xs text-slate-500 ml-auto">Entry Points</span>
                           </div>
                           <div className="space-y-2">
-                            {scaledGaData.userFlow.landingPages.slice(0, 5).map((lp, i) => (
-                              <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
-                                <div className="flex items-center gap-2">
-                                  <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${i === 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700/50 text-slate-500'}`}>
-                                    {i + 1}
-                                  </span>
-                                  <span className="text-sm text-slate-300 font-medium truncate max-w-[120px]">{lp.page}</span>
+                            {scaledGaData.userFlow.landingPages.slice(0, 5).map((lp, i) => {
+                              const totalSessions = scaledGaData.userFlow.landingPages.reduce((sum, x) => sum + x.sessions, 0);
+                              const percentage = totalSessions > 0 ? ((lp.sessions / totalSessions) * 100).toFixed(1) : 0;
+                              const colors = [
+                                { bg: 'bg-emerald-500/20', text: 'text-emerald-400' },
+                                { bg: 'bg-cyan-500/20', text: 'text-cyan-400' },
+                                { bg: 'bg-blue-500/20', text: 'text-blue-400' },
+                                { bg: 'bg-violet-500/20', text: 'text-violet-400' },
+                                { bg: 'bg-amber-500/20', text: 'text-amber-400' },
+                              ];
+                              return (
+                                <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${i === 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700/50 text-slate-500'}`}>
+                                      {i + 1}
+                                    </span>
+                                    <span className="text-sm text-slate-300 font-medium truncate max-w-[120px]">{lp.page}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-slate-500">{formatNumber(lp.sessions)}</span>
+                                    <span className={`text-xs font-semibold px-2 py-1 rounded ${colors[i % colors.length].bg} ${colors[i % colors.length].text}`}>
+                                      {percentage}%
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-slate-500">{formatNumber(lp.sessions)}</span>
-                                  <span className={`text-xs font-semibold px-2 py-1 rounded ${parseFloat(lp.bounceRate) > 40 ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                                    {lp.bounceRate}%
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
 
@@ -1970,22 +2007,33 @@ export default function AdminDashboard() {
                             <span className="text-xs text-slate-500 ml-auto">Where users leave</span>
                           </div>
                           <div className="space-y-2">
-                            {scaledGaData.userFlow.exitPages.slice(0, 5).map((ep, i) => (
-                              <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
-                                <div className="flex items-center gap-2">
-                                  <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${i === 0 ? 'bg-red-500/20 text-red-400' : 'bg-slate-700/50 text-slate-500'}`}>
-                                    {i + 1}
-                                  </span>
-                                  <span className="text-sm text-slate-300 font-medium truncate max-w-[120px]">{ep.page}</span>
+                            {scaledGaData.userFlow.exitPages.slice(0, 5).map((ep, i) => {
+                              const totalExits = scaledGaData.userFlow.exitPages.reduce((sum, x) => sum + x.exits, 0);
+                              const percentage = totalExits > 0 ? ((ep.exits / totalExits) * 100).toFixed(1) : 0;
+                              const colors = [
+                                { bg: 'bg-red-500/20', text: 'text-red-400' },
+                                { bg: 'bg-orange-500/20', text: 'text-orange-400' },
+                                { bg: 'bg-amber-500/20', text: 'text-amber-400' },
+                                { bg: 'bg-yellow-500/20', text: 'text-yellow-400' },
+                                { bg: 'bg-rose-500/20', text: 'text-rose-400' },
+                              ];
+                              return (
+                                <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${i === 0 ? 'bg-red-500/20 text-red-400' : 'bg-slate-700/50 text-slate-500'}`}>
+                                      {i + 1}
+                                    </span>
+                                    <span className="text-sm text-slate-300 font-medium truncate max-w-[120px]">{ep.page}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-slate-500">{formatNumber(ep.exits)}</span>
+                                    <span className={`text-xs font-semibold px-2 py-1 rounded ${colors[i % colors.length].bg} ${colors[i % colors.length].text}`}>
+                                      {percentage}%
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-slate-500">{formatNumber(ep.exits)}</span>
-                                  <span className={`text-xs font-semibold px-2 py-1 rounded ${parseFloat(ep.exitRate) > 40 ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'}`}>
-                                    {ep.exitRate}%
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       </div>

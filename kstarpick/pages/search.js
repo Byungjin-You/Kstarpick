@@ -15,6 +15,7 @@ export default function SearchPage() {
   const [activeTab, setActiveTab] = useState('all');
   const [viewMode, setViewMode] = useState('grid');
   const [isLoading, setIsLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [searchResults, setSearchResults] = useState({
     news: [],
     dramas: [],
@@ -77,6 +78,7 @@ export default function SearchPage() {
 
   const performSearch = async (query) => {
     setIsLoading(true);
+    setHasSearched(false);
     try {
       const params = new URLSearchParams({
         q: query,
@@ -126,6 +128,7 @@ export default function SearchPage() {
       });
     } finally {
       setIsLoading(false);
+      setHasSearched(true);
     }
   };
 
@@ -257,10 +260,36 @@ export default function SearchPage() {
         )}
 
         {/* Search Results */}
-        {searchTerm && !isLoading ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 mb-24">
+            <div className="relative w-16 h-16 mb-4">
+              <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-[#233CFA] animate-spin"></div>
+              <div className="absolute inset-2 rounded-full border-2 border-transparent border-b-[#5a6eff] animate-reverse-spin"></div>
+            </div>
+            <p className="text-lg font-medium text-gray-800 mb-1">Searching...</p>
+            <div className="w-64 h-1 bg-gray-200 rounded-full mt-4 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-[#233CFA] to-[#5a6eff] rounded-full animate-progress"></div>
+            </div>
+            <style jsx>{`
+              @keyframes reverse-spin {
+                from { transform: rotate(360deg); }
+                to { transform: rotate(0deg); }
+              }
+              @keyframes progress {
+                0% { transform: translateX(-100%); }
+                100% { transform: translateX(100%); }
+              }
+              .animate-reverse-spin {
+                animation: reverse-spin 1s linear infinite;
+              }
+              .animate-progress {
+                animation: progress 2s ease-in-out infinite;
+              }
+            `}</style>
+          </div>
+        ) : searchTerm && hasSearched ? (
           <div>
-
-
             {/* Results Content */}
             {getTotalResults() > 0 ? (
               <div className="mb-24">
