@@ -1882,8 +1882,13 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
 
   // 뉴스 기사 이미지 우선순위: coverImage > featuredImage > 본문 첫 이미지 > 기본 이미지
   const getNewsImage = (article) => {
+    // OG 메타태그용: 서버에서 조회한 원본 이미지 URL 우선 사용 (카카오톡 등 봇 호환)
+    if (article.ogImageUrl) {
+      return article.ogImageUrl;
+    }
+
     let imageUrl = null;
-    
+
     if (article.coverImage) imageUrl = article.coverImage;
     else if (article.featuredImage) imageUrl = article.featuredImage;
     else if (article.thumbnailUrl) imageUrl = article.thumbnailUrl;
@@ -1891,17 +1896,17 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
       const contentImage = extractFirstImageFromContent(article.content);
       if (contentImage) imageUrl = contentImage;
     }
-    
+
     // 기본 이미지가 없으면 기본값 사용
     if (!imageUrl) {
       imageUrl = '/images/default-news.jpg';
     }
-    
+
     // 상대경로를 절대경로로 변환
     if (imageUrl && !imageUrl.startsWith('http')) {
       return `https://www.kstarpick.com${imageUrl}`;
     }
-    
+
     return imageUrl || 'https://www.kstarpick.com/images/default-news.jpg';
   };
 
@@ -2162,15 +2167,6 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                         </div>
 
                         <div className="hidden md:flex items-center gap-4">
-                          <div className="flex items-center">
-                            <Clock size={16} className="mr-2 text-[#009efc]" />
-                            <span className="font-medium">{estimatedReadTime} min read</span>
-                          </div>
-                          <div className="flex items-center">
-                            <Eye size={16} className="mr-2 text-[#009efc]" />
-                            <span className="font-medium">{newsArticle.viewCount?.toLocaleString() || '0'} views</span>
-                          </div>
-
                           <div className="flex items-center bg-white/20 px-3 py-1 rounded-full">
                             <User size={16} className="mr-2 text-[#009efc]" />
                             <span className="font-medium">By {newsArticle.author?.name || 'Admin'}</span>
@@ -2262,38 +2258,60 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                         max-height: none !important;
                       }
 
-                      /* Twitter 임베드 여백 제거 */
-                      .article-content .twitter-tweet,
-                      .prose .twitter-tweet {
-                        margin-top: 1rem !important;
-                        margin-bottom: 1rem !important;
+                      /* Twitter blockquote - prose 기본 스타일 완전 오버라이드 */
+                      .prose blockquote.twitter-tweet,
+                      .prose-lg blockquote.twitter-tweet,
+                      .article-content blockquote.twitter-tweet {
+                        margin: 0 0 1rem 0 !important;
+                        padding: 0 !important;
+                        border: none !important;
+                        border-left: none !important;
+                        quotes: none !important;
+                        font-style: normal !important;
+                        font-weight: normal !important;
+                        color: inherit !important;
                       }
 
+                      .prose blockquote.twitter-tweet::before,
+                      .prose blockquote.twitter-tweet::after,
+                      .prose-lg blockquote.twitter-tweet::before,
+                      .prose-lg blockquote.twitter-tweet::after {
+                        content: none !important;
+                      }
+
+                      /* Twitter 위젯 렌더 후 컨테이너 */
                       .article-content .twitter-tweet-rendered,
                       .prose .twitter-tweet-rendered {
-                        margin-top: 1rem !important;
-                        margin-bottom: 1rem !important;
+                        margin: 0 0 1rem 0 !important;
                       }
 
-                      /* Twitter iframe 여백 제거 */
+                      /* Twitter iframe */
                       .article-content iframe[id^="twitter-widget-"],
                       .prose iframe[id^="twitter-widget-"] {
-                        margin-top: 1rem !important;
-                        margin-bottom: 1rem !important;
+                        margin: 0 auto 1rem auto !important;
                         max-width: 550px !important;
                       }
 
-                      /* Instagram 임베드 여백 조정 */
-                      .article-content .instagram-media,
-                      .prose .instagram-media {
-                        margin-top: 1rem !important;
-                        margin-bottom: 1rem !important;
+                      /* figure 여백 제거 (wp-block-embed 래퍼) */
+                      .prose figure,
+                      .prose-lg figure,
+                      .article-content figure {
+                        margin: 0 !important;
+                      }
+
+                      /* Instagram blockquote - prose 스타일 오버라이드 */
+                      .prose blockquote.instagram-media,
+                      .prose-lg blockquote.instagram-media,
+                      .article-content blockquote.instagram-media {
+                        margin: 0 0 1rem 0 !important;
+                        padding: 0 !important;
+                        border: none !important;
+                        border-left: none !important;
                       }
 
                       .article-content .instagram-media-rendered,
                       .prose .instagram-media-rendered {
-                        margin-top: 1rem !important;
-                        margin-bottom: 1rem !important;
+                        margin: 0 0 1rem 0 !important;
                       }
                     `}} />
                     
@@ -2986,6 +3004,23 @@ export async function getServerSideProps({ params }) {
       finalRelatedArticles = [...relatedArticles, ...additionalArticles];
     }
     
+    // OG 이미지용 원본 URL 조회 (프록시 해시 → 원본 URL 변환)
+    let ogImageUrl = null;
+    const thumbUrl = newsArticle.thumbnailUrl || newsArticle.coverImage || '';
+    if (thumbUrl.includes('hash-image') || thumbUrl.includes('hash=')) {
+      try {
+        const hashMatch = thumbUrl.match(/hash=([a-f0-9]+)/);
+        if (hashMatch) {
+          const imageRecord = await db.collection('image_hashes').findOne({ hash: hashMatch[1] });
+          if (imageRecord && imageRecord.url) {
+            ogImageUrl = imageRecord.url;
+          }
+        }
+      } catch (e) {
+        console.error('OG image hash lookup failed:', e.message);
+      }
+    }
+
     // 🚀 성능 최적화: 데이터 변환 최적화
     const processedNewsArticle = {
       ...newsArticle,
@@ -3006,9 +3041,11 @@ export async function getServerSideProps({ params }) {
            : newsArticle.publishedAt) 
         : null,
       // thumbnailUrl이 없으면 coverImage를 사용
-      thumbnailUrl: newsArticle.thumbnailUrl || newsArticle.coverImage
+      thumbnailUrl: newsArticle.thumbnailUrl || newsArticle.coverImage,
+      // OG 메타태그용 원본 이미지 URL (프록시 대신 직접 URL)
+      ogImageUrl: ogImageUrl || null
     };
-    
+
     // 현재 뉴스를 명시적으로 제외 (slug와 _id 모두 체크)
     const filteredRelatedArticles = finalRelatedArticles.filter(article => {
       const isDifferentById = article._id.toString() !== newsArticle._id.toString();

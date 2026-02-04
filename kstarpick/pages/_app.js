@@ -506,17 +506,16 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       <Analytics />
       <GlobalLoading />
       <SessionProvider session={session}>
-        {hasMounted ? (
-          <Component {...pageProps} />
-        ) : (
-          // Simple placeholder during server-side rendering to avoid hydration mismatch
-          <div className="min-h-screen bg-white flex items-center justify-center">
+        {/* 항상 Component를 렌더링하여 SSR에서 Head 메타 태그가 포함되도록 함 */}
+        {!hasMounted && (
+          <div className="min-h-screen bg-white flex items-center justify-center" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}>
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4" style={{ borderColor: '#233CFA' }}></div>
               <p className="text-gray-500 text-sm">Loading...</p>
             </div>
           </div>
         )}
+        <Component {...pageProps} />
       </SessionProvider>
     </Fragment>
   );

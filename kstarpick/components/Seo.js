@@ -113,7 +113,9 @@ const Seo = ({
       {/* Open Graph 태그 */}
       <meta property="og:title" content={cleanText(fullTitle, 95)} />
       <meta property="og:description" content={cleanText(fullDescription, 300)} />
-      {/* og:image 태그 제거 - 구글 검색 결과에서 자동 생성 이미지 방지 */}
+      <meta property="og:image" content={fullImage} />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
       <meta property="og:url" content={fullUrl} />
       <meta property="og:type" content={type} />
       <meta property="og:site_name" content={cleanText(siteName, 50)} />
@@ -130,12 +132,12 @@ const Seo = ({
       ))}
       
       {/* Twitter 카드 */}
-      <meta name="twitter:card" content="summary" />
+      <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:site" content="@kstarpick" />
       <meta name="twitter:creator" content="@kstarpick" />
       <meta name="twitter:title" content={cleanText(fullTitle, 70)} />
       <meta name="twitter:description" content={cleanText(fullDescription, 200)} />
-      {/* twitter:image 태그 제거 - 이미지 없이 텍스트만 표시 */}
+      <meta name="twitter:image" content={fullImage} />
       {/* 추가 Twitter 메타 태그 */}
       <meta name="twitter:domain" content="kstarpick.com" />
       <meta name="twitter:url" content={fullUrl} />

@@ -42,6 +42,24 @@ const DirectRiddleContent = ({ content }) => {
       }
     );
     
+    // html/head/body 태그 제거
+    cleanedContent = cleanedContent.replace(/<\/?(?:html|head|body)[^>]*>/gi, '');
+
+    // WordPress embed figure 래퍼 제거 (blockquote만 남기기)
+    cleanedContent = cleanedContent.replace(
+      /<figure[^>]*wp-block-embed[^>]*>[\s\S]*?(<blockquote[\s\S]*?<\/blockquote>)[\s\S]*?<\/figure>/gi,
+      '$1'
+    );
+
+    // 빈 figure 태그 제거
+    cleanedContent = cleanedContent.replace(/<figure[^>]*>\s*<\/figure>/gi, '');
+
+    // Twitter blockquote에서 data-width 제거 (위젯 폭 제한 방지)
+    cleanedContent = cleanedContent.replace(
+      /(<blockquote[^>]*class="twitter-tweet"[^>]*)\s+data-width="[^"]*"/gi,
+      '$1'
+    );
+
     // DOM에 정리된 HTML 삽입
     contentRef.current.innerHTML = cleanedContent;
 
@@ -94,27 +112,7 @@ const DirectRiddleContent = ({ content }) => {
 
           if (blockquotes && blockquotes.length > 0) {
             try {
-              window.twttr.widgets.load(contentRef.current).then(() => {
-                // 약간의 지연 후 iframe 높이 강제 조정
-                setTimeout(() => {
-                  const twitterIframes = contentRef.current?.querySelectorAll('iframe[id^="twitter-widget-"]');
-                  if (twitterIframes && twitterIframes.length > 0) {
-                    twitterIframes.forEach((iframe) => {
-                      // iframe 높이 강제 설정
-                      iframe.style.setProperty('height', '600px', 'important');
-                      iframe.style.setProperty('max-height', '600px', 'important');
-                      iframe.setAttribute('height', '600');
-
-                      // 부모 컨테이너도 조정
-                      if (iframe.parentElement) {
-                        iframe.parentElement.style.setProperty('height', '600px', 'important');
-                        iframe.parentElement.style.setProperty('max-height', '600px', 'important');
-                        iframe.parentElement.style.overflow = 'hidden';
-                      }
-                    });
-                  }
-                }, 500);
-              });
+              window.twttr.widgets.load(contentRef.current);
               return true;
             } catch (error) {
               console.error('[DirectRiddleContent] Twitter 처리 오류:', error);
@@ -196,22 +194,50 @@ const DirectRiddleContent = ({ content }) => {
         }}
       />
       <style jsx>{`
-        /* Twitter 임베드 여백 제한 */
-        :global(.article-content .twitter-tweet-rendered) {
-          margin-bottom: 1rem !important;
+        /* Twitter 위젯 렌더링 후 생성되는 모든 컨테이너 여백 제거 */
+        :global(.article-content .twitter-tweet-rendered),
+        :global(.prose .twitter-tweet-rendered) {
+          margin: 0 0 1rem 0 !important;
         }
 
-        :global(.article-content iframe[id^="twitter-widget-"]) {
+        :global(.article-content iframe[id^="twitter-widget-"]),
+        :global(.prose iframe[id^="twitter-widget-"]) {
           display: block !important;
-          margin-bottom: 1rem !important;
-          height: 600px !important;
-          max-height: 600px !important;
-          overflow: hidden !important;
+          margin: 0 auto 1rem auto !important;
         }
 
-        /* Twitter 임베드 컨테이너 여백 제거 */
-        :global(.article-content blockquote.twitter-tweet) {
-          margin-bottom: 1rem !important;
+        :global(.article-content blockquote.twitter-tweet),
+        :global(.prose blockquote.twitter-tweet) {
+          margin: 0 0 1rem 0 !important;
+          padding: 0 !important;
+          border: none !important;
+          quotes: none !important;
+        }
+
+        /* prose가 blockquote에 추가하는 스타일 오버라이드 */
+        :global(.prose blockquote.twitter-tweet::before),
+        :global(.prose blockquote.twitter-tweet::after),
+        :global(.prose blockquote.instagram-media::before),
+        :global(.prose blockquote.instagram-media::after) {
+          content: none !important;
+        }
+
+        /* WordPress embed figure 래퍼 여백 제거 */
+        :global(.article-content figure),
+        :global(.prose figure) {
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+        :global(.article-content .wp-block-embed__wrapper),
+        :global(.prose .wp-block-embed__wrapper) {
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+        /* 빈 figure 태그 숨기기 */
+        :global(.article-content figure:empty) {
+          display: none !important;
         }
 
         /* 임베드 후 생성되는 빈 p 태그 제거 */

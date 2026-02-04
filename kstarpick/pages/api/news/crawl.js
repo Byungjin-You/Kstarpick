@@ -1414,8 +1414,13 @@ export async function fetchArticleDetail(articleUrl) {
       }
     }
     
+    // soompi 관련 태그 제거
+    const filteredTags = tags.filter(tag => !/soompi/i.test(tag));
+    tags.length = 0;
+    filteredTags.forEach(t => tags.push(t));
+
     logDebug(`추출된 태그: ${tags.join(', ')}`);
-    
+
     // 작성자 추출
     let author = '';
     const authorEl = $('.info-emphasis.right a, .author-date a[href*="/author/"]').first();
@@ -1709,7 +1714,30 @@ export async function fetchArticleDetail(articleUrl) {
     
     // Viki URL 완전히 제거 - 링크만 제거하고 텍스트는 유지
     contentHtml = contentHtml.replace(/<a[^>]*href="https?:\/\/(?:www\.)?viki\.com[^"]*"[^>]*>(.*?)<\/a>/gi, '$1');
-    
+
+    // Soompi 하단 홍보 문구 통째로 제거 (링크 제거 전에 실행해야 함)
+    // "In the meantime, watch/check out ...", "Also watch ...", "And watch ...", "Start watching ...", "Catch ... below" 등
+    contentHtml = contentHtml.replace(/<p[^>]*>\s*(?:In the meantime,?\s*)?(?:Also\s+|And\s+)?(?:watch|check out|catch|start watching|you can (?:also )?watch|don'?t forget to (?:also )?(?:watch|check out))\b.*?<\/p>/gi, '');
+    // 콜론/따옴표로 끝나면서 임베드를 전제하는 문단 ("Pretty Crazy":", ... below!:")
+    contentHtml = contentHtml.replace(/<p[^>]*>[^<]*(?:below|here)\s*!?\s*:?\s*<\/p>/gi, '');
+
+    // 소셜 미디어 임베드 blockquote를 플레이스홀더로 보호 (내부 <a> 태그 보존)
+    const embeds1 = [];
+    contentHtml = contentHtml.replace(/<blockquote[^>]*class="(?:twitter-tweet|instagram-media)"[^>]*>[\s\S]*?<\/blockquote>/gi, (match) => {
+      embeds1.push(match);
+      return `__SOCIAL_EMBED_${embeds1.length - 1}__`;
+    });
+
+    // 크롤링된 기사의 링크를 텍스트로 변환 (Instagram/Twitter 링크는 보존)
+    contentHtml = contentHtml.replace(/<a[^>]*>(.*?)<\/a>/gi, (match, text) => {
+      if (/instagram\.com\/(?:p|reel)\//i.test(match)) return match;
+      if (/(?:twitter\.com|x\.com)\/.*\/status\//i.test(match)) return match;
+      return text;
+    });
+
+    // 보호된 blockquote 복원
+    contentHtml = contentHtml.replace(/__SOCIAL_EMBED_(\d+)__/g, (_, index) => embeds1[parseInt(index)]);
+
     // Source 형식 조정 (기사 내용과 Source 사이에 한 줄 띄우기, Source 뒤에는 빈줄 없음)
     contentHtml = contentHtml.replace(/(.*?)(<p[^>]*>Source(?:\s*\(\d+\))?:?.*?<\/p>)/is, '$1<p>&nbsp;</p>$2');
     
@@ -2095,13 +2123,13 @@ async function fetchArticleDetailFallback(articleUrl, useAlternativeAgent = fals
       }
     }
     
-    // 태그 추출
+    // 태그 추출 (soompi 관련 태그 제외)
     const tags = [];
     $('.article-tags .tag-item a').each((i, el) => {
       const tag = $(el).text().trim();
-      if (tag) tags.push(tag);
+      if (tag && !/soompi/i.test(tag)) tags.push(tag);
     });
-    
+
     // 작성자 추출
     let author = '';
     const authorEl = $('.info-emphasis.right a, .author-date a[href*="/author/"]').first();
@@ -2226,9 +2254,30 @@ async function fetchArticleDetailFallback(articleUrl, useAlternativeAgent = fals
     // 이미지 형태의 Viki 광고 제거 (새로 추가)
     contentHtml = contentHtml.replace(/<a[^>]*href="[^"]*viki\.com[^"]*"[^>]*>.*?<\/a>/gi, '');
     contentHtml = contentHtml.replace(/<a[^>]*href="[^"]*utm_source=soompi[^"]*viki\.com[^"]*"[^>]*>.*?<\/a>/gi, '');
-    
-    console.log('[fetchArticleDetailFallback] Viki 필터링 완료');
-    
+
+    // Soompi 하단 홍보 문구 통째로 제거 (링크 제거 전에 실행해야 함)
+    contentHtml = contentHtml.replace(/<p[^>]*>\s*(?:In the meantime,?\s*)?(?:Also\s+|And\s+)?(?:watch|check out|catch|start watching|you can (?:also )?watch|don'?t forget to (?:also )?(?:watch|check out))\b.*?<\/p>/gi, '');
+    contentHtml = contentHtml.replace(/<p[^>]*>[^<]*(?:below|here)\s*!?\s*:?\s*<\/p>/gi, '');
+
+    // 소셜 미디어 임베드 blockquote를 플레이스홀더로 보호 (내부 <a> 태그 보존)
+    const embeds2 = [];
+    contentHtml = contentHtml.replace(/<blockquote[^>]*class="(?:twitter-tweet|instagram-media)"[^>]*>[\s\S]*?<\/blockquote>/gi, (match) => {
+      embeds2.push(match);
+      return `__SOCIAL_EMBED_${embeds2.length - 1}__`;
+    });
+
+    // 크롤링된 기사의 링크를 텍스트로 변환 (Instagram/Twitter 링크는 보존)
+    contentHtml = contentHtml.replace(/<a[^>]*>(.*?)<\/a>/gi, (match, text) => {
+      if (/instagram\.com\/(?:p|reel)\//i.test(match)) return match;
+      if (/(?:twitter\.com|x\.com)\/.*\/status\//i.test(match)) return match;
+      return text;
+    });
+
+    // 보호된 blockquote 복원
+    contentHtml = contentHtml.replace(/__SOCIAL_EMBED_(\d+)__/g, (_, index) => embeds2[parseInt(index)]);
+
+    console.log('[fetchArticleDetailFallback] Viki 필터링, 홍보 문구 및 링크 제거 완료');
+
     // 모든 Soompi 이미지 URL을 프록시 URL로 변환
     const cheerioContent = cheerio.load(contentHtml);
     const imgElements = cheerioContent('img').toArray();
@@ -2559,7 +2608,7 @@ async function createNewsItem(title, url, thumbnailUrl, category, timeText, orde
     source: 'Soompi',
     sourceUrl: 'https://www.soompi.com',
     coverImage: await convertSoompiImageToProxy(thumbnailUrl) || '/images/default-news.jpg',
-    tags: ['K-POP', 'News', 'Soompi'].concat(enhancedCategory ? [enhancedCategory] : []),
+    tags: ['K-POP', 'News'].concat(enhancedCategory ? [enhancedCategory] : []),
     author: {
       name: generateAuthorByCategory(localCategory), // 카테고리별 작성자 이름 생성
       id: 'soompi-crawler',
