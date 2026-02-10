@@ -1325,12 +1325,12 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
   const [showRelatedThumbnail, setShowRelatedThumbnail] = useState(true); // Related News 썸네일 표시 상태
   const { data: session } = useSession();
 
-  // Reactions state
+  // Reactions state - DB에서 초기값 로드
   const [reactions, setReactions] = useState({
-    like: 0,
-    congratulations: 0,
-    surprised: 0,
-    sad: 0
+    like: newsArticle?.reactions?.like || 0,
+    congratulations: newsArticle?.reactions?.congratulations || 0,
+    surprised: newsArticle?.reactions?.surprised || 0,
+    sad: newsArticle?.reactions?.sad || 0
   });
   const [userReaction, setUserReaction] = useState(null);
   const [showShareMenu, setShowShareMenu] = useState(false);
@@ -1381,28 +1381,20 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
     }
   }, [newsArticle, userId]);
 
-  // Load reaction status from cookies on page load
+  // Load user's own reaction selection from cookie
   useEffect(() => {
-    if (typeof window !== 'undefined' && newsArticle?._id && userId) {
-      // Get user's reaction from cookies
+    if (typeof window !== 'undefined' && newsArticle?._id) {
       const userReactionsFromCookie = Cookies.get('newsReactions');
       if (userReactionsFromCookie) {
-        const userReactions = JSON.parse(userReactionsFromCookie);
-        if (userReactions[newsArticle._id]) {
-          setUserReaction(userReactions[newsArticle._id]);
-        }
-      }
-
-      // Get all reactions count from cookies
-      const allReactionsFromCookie = Cookies.get('newsReactionsCounts');
-      if (allReactionsFromCookie) {
-        const allReactions = JSON.parse(allReactionsFromCookie);
-        if (allReactions[newsArticle._id]) {
-          setReactions(allReactions[newsArticle._id]);
-        }
+        try {
+          const userReactions = JSON.parse(userReactionsFromCookie);
+          if (userReactions[newsArticle._id]) {
+            setUserReaction(userReactions[newsArticle._id]);
+          }
+        } catch (e) {}
       }
     }
-  }, [newsArticle, userId]);
+  }, [newsArticle]);
 
   // 최적화된 스크롤 이벤트 핸들러 - requestAnimationFrame 사용
   const handleScroll = useCallback(() => {
@@ -2331,48 +2323,51 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                       ].map(({ key, label, image }) => (
                         <button
                           key={key}
-                          onClick={() => {
-                            let newReactions;
-                            let newUserReaction;
+                          onClick={async () => {
+                            const isCancel = userReaction === key;
+                            const newUserReaction = isCancel ? null : key;
+                            const previousReaction = userReaction || null;
 
-                            if (userReaction === key) {
-                              // 이미 선택한 반응을 다시 클릭하면 취소
-                              newReactions = { ...reactions, [key]: Math.max(0, reactions[key] - 1) };
-                              newUserReaction = null;
-                              setReactions(newReactions);
-                              setUserReaction(null);
-                            } else {
-                              // 새로운 반응 선택
-                              newReactions = { ...reactions };
-                              if (userReaction) {
-                                // 이전 반응 취소
-                                newReactions[userReaction] = Math.max(0, newReactions[userReaction] - 1);
+                            // Optimistic UI update
+                            const newReactions = { ...reactions };
+                            if (previousReaction) {
+                              newReactions[previousReaction] = Math.max(0, newReactions[previousReaction] - 1);
+                            }
+                            if (!isCancel) {
+                              newReactions[key] = (newReactions[key] || 0) + 1;
+                            }
+                            setReactions(newReactions);
+                            setUserReaction(newUserReaction);
+
+                            // 쿠키에 유저 선택만 저장
+                            if (typeof window !== 'undefined' && newsArticle?._id) {
+                              const userReactionsFromCookie = Cookies.get('newsReactions');
+                              const userReactionsMap = userReactionsFromCookie ? JSON.parse(userReactionsFromCookie) : {};
+                              if (newUserReaction) {
+                                userReactionsMap[newsArticle._id] = newUserReaction;
+                              } else {
+                                delete userReactionsMap[newsArticle._id];
                               }
-                              newReactions[key] = newReactions[key] + 1;
-                              newUserReaction = key;
-                              setReactions(newReactions);
-                              setUserReaction(key);
+                              Cookies.set('newsReactions', JSON.stringify(userReactionsMap), { expires: 365 });
                             }
 
-                            // 쿠키에 저장 (1년 유효기간)
-                            if (typeof window !== 'undefined' && newsArticle?._id) {
-                              // 사용자의 반응 저장
-                              const userReactionsFromCookie = Cookies.get('newsReactions');
-                              const userReactions = userReactionsFromCookie ? JSON.parse(userReactionsFromCookie) : {};
-
-                              if (newUserReaction) {
-                                userReactions[newsArticle._id] = newUserReaction;
-                              } else {
-                                delete userReactions[newsArticle._id];
+                            // DB에 저장
+                            try {
+                              const res = await fetch('/api/news/reactions', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  newsId: newsArticle._id,
+                                  reactionType: isCancel ? null : key,
+                                  previousReaction
+                                })
+                              });
+                              const data = await res.json();
+                              if (data.reactions) {
+                                setReactions(data.reactions);
                               }
-
-                              Cookies.set('newsReactions', JSON.stringify(userReactions), { expires: 365 });
-
-                              // 전체 반응 카운트 저장
-                              const allReactionsFromCookie = Cookies.get('newsReactionsCounts');
-                              const allReactions = allReactionsFromCookie ? JSON.parse(allReactionsFromCookie) : {};
-                              allReactions[newsArticle._id] = newReactions;
-                              Cookies.set('newsReactionsCounts', JSON.stringify(allReactions), { expires: 365 });
+                            } catch (err) {
+                              console.error('Reaction API error:', err);
                             }
                           }}
                           className={`flex flex-col items-center gap-1 sm:gap-2 px-3 sm:px-8 py-2 sm:py-4 rounded-lg transition-all duration-200 hover:scale-105 ${

@@ -1772,7 +1772,7 @@ export default function AdminDashboard() {
                                         </div>
                                         <div className="flex items-center gap-3 ml-auto">
                                           <span className="text-[10px] text-slate-500">{ct.count}건</span>
-                                          <span className="text-[11px] text-cyan-400 font-medium">{(ct.avgViews || 0).toLocaleString()} views</span>
+                                          <span className="text-[11px] text-cyan-400 font-medium">avg {(ct.avgViews || 0).toLocaleString()}</span>
                                         </div>
                                         <p className="hidden sm:block text-[10px] text-slate-500 max-w-[180px] truncate">{ct.verdict}</p>
                                       </div>
