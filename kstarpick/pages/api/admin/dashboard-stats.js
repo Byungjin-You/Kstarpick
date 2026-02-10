@@ -28,9 +28,9 @@ export default async function handler(req, res) {
       { $sort: { count: -1 } }
     ]).toArray();
 
-    // 2. 조회수 기반 인기 기사 TOP 10 (최근 7일)
+    // 2. 조회수 기반 인기 기사 TOP 10 (최근 30일)
     const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 30);
 
     const popularArticlesPromise = db.collection('news').find({
       createdAt: { $gte: sevenDaysAgo }
@@ -43,7 +43,9 @@ export default async function handler(req, res) {
         viewCount: 1,
         createdAt: 1,
         thumbnail: 1,
-        slug: 1
+        coverImage: 1,
+        slug: 1,
+        reactions: 1
       })
       .toArray();
 
@@ -151,11 +153,16 @@ export default async function handler(req, res) {
           todayPublished: todayCount,
           weekPublished: weekCount
         },
-        popularArticles: popularArticles.map(article => ({
-          ...article,
-          _id: article._id.toString(),
-          createdAt: article.createdAt?.toISOString()
-        })),
+        popularArticles: popularArticles.map(article => {
+          const r = article.reactions || {};
+          const totalReactions = Object.values(r).reduce((sum, v) => sum + (v || 0), 0);
+          return {
+            ...article,
+            _id: article._id.toString(),
+            createdAt: article.createdAt?.toISOString(),
+            totalReactions
+          };
+        }),
         recentArticles: recentArticles.map(article => ({
           ...article,
           _id: article._id.toString(),

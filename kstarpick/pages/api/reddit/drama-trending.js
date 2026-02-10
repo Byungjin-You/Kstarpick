@@ -100,11 +100,11 @@ function calculateEngagement(post) {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Fetch posts from a subreddit using PullPush API (Reddit mirror that works on AWS)
+// Fetch posts from a subreddit using Reddit's public JSON API
 async function fetchSubreddit(subreddit, sort = 'hot', limit = 50) {
   try {
-    const sortParam = sort === 'new' ? 'created_utc' : 'score';
-    const url = `https://api.pullpush.io/reddit/search/submission/?subreddit=${subreddit}&sort=${sortParam}&sort_type=desc&size=${limit}`;
+    // Reddit public JSON API - real-time data
+    const url = `https://www.reddit.com/r/${subreddit}/${sort}.json?limit=${limit}`;
     const res = await fetch(url, {
       headers: {
         'User-Agent': USER_AGENT,
@@ -113,24 +113,21 @@ async function fetchSubreddit(subreddit, sort = 'hot', limit = 50) {
     });
 
     if (!res.ok) {
-      console.error(`PullPush API error for r/${subreddit}: ${res.status}`);
+      console.error(`Reddit API error for r/${subreddit}: ${res.status}`);
       return [];
     }
 
-    const text = await res.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (e) {
-      console.error(`PullPush JSON parse error for r/${subreddit}`);
+    const data = await res.json();
+
+    if (!data?.data?.children || !Array.isArray(data.data.children)) {
+      console.error(`Reddit no data for r/${subreddit}`);
       return [];
     }
 
-    if (!data?.data || !Array.isArray(data.data)) return [];
-
-    return data.data
-      .filter((post) => post.title)
-      .map((post) => {
+    return data.data.children
+      .filter((item) => item.data && item.data.title)
+      .map((item) => {
+        const post = item.data;
         const mentions = extractMentions(post.title);
         return {
           id: post.id,
@@ -216,13 +213,16 @@ export default async function handler(req, res) {
     const targetSubs = subreddit ? [subreddit] : SUBREDDITS;
 
     // Fetch subreddits in pairs with delay between batches
-    const allPosts = [];
+    let allPosts = [];
     for (let i = 0; i < targetSubs.length; i += 2) {
       if (i > 0) await delay(500);
       const batch = targetSubs.slice(i, i + 2);
       const results = await Promise.all(batch.map((sub) => fetchSubreddit(sub, sort, postLimit)));
       for (const posts of results) allPosts.push(...posts);
     }
+
+    // Note: PullPush data is archived and may be months old
+    // Skip time filtering since the data is already sorted by recency/score from PullPush
 
     allPosts.sort((a, b) => b.engagement - a.engagement);
 

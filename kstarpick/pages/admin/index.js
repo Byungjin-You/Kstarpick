@@ -41,7 +41,10 @@ import {
   XCircle,
   Flame,
   Calendar,
-  Layers
+  Layers,
+  Heart,
+  Sparkles,
+  Lightbulb
 } from 'lucide-react';
 import AdminLayout from '../../components/AdminLayout';
 
@@ -77,6 +80,10 @@ export default function AdminDashboard() {
   const [isSavingMultiplier, setIsSavingMultiplier] = useState(false);
   const [dashboardStats, setDashboardStats] = useState(null);
   const [dashboardStatsLoading, setDashboardStatsLoading] = useState(false);
+
+  // AI Trending Insight
+  const [trendInsight, setTrendInsight] = useState(null);
+  const [trendInsightLoading, setTrendInsightLoading] = useState(false);
 
   // 배율 설정을 변경할 수 있는 슈퍼 관리자 이메일
   const SUPER_ADMIN_EMAIL = 'y@fsn.co.kr';
@@ -652,10 +659,74 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (session?.user?.role === 'admin') {
       fetchDashboardStats();
-      const interval = setInterval(fetchDashboardStats, 60 * 1000); // 1분마다 갱신
+      const interval = setInterval(fetchDashboardStats, 60 * 1000);
       return () => clearInterval(interval);
     }
   }, [session]);
+
+  // AI Trending Insight - fetch cached or auto-generate at 10AM
+  const fetchTrendInsight = async () => {
+    try {
+      const res = await fetch('/api/admin/trending-insight', { credentials: 'include' });
+      const data = await res.json();
+      if (data.success && data.insight) {
+        setTrendInsight(data.insight);
+        return data.insight;
+      }
+      return null;
+    } catch { return null; }
+  };
+
+  const generateTrendInsight = async () => {
+    if (!dashboardStats?.popularArticles?.length) return;
+    setTrendInsightLoading(true);
+    try {
+      const res = await fetch('/api/admin/trending-insight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          articles: dashboardStats.popularArticles.map(a => ({
+            ...a,
+            viewCount: (a.viewCount || 0) * dataMultiplier,
+            totalReactions: (a.totalReactions || 0) * dataMultiplier
+          })),
+          categoryStats: (dashboardStats.contentStats?.categories || []).map(c => ({
+            ...c,
+            totalViews: (c.totalViews || 0) * dataMultiplier
+          })),
+          multiplier: dataMultiplier
+        })
+      });
+      const data = await res.json();
+      if (data.success) setTrendInsight(data.insight);
+    } catch (err) {
+      console.error('Trend insight error:', err);
+    } finally {
+      setTrendInsightLoading(false);
+    }
+  };
+
+  // Auto-check: generate insight if none exists for today after 10AM
+  useEffect(() => {
+    if (!dashboardStats?.popularArticles?.length) return;
+
+    (async () => {
+      const cached = await fetchTrendInsight();
+      if (cached?.createdAt) {
+        const lastDate = new Date(cached.createdAt);
+        const now = new Date();
+        const today10AM = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0, 0);
+        // If insight is from before today 10AM and current time is past 10AM, regenerate
+        if (now >= today10AM && lastDate < today10AM) {
+          generateTrendInsight();
+        }
+      } else {
+        // No cached insight at all, generate one
+        generateTrendInsight();
+      }
+    })();
+  }, [dashboardStats?.popularArticles]);
 
   // 헬퍼 함수들
   const formatNumber = (num) => {
@@ -1512,32 +1583,260 @@ export default function AdminDashboard() {
                           <div className="flex items-center gap-2 mb-4">
                             <Flame className="w-4 h-4 text-orange-400" />
                             <h4 className="text-sm font-bold text-white">Trending Articles</h4>
-                            <span className="text-xs text-slate-500 ml-auto">Last 7 days</span>
+                            <span className="text-xs text-slate-500 ml-auto">Last 30 days</span>
                           </div>
-                          <div className="space-y-2">
-                            {dashboardStats.popularArticles.slice(0, 5).map((article, i) => (
-                              <div key={article._id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-700/30 transition-colors group">
-                                <span className={`w-6 h-6 flex items-center justify-center rounded-lg text-xs font-bold ${
-                                  i === 0 ? 'bg-amber-500/20 text-amber-400' :
-                                  i === 1 ? 'bg-slate-400/20 text-slate-300' :
-                                  i === 2 ? 'bg-orange-600/20 text-orange-400' :
-                                  'bg-slate-700/50 text-slate-500'
-                                }`}>
-                                  {i + 1}
-                                </span>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm text-slate-300 truncate group-hover:text-white transition-colors">
-                                    {article.title}
-                                  </p>
-                                  <p className="text-xs text-slate-500">{article.category}</p>
+                          <div className="space-y-1">
+                            {(() => {
+                              const articles = dashboardStats.popularArticles.slice(0, 10);
+                              const maxViews = Math.max(...articles.map(a => (a.viewCount || 0) * dataMultiplier), 1);
+                              return articles.map((article, i) => {
+                                const views = (article.viewCount || 0) * dataMultiplier;
+                                const reactions = (article.totalReactions || 0) * dataMultiplier;
+                                const viewPercent = Math.round((views / maxViews) * 100);
+                                const daysAgo = article.createdAt ? Math.max(1, Math.floor((Date.now() - new Date(article.createdAt).getTime()) / 86400000)) : 1;
+                                const viewsPerDay = Math.round(views / daysAgo);
+                                // Performance tier based on views/day
+                                const tier = viewsPerDay >= 10 ? 'hot' : viewsPerDay >= 3 ? 'warm' : 'normal';
+                                const tierConfig = {
+                                  hot: { label: 'HOT', color: 'bg-red-500/20 text-red-400', bar: 'from-red-500 to-orange-500' },
+                                  warm: { label: 'RISING', color: 'bg-amber-500/20 text-amber-400', bar: 'from-amber-500 to-yellow-500' },
+                                  normal: { label: '', color: '', bar: 'from-slate-500 to-slate-600' },
+                                };
+                                const t = tierConfig[tier];
+                                return (
+                                  <a
+                                    key={article._id}
+                                    href={`/news/${article.slug || article._id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block p-2.5 rounded-lg hover:bg-slate-700/30 transition-colors group cursor-pointer"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <span className={`w-6 h-6 flex items-center justify-center rounded-lg text-xs font-bold shrink-0 ${
+                                        i === 0 ? 'bg-amber-500/20 text-amber-400' :
+                                        i === 1 ? 'bg-slate-400/20 text-slate-300' :
+                                        i === 2 ? 'bg-orange-600/20 text-orange-400' :
+                                        'bg-slate-700/50 text-slate-500'
+                                      }`}>
+                                        {i + 1}
+                                      </span>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                          <p className="text-sm text-slate-300 truncate group-hover:text-white transition-colors">
+                                            {article.title}
+                                          </p>
+                                          {t.label && (
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${t.color} shrink-0`}>
+                                              {t.label}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                          <span className="text-xs text-slate-500">{article.category}</span>
+                                          <span className="text-xs text-slate-600">·</span>
+                                          <span className="text-xs text-slate-500">{daysAgo <= 1 ? 'today' : `${daysAgo}d ago`}</span>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        {reactions > 0 && (
+                                          <div className="flex items-center gap-1 text-xs text-pink-400 bg-pink-500/10 px-1.5 py-0.5 rounded">
+                                            <Heart className="w-3 h-3" />
+                                            {formatCompactNumber(reactions)}
+                                          </div>
+                                        )}
+                                        <div className="flex items-center gap-1 text-xs text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">
+                                          <Eye className="w-3 h-3" />
+                                          {formatCompactNumber(views)}
+                                        </div>
+                                        <ExternalLink className="w-3 h-3 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      </div>
+                                    </div>
+                                    {/* Inline performance bar */}
+                                    <div className="mt-1.5 ml-9 flex items-center gap-2">
+                                      <div className="flex-1 h-1 bg-slate-700/50 rounded-full overflow-hidden">
+                                        <div
+                                          className={`h-full bg-gradient-to-r ${t.bar} rounded-full transition-all`}
+                                          style={{ width: `${viewPercent}%` }}
+                                        />
+                                      </div>
+                                      <span className="text-[10px] text-slate-500 shrink-0 w-12 text-right">
+                                        {formatCompactNumber(viewsPerDay)}/d
+                                      </span>
+                                    </div>
+                                  </a>
+                                );
+                              });
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* AI Trending Insight */}
+                      <div className="mt-4 bg-gradient-to-br from-slate-800/60 via-violet-900/20 to-slate-800/60 rounded-2xl border border-violet-500/20 overflow-hidden relative">
+                        {/* Animated glow */}
+                        <div className="absolute -top-10 -right-10 w-32 h-32 bg-violet-500/10 rounded-full blur-3xl animate-pulse pointer-events-none" />
+                        <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-cyan-500/10 rounded-full blur-3xl animate-pulse pointer-events-none" style={{ animationDelay: '1.5s' }} />
+
+                        <div className="relative z-10 p-4">
+                          {/* Header */}
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="relative">
+                                <div className="p-1.5 bg-violet-500/30 rounded-lg border border-violet-400/30">
+                                  <Sparkles className="w-3.5 h-3.5 text-violet-300" />
                                 </div>
-                                <div className="flex items-center gap-1 text-xs text-cyan-400 font-semibold bg-cyan-500/10 px-2 py-1 rounded">
-                                  <Eye className="w-3 h-3" />
-                                  {formatCompactNumber((article.viewCount || 0) * dataMultiplier)}
+                                <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-400 rounded-full border border-slate-800" />
+                              </div>
+                              <div>
+                                <span className="text-sm font-bold text-white">AI Content Analysis</span>
+                                {trendInsight?.createdAt && (
+                                  <span className="text-[10px] text-violet-400/70 ml-2">
+                                    {new Date(trendInsight.createdAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} updated
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              onClick={generateTrendInsight}
+                              disabled={trendInsightLoading || !dashboardStats?.popularArticles?.length}
+                              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] text-violet-300 hover:text-white bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/30 rounded-lg transition-all disabled:opacity-40"
+                            >
+                              <RefreshCw className={`w-3 h-3 ${trendInsightLoading ? 'animate-spin' : ''}`} />
+                              {trendInsightLoading ? 'Analyzing...' : 'Re-analyze'}
+                            </button>
+                          </div>
+
+                          {/* Loading */}
+                          {trendInsightLoading && !trendInsight?.data ? (
+                            <div className="py-6 text-center">
+                              <div className="inline-flex items-center gap-1.5 mb-2">
+                                <div className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce" />
+                                <div className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
+                                <div className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
+                              </div>
+                              <p className="text-xs text-violet-300/60">AI가 콘텐츠 성과를 분석하고 있습니다...</p>
+                            </div>
+                          ) : trendInsight?.data ? (
+                            <>
+                              {/* Health Score + Top Performer */}
+                              <div className="flex gap-3 mb-3">
+                                {/* Content Health */}
+                                <div className="bg-slate-800/60 rounded-xl p-3 border border-slate-700/50 flex flex-col items-center justify-center min-w-[80px]">
+                                  <div className={`text-2xl font-black ${
+                                    trendInsight.data.contentHealth >= 7 ? 'text-emerald-400' :
+                                    trendInsight.data.contentHealth >= 4 ? 'text-amber-400' : 'text-red-400'
+                                  }`}>
+                                    {trendInsight.data.contentHealth}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 mt-0.5">/10</div>
+                                  <div className={`text-[10px] font-medium mt-1 px-2 py-0.5 rounded-full ${
+                                    trendInsight.data.contentHealth >= 7 ? 'bg-emerald-500/20 text-emerald-400' :
+                                    trendInsight.data.contentHealth >= 4 ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400'
+                                  }`}>
+                                    {trendInsight.data.healthLabel}
+                                  </div>
+                                </div>
+
+                                {/* Top Performer */}
+                                <div className="flex-1 bg-slate-800/60 rounded-xl p-3 border border-slate-700/50">
+                                  <div className="text-[10px] text-amber-400/70 font-medium mb-1 flex items-center gap-1">
+                                    <Flame className="w-3 h-3" /> TOP PERFORMER
+                                  </div>
+                                  <p className="text-sm text-white font-medium truncate">{trendInsight.data.topPerformer?.title}</p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <p className="text-[11px] text-cyan-400">{trendInsight.data.topPerformer?.metric}</p>
+                                    {trendInsight.data.topPerformer?.contentType && (
+                                      <span className="text-[9px] px-1.5 py-0.5 bg-cyan-500/20 text-cyan-300 rounded-full border border-cyan-500/30">
+                                        {trendInsight.data.topPerformer.contentType}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-slate-400 mt-1">{trendInsight.data.topPerformer?.reason}</p>
                                 </div>
                               </div>
-                            ))}
-                          </div>
+
+                              {/* Content Type Analysis */}
+                              {trendInsight.data.contentTypeAnalysis?.length > 0 && (
+                                <div className="mb-3">
+                                  <div className="text-[10px] text-blue-400/70 font-medium mb-2 flex items-center gap-1">
+                                    <Layers className="w-3 h-3" /> 콘텐츠 타입 분석
+                                  </div>
+                                  <div className="grid grid-cols-1 gap-1.5">
+                                    {trendInsight.data.contentTypeAnalysis.map((ct, ci) => (
+                                      <div key={ci} className="flex items-center gap-2 bg-slate-800/40 rounded-lg px-2.5 py-2 border border-slate-700/30">
+                                        <div className="flex items-center gap-1.5 min-w-[100px]">
+                                          <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded font-mono">
+                                            {ct.type}
+                                          </span>
+                                          <span className="text-[11px] text-slate-400">{ct.typeLabel}</span>
+                                        </div>
+                                        <div className="flex items-center gap-3 ml-auto">
+                                          <span className="text-[10px] text-slate-500">{ct.count}건</span>
+                                          <span className="text-[11px] text-cyan-400 font-medium">{(ct.avgViews || 0).toLocaleString()} views</span>
+                                        </div>
+                                        <p className="hidden sm:block text-[10px] text-slate-500 max-w-[180px] truncate">{ct.verdict}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Hot Entities */}
+                              {trendInsight.data.hotEntities?.length > 0 && (
+                                <div className="mb-3">
+                                  <div className="text-[10px] text-amber-400/70 font-medium mb-2 flex items-center gap-1">
+                                    <Star className="w-3 h-3" /> 핫 엔티티
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {trendInsight.data.hotEntities.map((entity, ei) => (
+                                      <div key={ei} className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-lg px-3 py-2 border border-amber-500/20">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-[12px] text-white font-medium">{entity.name}</span>
+                                          <span className="text-[9px] px-1.5 py-0.5 bg-amber-500/20 text-amber-300 rounded-full">
+                                            {entity.mentions}회 언급
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                          <span className="text-[10px] text-cyan-400">{(entity.totalViews || 0).toLocaleString()} views</span>
+                                          {entity.note && <span className="text-[10px] text-slate-500">· {entity.note}</span>}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Velocity Alert & Suggestion */}
+                              <div className="space-y-2">
+                                <div className="flex items-start gap-2 bg-slate-800/40 rounded-lg p-2.5">
+                                  <TrendingUp className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />
+                                  <p className="text-xs text-slate-300 leading-relaxed">{trendInsight.data.velocityAlert}</p>
+                                </div>
+
+                                <div className="flex items-start gap-2 bg-violet-500/10 rounded-lg p-2.5 border border-violet-500/20">
+                                  <Lightbulb className="w-3.5 h-3.5 text-violet-400 mt-0.5 shrink-0" />
+                                  <p className="text-xs text-violet-200 leading-relaxed">{trendInsight.data.suggestion}</p>
+                                </div>
+                              </div>
+
+                              {/* Keywords */}
+                              {trendInsight.data.keywords?.length > 0 && (
+                                <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+                                  <span className="text-[10px] text-slate-500">Hot Keywords:</span>
+                                  {trendInsight.data.keywords.map((kw, ki) => (
+                                    <span key={ki} className="text-[10px] px-2 py-0.5 bg-slate-700/60 text-slate-300 rounded-full border border-slate-600/50">
+                                      {kw}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <div className="py-4 text-center">
+                              <Sparkles className="w-5 h-5 text-slate-600 mx-auto mb-2" />
+                              <p className="text-xs text-slate-500">AI 분석을 실행하려면 버튼을 클릭하세요</p>
+                            </div>
+                          )}
                         </div>
                       </div>
 
