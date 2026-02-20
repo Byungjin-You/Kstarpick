@@ -50,8 +50,10 @@ export default async function handler(req, res) {
         return res.status(500).json({ success: false, message: '이미지 업로드 중 오류가 발생했습니다.' });
       }
 
-      const imageFile = files.image;
-      
+      // formidable v3에서는 files.image가 배열로 반환됨
+      const imageFileRaw = files.image;
+      const imageFile = Array.isArray(imageFileRaw) ? imageFileRaw[0] : imageFileRaw;
+
       if (!imageFile) {
         return res.status(400).json({ success: false, message: '이미지 파일이 필요합니다.' });
       }
