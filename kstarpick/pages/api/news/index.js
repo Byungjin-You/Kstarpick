@@ -496,7 +496,9 @@ async function createNews(req, res, session) {
           }
         } else if (files.file) {
           // 파일이 업로드된 경우
-          const file = files.file;
+          // formidable v3에서는 files.file이 배열로 반환됨
+          const fileRaw = files.file;
+          const file = Array.isArray(fileRaw) ? fileRaw[0] : fileRaw;
           console.log('[createNews] File uploaded:', file.originalFilename);
           
           // 유효한 이미지 파일 확인
