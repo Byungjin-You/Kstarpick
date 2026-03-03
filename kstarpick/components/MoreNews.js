@@ -1,39 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Clock, ChevronRight } from 'lucide-react';
-import { useRouter } from 'next/router';
+import CategoryTag from './home/CategoryTag';
+
+const NEWS_PER_LOAD = 12;
 
 const MoreNews = ({ initialNews = [], category = '' }) => {
-  const router = useRouter();
-  const [allNews, setAllNews] = useState([]);  // 초기값을 빈 배열로 설정
-  const [page, setPage] = useState(1);
+  // initialNews로 즉시 초기화하여 빈 화면 flash 방지
+  const [allNews, setAllNews] = useState(() => initialNews || []);
+  const [page, setPage] = useState(() => {
+    const len = initialNews?.length || 0;
+    return len > 0 ? Math.ceil(len / NEWS_PER_LOAD) + 1 : 1;
+  });
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState(null);
-  const [isMobile, setIsMobile] = useState(false);
-  const observerRef = useRef();
   const lastNewsElementRef = useRef();
-  const maxNewsCount = 300; // 원래대로 300개 제한
-  const initialLoadRef = useRef(true); // 초기 로드 여부를 추적하는 ref 추가
-  const initialLoadTimerRef = useRef(null); // 초기 로드 타이머 추가
-  const restoringScrollRef = useRef(false); // 스크롤 복원 중인지 여부를 추적하는 ref
-  const wasRefreshedRef = useRef(false); // 새로고침 여부를 저장하는 ref
-  const initialDataAppliedRef = useRef(false); // initialNews가 이미 적용되었는지 추적
+  const maxNewsCount = 300;
+  const initialLoadTimerRef = useRef(null);
+  const restoringScrollRef = useRef(false);
+  const initialDataAppliedRef = useRef(initialNews?.length > 0);
   const categoryRef = useRef(category); // 카테고리 값을 ref로 유지
-
-  // 뉴스 카드 클릭 시 홈 스크롤 위치 저장
-  const handleNewsClick = (e) => {
-    if (typeof window !== 'undefined' && router.pathname === '/') {
-      // 클릭 시점의 정확한 스크롤 위치를 즉시 캡처
-      const currentScroll = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-
-      // 이미 저장된 값이 있고 0이 아니면 유지 (routeChangeStart에서 이미 저장했을 수 있음)
-      const existingScroll = sessionStorage.getItem('homeScrollPosition');
-      if (!existingScroll || existingScroll === '0' || parseInt(existingScroll) === 0) {
-        sessionStorage.setItem('homeScrollPosition', currentScroll.toString());
-      }
-    }
-  };
 
   // 카테고리 ref 업데이트
   useEffect(() => {
@@ -58,27 +44,12 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
   const STORAGE_KEYS = {
     NEWS_DATA: category ? (isCategoryArray() ? `moreNews_${category.join('_')}Data` : `moreNews_${category}Data`) : 'moreNewsData',
     NEWS_PAGE: category ? (isCategoryArray() ? `moreNews_${category.join('_')}Page` : `moreNews_${category}Page`) : 'moreNewsPage',
-    GLOBAL_ID_SET: category ? (isCategoryArray() ? `moreNews_${category.join('_')}LoadedIds` : `moreNews_${category}LoadedIds`) : 'moreNewsLoadedIds',
-    SCROLL_POS: category ? (isCategoryArray() ? `moreNews_${category.join('_')}ScrollPos` : `moreNews_${category}ScrollPos`) : 'moreNewsScrollPos',
-    BACK_NAVIGATION: 'wasBackNavigation',
     CACHE_TIME: category ? (isCategoryArray() ? `moreNews_${category.join('_')}CacheTime` : `moreNews_${category}CacheTime`) : 'moreNewsCacheTime'
   };
 
   // 캐시 유효 기간 (30분)
   const CACHE_EXPIRY_TIME = 30 * 60 * 1000; // 30분
 
-  // 초기 및 추가 로드 시 12개씩 뉴스를 표시
-  const NEWS_PER_LOAD = 12;
-  
-  // 디버깅을 위한 상태 로깅
-  useEffect(() => {
-  }, [loading, hasMore, allNews.length, page]);
-  // 각 세트에 6개의 뉴스 항목이 있도록 설정 (첫 번째는 큰 카드, 나머지 5개는 작은 카드)
-  const NEWS_PER_SET = 6;
-  
-  // 현재 경로 추적
-  const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-  
   // 페이지 로드/새로고침 시 상태 초기화 또는 복원을 위한 useEffect
   useEffect(() => {
     // 이전 타이머 정리
@@ -104,17 +75,16 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
       } else {
         // 세션 스토리지 데이터 확인
         const hasCachedNews = sessionStorage.getItem(STORAGE_KEYS.NEWS_DATA) !== null;
-        const hasCachedScroll = sessionStorage.getItem(STORAGE_KEYS.SCROLL_POS) !== null;
         const cacheTime = sessionStorage.getItem(STORAGE_KEYS.CACHE_TIME);
-        
+
         // 캐시 유효성 검사
         let isCacheValid = false;
         if (cacheTime) {
           const timeDiff = Date.now() - parseInt(cacheTime);
           isCacheValid = timeDiff < CACHE_EXPIRY_TIME;
         }
-        
-        if ((hasCachedNews || hasCachedScroll) && isCacheValid) {
+
+        if (hasCachedNews && isCacheValid) {
           // 세션 스토리지에 유효한 데이터가 있으면 뒤로가기로 처리
           isBackNavigation = true;
           isRefresh = false;
@@ -124,11 +94,9 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
           isBackNavigation = false;
           
           // 만료된 캐시 정리
-          if (hasCachedNews || hasCachedScroll) {
+          if (hasCachedNews) {
             sessionStorage.removeItem(STORAGE_KEYS.NEWS_DATA);
             sessionStorage.removeItem(STORAGE_KEYS.NEWS_PAGE);
-            sessionStorage.removeItem(STORAGE_KEYS.GLOBAL_ID_SET);
-            sessionStorage.removeItem(STORAGE_KEYS.SCROLL_POS);
             sessionStorage.removeItem(STORAGE_KEYS.CACHE_TIME);
           }
         }
@@ -159,22 +127,18 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
             setHasMore(true);
           }
           
-          // 전역 ID 캐시 초기화 및 복원
-          window._loadedNewsIds = new Set();
-          
-          // 로드된 뉴스 ID 목록 복원 (300개 제한 적용)
-          limitedSavedNews.forEach(news => {
-            const newsId = news._id || news.id;
-            if (newsId) window._loadedNewsIds.add(newsId);
-          });
-          
           // 초기 데이터 처리 완료 표시
           initialDataAppliedRef.current = true;
         }
       } catch (e) {
         console.error('[MoreNews] 세션 스토리지 복원 오류:', e);
       }
-      
+
+      // 데이터 복원 후 잠시 뒤 플래그 해제 (무한스크롤 로딩 재개)
+      setTimeout(() => {
+        restoringScrollRef.current = false;
+      }, 500);
+
       // 뒤로가기일 경우에는 여기서 함수 종료
       return;
     }
@@ -188,24 +152,14 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
           // 모든 관련 스토리지 항목 제거
           sessionStorage.removeItem(STORAGE_KEYS.NEWS_DATA);
           sessionStorage.removeItem(STORAGE_KEYS.NEWS_PAGE);
-          sessionStorage.removeItem(STORAGE_KEYS.GLOBAL_ID_SET);
-          sessionStorage.removeItem(STORAGE_KEYS.SCROLL_POS);
-          sessionStorage.removeItem(STORAGE_KEYS.BACK_NAVIGATION);
-          sessionStorage.removeItem(STORAGE_KEYS.CACHE_TIME); // 새로고침 시 캐시 타임도 초기화
-          
-          // 추가로 모든 moreNews ���련 캐시 정리
+          sessionStorage.removeItem(STORAGE_KEYS.CACHE_TIME);
+
+          // 추가로 모든 moreNews 관련 캐시 정리
           Object.keys(sessionStorage).forEach(key => {
             if (key.startsWith('moreNews') || key.includes('moreNews')) {
               sessionStorage.removeItem(key);
             }
           });
-          
-          // 쿨다운 플래그 초기화
-          window._newsLoadCooldown = false;
-          window._forceNextLoad = false;
-          
-          // 전역 상태 초기화
-          window._loadedNewsIds = new Set();
           
           // 스크롤 초기화
           window.scrollTo(0, 0);
@@ -216,12 +170,12 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
             : [];
           
           
-          // 상태 초기화
+          // 상태 초기화 - 초기 데이터가 있으면 page 2부터 시작 (page 1은 SSR 데이터로 커버)
           setAllNews(limitedInitialNews);
-          setPage(1);
+          setPage(limitedInitialNews.length > 0 ? 2 : 1);
           setHasMore(true);
           setError(null);
-          
+
           // 초기 데이터가 없으면 즉시 API 호출
           if (limitedInitialNews.length === 0) {
             setTimeout(() => {
@@ -231,14 +185,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
           
           // 초기 데이터 처리 완료 표시
           initialDataAppliedRef.current = true;
-          
-          // ID 캐시에 초기 데이터 추가
-          if (limitedInitialNews.length > 0) {
-            limitedInitialNews.forEach(news => {
-              const newsId = news._id || news.id;
-              if (newsId) window._loadedNewsIds.add(newsId);
-            });
-          }
           
           // 새로고침 시 캐시 타임 설정
           sessionStorage.setItem(STORAGE_KEYS.CACHE_TIME, Date.now().toString());
@@ -255,47 +201,25 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
     if (!initialDataAppliedRef.current) {
       
       // 카테고리가 지정된 경우 initialNews에서 해당 카테고리만 필터링
+      let limitedNews;
       if (category && initialNews.length > 0) {
-        // 카테고리가 배열인 경우 여러 카테고리의 뉴스를 모두 표시
         const filteredNews = initialNews.filter(news => isNewsInCategory(news));
-        
-        if (isCategoryArray()) {
-        } else {
-        }
-        
-        const limitedNews = (filteredNews || []).slice(0, NEWS_PER_LOAD);
-        setAllNews(limitedNews);
+        limitedNews = (filteredNews || []).slice(0, NEWS_PER_LOAD);
       } else {
-        const limitedNews = (initialNews || []).slice(0, NEWS_PER_LOAD);
-        setAllNews(limitedNews);
+        limitedNews = (initialNews || []).slice(0, NEWS_PER_LOAD);
       }
-      
-      setPage(1);
+      setAllNews(limitedNews);
+
+      // 초기 데이터가 있으면 page 2부터 시작
+      setPage(limitedNews.length > 0 ? 2 : 1);
       setHasMore(true);
       setError(null);
       
       // 초기 데이터 처리 완료 표시
       initialDataAppliedRef.current = true;
       
-      // 전역 ID 캐시 초기화
-      if (typeof window !== 'undefined') {
-        window._loadedNewsIds = window._loadedNewsIds || new Set();
-        
-        // 초기 데이터가 있는 경우 ID 캐시에 추가
-        if (initialNews && initialNews.length > 0) {
-          // 카테고리 필터링 적용
-          const newsToCache = category
-            ? initialNews.filter(news => isNewsInCategory(news))
-            : initialNews;
-            
-          newsToCache.forEach(news => {
-            const newsId = news._id || news.id;
-            if (newsId) window._loadedNewsIds.add(newsId);
-          });
-        }
-      }
     }
-    
+
     // 컴포넌트 언마운트 시 타이머 정리
     return () => {
       if (initialLoadTimerRef.current) {
@@ -304,46 +228,6 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
     };
   }, [initialNews, category]);
   
-  // 초기화 이펙트 - 화면 크기에 따른 모바일 감지
-  useEffect(() => {
-    // 모바일 여부 확인 함수
-    const checkMobile = () => {
-      const mobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
-      setIsMobile(mobile);
-    };
-    
-    // 초기 모바일 상태 확인
-    checkMobile();
-    
-    // 리사이즈 이벤트 리스너 등록
-    const handleResize = debounce(checkMobile, 300);
-    window.addEventListener('resize', handleResize);
-    
-    // 클린업 함수
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
-  
-  // 디바운스 유틸리티 함수
-  function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-      const later = () => {
-        clearTimeout(timeout);
-        func(...args);
-      };
-      clearTimeout(timeout);
-      timeout = setTimeout(later, wait);
-    };
-  };
-
-  // 디버깅용 로그 추가
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-    }
-  }, [allNews.length, page, hasMore, loading]);
-
   // 현재 경로와 뉴스 데이터 상태 저장 (세션 스토리지에 자동 저장)
   useEffect(() => {
     if (typeof window === 'undefined' || allNews.length === 0) return;
@@ -723,175 +607,37 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
     }
   };
 
-  // 현재 상태 출력을 위한 useEffect
+  // 카테고리 필터링 보정 (카테고리 페이지에서 잘못된 카테고리 기사 제거)
   useEffect(() => {
-    if (category) {
-      if (isCategoryArray()) {
-      } else {
-      }
-    }
-    
-    // 필터링이 제대로 되었는지 확인
     if (category && allNews.length > 0) {
       const correctCategoryCount = allNews.filter(news => isNewsInCategory(news)).length;
-      if (correctCategoryCount < allNews.length) {
-        if (isCategoryArray()) {
-          console.warn(`[MoreNews] 경고: ${allNews.length}개 중 ${correctCategoryCount}개만 [${category.join(', ')}] 카테고리. 잘못된 필터링 가능성 있음.`);
-        } else {
-          console.warn(`[MoreNews] 경고: ${allNews.length}개 중 ${correctCategoryCount}개만 '${category}' 카테고리. 잘못된 필터링 가능성 있음.`);
-        }
-        
-        // 필터링 적용 (필요한 경우에만)
-        if (correctCategoryCount < allNews.length * 0.9) { // 90% 이상이 올바른 카테고리가 아닌 경우에만 수정
-          setAllNews(prev => prev.filter(news => isNewsInCategory(news)));
-        }
+      if (correctCategoryCount < allNews.length * 0.9) {
+        setAllNews(prev => prev.filter(news => isNewsInCategory(news)));
       }
     }
-  }, [allNews.length, page, category]);
-
-  // 뉴스를 세트로 그룹화 (한 세트에 6개씩)
-  const getNewsSets = () => {
-    if (!Array.isArray(allNews)) {
-      console.error("allNews is not an array:", allNews);
-      return [];
-    }
-    
-    // 현재 카테고리에 맞는 뉴스만 필터링 (추가 안전장치)
-    const filteredNews = category 
-      ? allNews.filter(news => isNewsInCategory(news))
-      : allNews;
-    
-    const sets = [];
-    for (let i = 0; i < filteredNews.length; i += NEWS_PER_SET) {
-      const set = filteredNews.slice(i, i + NEWS_PER_SET);
-      if (set.length > 0) {
-        sets.push(set);
-      }
-    }
-    return sets;
-  };
-
-  const newsSets = getNewsSets();
+  }, [allNews.length, category]);
   
-  // 컴포넌트 마운트 시 페이지 로드 방식 기록
+  // 페이지 나갈 때 뉴스 데이터 저장 (스크롤 복원은 _app.js + useScrollRestore에서 처리)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
-    // 페이지가 로드된 방식을 세션 스토리지에 기록
-    const pageLoadMethod = {
-      time: new Date().toISOString(),
-      isRefresh: wasRefreshedRef.current,
-      hasSessionData: sessionStorage.getItem(STORAGE_KEYS.NEWS_DATA) !== null
-    };
-    
-    try {
-      sessionStorage.setItem('pageLoadMethod', JSON.stringify(pageLoadMethod));
-    } catch (e) {
-      console.error('[MoreNews] 페이지 로드 방식 저장 오류:', e);
-    }
-  }, []);
-  
-  // 현재 스크롤 위치 저장
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    // 스크롤 위치 저장 함수
-    const saveScrollPosition = () => {
-      // 스크롤 복원 중에는 저장하지 않음 - 중요!
-      if (restoringScrollRef.current) return;
-      
-      try {
-        const scrollPosition = window.scrollY || document.documentElement.scrollTop;
-        sessionStorage.setItem(STORAGE_KEYS.SCROLL_POS, scrollPosition.toString());
-        console.log(`[Log] 스크롤 저장 [home]: ${window.location.pathname} = ${scrollPosition}`);
-      } catch (e) {
-        console.error('[MoreNews] 스크롤 위치 저장 오류:', e);
-      }
-    };
-    
-    // 스크롤 이벤트 디바운싱 (성능 최적화)
-    let scrollTimer;
-    const handleScroll = () => {
-      // 스크롤 복원 중에는 이벤트 무시
-      if (restoringScrollRef.current) return;
-      
-      clearTimeout(scrollTimer);
-      scrollTimer = setTimeout(saveScrollPosition, 300);
-    };
-    
-    // 페이지 나갈 때 최종 스크롤 위치 저장
+
     const handleBeforeUnload = () => {
-      // 스크롤 복원 중이 아닐 때만 저장
-      if (!restoringScrollRef.current) {
-        saveScrollPosition();
-      }
-      
-      // 뉴스 데이터도 저장
       if (allNews.length > 0) {
         try {
           sessionStorage.setItem(STORAGE_KEYS.NEWS_DATA, JSON.stringify(allNews));
           sessionStorage.setItem(STORAGE_KEYS.NEWS_PAGE, page.toString());
-          sessionStorage.setItem(STORAGE_KEYS.CACHE_TIME, Date.now().toString()); // 이탈 시 캐시 타임 업데이트
+          sessionStorage.setItem(STORAGE_KEYS.CACHE_TIME, Date.now().toString());
         } catch (e) {
           console.error('[MoreNews] 이탈 시 데이터 저장 오류:', e);
         }
       }
     };
-    
-    window.addEventListener('scroll', handleScroll);
+
     window.addEventListener('beforeunload', handleBeforeUnload);
-    
     return () => {
-      window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      clearTimeout(scrollTimer);
     };
-  }, [allNews, page, restoringScrollRef.current]);
-  
-  // 뒤로가기 시 스크롤 위치 복원 - 간소화된 코드
-  useEffect(() => {
-    if (typeof window === 'undefined' || !restoringScrollRef.current) return;
-    
-    // 스크롤 타이머 참조 배열
-    const scrollTimers = [];
-    
-    try {
-      const savedScrollPosition = parseInt(sessionStorage.getItem(STORAGE_KEYS.SCROLL_POS) || '0');
-      if (savedScrollPosition > 0) {
-        
-        // 스크롤 복원은 한 번만 시도 (지연 적용)
-        const timer = setTimeout(() => {
-          // 중요: 복원 중인 상태인 경우에만 스크롤 복원 실행
-          if (restoringScrollRef.current) {
-            window.scrollTo({
-              top: savedScrollPosition,
-              behavior: 'auto'
-            });
-            
-            // 스크롤 복원 직후 세션 스토리지에서 스크롤 위치 제거
-            // 이렇게 하면 사용자의 추가 스크롤 상호작용이 존중됨
-            sessionStorage.removeItem(STORAGE_KEYS.SCROLL_POS);
-            
-            // 스크롤 복원 플래그 비활성화 (즉시)
-            restoringScrollRef.current = false;
-          }
-        }, 300);
-        
-        scrollTimers.push(timer);
-      } else {
-        // 저장된 스크롤 위치가 없으면 즉시 복원 모드 비활성화
-        restoringScrollRef.current = false;
-      }
-    } catch (e) {
-      console.error('[MoreNews] 스크롤 위치 복원 오류:', e);
-      restoringScrollRef.current = false;
-    }
-    
-    // 컴포넌트 언마운트 시 타이머 정리
-    return () => {
-      scrollTimers.forEach(timer => clearTimeout(timer));
-    };
-  }, [restoringScrollRef.current]);
+  }, [allNews, page]);
 
   // Intersection Observer 설정 (무한스크롤을 위한 핵심 기능)
   useEffect(() => {
@@ -930,91 +676,78 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
     };
   }, [loading, hasMore, allNews.length]); // allNews.length 의존성 추가로 새 뉴스 로드 시 observer 재설정
   
-  // 스켈레톤 작은 카드 컴포넌트 (재사용 가능)
-  const SkeletonSmallCard = () => (
-    <div className="flex gap-2 bg-white py-3">
-      <div className="w-40 h-32 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-lg relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-      </div>
-      <div className="flex-1 pt-0 pr-3 pb-0 pl-3 flex flex-col justify-between">
-        <div>
-          <div className="h-5 w-1/3 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-md mb-2 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-          </div>
-          <div className="h-4 w-full bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-md mb-1 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-          </div>
-          <div className="h-4 w-5/6 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-md relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-          </div>
-        </div>
-        <div className="flex items-end justify-between w-full mt-2">
-          <div className="h-3 w-16 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-md relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-          </div>
-          <div className="h-4 w-4 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-md relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  // 시간 표시 함수
+  const getTimeAgo = (dateStr) => {
+    if (!dateStr) return '';
+    const now = new Date();
+    const date = new Date(dateStr);
+    const diffMs = now - date;
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHr = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHr / 24);
+
+    if (diffMin < 1) return 'Just now';
+    if (diffMin < 60) return `${diffMin} min ago`;
+    if (diffHr < 24) return `${diffHr} hr ago`;
+    if (diffDay < 7) return `${diffDay}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  // 모든 뉴스를 flat 리스트로 렌더링
+  const filteredNews = category
+    ? allNews.filter(news => isNewsInCategory(news))
+    : allNews;
+
+  // PC 3열 그리드에서 마지막 행이 불완전하지 않도록 3의 배수로 표시
+  // (더 로드할 데이터가 있을 때만 - 마지막 페이지면 전체 표시)
+  const displayedNews = hasMore && filteredNews.length > 3 && filteredNews.length % 3 !== 0
+    ? filteredNews.slice(0, Math.floor(filteredNews.length / 3) * 3)
+    : filteredNews;
 
   return (
     <div className="mb-8 md:mb-16">
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center">
-          {/* New Icon */}
-          <div className="mr-4 flex-shrink-0">
-            <img
-              src="/images/icons8-new-48.png"
-              alt="New Icon"
-              className="h-12 w-12 object-contain"
-            />
-          </div>
-          <div className="flex-1">
-            <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#233CFA' }}>Continue Reading</span>
-            <h2 className="text-2xl font-bold text-gray-800">
-              {category === 'movie' ? 'Latest K-Movie Updates' :
-               category === 'drama' ? 'Latest K-Drama Updates' :
-               (category === 'celeb' || (Array.isArray(category) && category.includes('celeb'))) ? 'Latest K-Celeb Updates' :
-               'Latest K-Pop Updates'}
-            </h2>
-          </div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-7">
+        <div className="flex items-center gap-2.5">
+          <h2 className="text-[26px] font-black text-[#101828]">
+            {category === 'movie' ? 'More Movie News' :
+             category === 'drama' ? 'More Drama News' :
+             (category === 'celeb' || (Array.isArray(category) && category.includes('celeb'))) ? 'More Celebrity News' :
+             'More News'}
+          </h2>
+          <span className="text-2xl">🔥</span>
         </div>
       </div>
 
-      {/* 데이터가 없고 로딩 중이 아닌 경우 빈 화면 표시 */}
-      {(newsSets.length === 0 && !loading) && (
+      {/* Empty state */}
+      {(displayedNews.length === 0 && !loading) && (
         <div className="text-center py-16">
           {error ? (
-            // 에러가 발생한 경우 에러 메시지 표시
             <div>
               <p className="text-red-500 mb-2">An error occurred while loading data.</p>
-              <p className="text-gray-500 mb-4">{error}</p>
-              <button 
+              <p className="text-ksp-meta mb-4">{error}</p>
+              <button
                 onClick={() => {
                   setError(null);
                   setPage(1);
                   setHasMore(true);
                   loadMoreNews();
-                }} 
-                className="mt-2 px-4 py-2 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-colors"
+                }}
+                className="mt-2 px-4 py-2 bg-ksp-accent text-white rounded-full hover:opacity-90 transition-colors"
               >
                 Try Again
               </button>
             </div>
           ) : (
-            // 일반적인 데이터 없음 메시지
             <div>
-              <p className="text-gray-500">No news available to display.</p>
-              <button 
+              <p className="text-ksp-meta">No news available to display.</p>
+              <button
                 onClick={() => {
                   setPage(1);
                   setHasMore(true);
                   loadMoreNews();
-                }} 
-                className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-colors"
+                }}
+                className="mt-4 px-4 py-2 bg-ksp-accent text-white rounded-full hover:opacity-90 transition-colors"
               >
                 Load News
               </button>
@@ -1023,260 +756,69 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         </div>
       )}
 
-      {/* 각 뉴스 세트 렌더링 */}
-      {newsSets.map((set, setIndex) => (
-        <div key={`set-${setIndex}`} className="mb-10">
-          {set.length > 0 && (
-            <>
-              {/* 모바일에서는 기존 레이아웃 유지 */}
-              <div className="block lg:hidden space-y-4">
-                {/* 첫 번째 뉴스는 큰 카드로 표시 */}
-                <Link
-                  href={`/news/${set[0]._id || set[0].id}`}
-                  key={set[0]._id || set[0].id}
-                  onClick={handleNewsClick}
-                >
-                  <div className="block cursor-pointer">
-                    <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">
-                      <div className="h-64 overflow-hidden relative rounded-md">
-                        {set[0].coverImage ? (
-                          <img
-                            src={set[0].coverImage}
-                            alt={set[0].title}
-                            className="w-full h-full object-cover transition-transform duration-500 "
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = "/images/placeholder.jpg";
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-400">
-                            <span>Image Placeholder</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="p-4">
-                        <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#006fff] transition-colors">
-                          {set[0].title}
-                        </h3>
-                        
-                        <p className="text-gray-600 text-xs line-clamp-2 mb-3">
-                          {set[0].content && set[0].content.trim()
-                            ? set[0].content.replace(/<[^>]*>/g, '').slice(0, 120) + '...' 
-                            : set[0].summary 
-                              ? set[0].summary.slice(0, 120) + '...'
-                              : 'No content available'}
-                        </p>
-                        
-                        <div className="flex justify-between items-end">
-                          {/* 시간 배지 */}
-                          <div className="flex items-center text-gray-500 text-xs">
-                            <Clock size={12} className="mr-1 text-gray-500" />
-                            <span>{new Date(set[0].createdAt || set[0].date).toLocaleDateString()}</span>
-                          </div>
-                          
-                          {/* Read more 버튼 */}
-                          <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#233CFA' }}>
-                            Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" style={{ color: '#233CFA' }} />
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-                
-                {/* 나머지 뉴스는 작은 카드로 표시 */}
-                <div className="space-y-2 mt-4">
-                  {set.slice(1).map((news, idx) => {
-                    // 모바일에서도 마지막 항목 감지를 정확히 하기 위해 검사 로직 개선
-                    const isLastItem = setIndex === newsSets.length - 1 && 
-                      (idx === set.slice(1).length - 1 || 
-                       (allNews.length % NEWS_PER_SET !== 0 && 
-                        idx === set.slice(1).length - 1 && 
-                        allNews.length === setIndex * NEWS_PER_SET + idx + 2));
-                    
-                    return (
-                      <Link
-                        key={news._id || news.id}
-                        href={`/news/${news._id || news.id}`}
-                        onClick={handleNewsClick}
-                      >
-                        <div 
-                          className="block bg-white overflow-hidden py-3 cursor-pointer"
-                        >
-                          <div className="flex gap-1">
-                            {/* 썸네일 */}
-                            <div className="w-40 h-32 flex-shrink-0 relative rounded-md overflow-hidden">
-                              <img
-                                src={news.coverImage || '/images/placeholder.jpg'}
-                                alt={news.title}
-                                className="w-full h-full object-cover rounded-md"
-                                onError={(e) => {
-                                  e.target.onerror = null;
-                                  e.target.src = "/images/placeholder.jpg";
-                                }}
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-                            </div>
-                            
-                            {/* 콘텐츠 */}
-                            <div className="flex-1 pt-0 pr-3 pb-0 pl-3 flex flex-col justify-between h-32">
-                              <div>
-                                <h3 className="text-base md:text-lg font-semibold line-clamp-3 text-gray-800 mt-2">
-                                  {news.title}
-                                </h3>
-                              </div>
-                              <div className="flex items-end justify-between w-full mt-2">
-                                <div className="flex items-center text-gray-500 text-xs">
-                                  <Clock size={12} className="mr-1" />
-                                  {new Date(news.createdAt || news.date).toLocaleDateString()}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
+      {/* News grid - 3-column card style matching ArticleCardGrid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {displayedNews.map((news) => (
+          <Link
+            key={news._id || news.id}
+            href={`/news/${news.slug || news._id || news.id}`}
+            className="cursor-pointer group"
+          >
+            {/* Image */}
+            <div className="relative rounded-card overflow-hidden mb-4 bg-[#F3F4F6]">
+              <img
+                src={news.coverImage || news.thumbnailUrl || '/images/placeholder.jpg'}
+                alt={news.title}
+                className="w-full h-[209px] object-cover group-hover:scale-105 transition-transform duration-300"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = '/images/placeholder.jpg';
+                }}
+              />
+              <CategoryTag category={news.category} variant="overlay" className="absolute top-3 left-3" />
+            </div>
 
-              {/* PC에서는 3열 그리드 레이아웃 적용 */}
-              <div className="hidden lg:grid grid-cols-3 gap-6">
-                {set.map((news, idx) => {
-                  const isLastItem = setIndex === newsSets.length - 1 && idx === set.length - 1;
-                  
-                  return (
-                    <Link
-                      key={news._id || news.id}
-                      href={`/news/${news._id || news.id}`}
-                      onClick={handleNewsClick}
-                    >
-                      <div
-                        className="block bg-white rounded-lg overflow-hidden transition-all duration-300 group relative cursor-pointer"
-                      >
-                        <div className="h-56 overflow-hidden relative rounded-md">
-                          {/* 이미지 */}
-                          <img
-                            src={news.coverImage || '/images/placeholder.jpg'}
-                            alt={news.title}
-                            className="w-full h-full object-cover transition-transform duration-500 "
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = "/images/placeholder.jpg";
-                            }}
-                          />
-                        </div>
-                        
-                        <div className="p-4">
-                          <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#006fff] transition-colors">
-                            {news.title}
-                          </h3>
-                          
-                          <p className="text-gray-600 text-xs line-clamp-2 mb-3">
-                            {news.content && news.content.trim()
-                              ? news.content.replace(/<[^>]*>/g, '').slice(0, 120) + '...' 
-                              : news.summary 
-                                ? news.summary.slice(0, 120) + '...'
-                                : 'No content available'}
-                          </p>
-                          
-                          <div className="flex justify-between items-end">
-                            {/* 시간 배지 */}
-                            <div className="flex items-center text-gray-500 text-xs">
-                              <Clock size={12} className="mr-1 text-gray-500" />
-                              <span>{new Date(news.createdAt || news.date).toLocaleDateString()}</span>
-                            </div>
-                            
-                            {/* Read more 버튼 */}
-                            <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#233CFA' }}>
-                              Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" style={{ color: '#233CFA' }} />
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
-      ))}
-      
-      {/* 추가 데이터 로딩 스켈레톤 UI */}
+            {/* Title */}
+            <h3
+              className="font-bold text-lg leading-[1.375] text-[#101828] line-clamp-2 mb-2 group-hover:text-ksp-accent transition-colors"
+              style={{ letterSpacing: '-0.0244em' }}
+            >
+              {news.title}
+            </h3>
+
+            {/* Description */}
+            <p
+              className="text-sm leading-[1.625] line-clamp-2 mb-2"
+              style={{ color: '#6A7282', letterSpacing: '-0.0107em', fontFamily: 'Pretendard, Inter, sans-serif' }}
+            >
+              {news.content ? news.content.replace(/<[^>]*>/g, '').slice(0, 120) : (news.summary || '')}
+            </p>
+
+            {/* Date */}
+            <span className="text-xs text-ksp-meta">
+              {getTimeAgo(news.createdAt || news.publishedAt || news.date)}
+            </span>
+          </Link>
+        ))}
+      </div>
+
+      {/* Loading skeleton - 3-column card style */}
       {loading && (
-        <div className="mt-4 mb-8 space-y-6 relative">
-          {/* 모바일용 스켈레톤 UI (2개 카드 표시) */}
-          <div className="block lg:hidden">
-            {/* 큰 카드 스켈레톤 (첫 번째 카드) */}
-            <div className="bg-white rounded-lg overflow-hidden relative mb-4">
-              <div className="h-56 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync relative rounded-lg overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-              </div>
-              <div className="p-4">
-                <div className="h-6 w-3/4 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-md mb-3 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-                </div>
-                <div className="h-4 w-full bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-md mb-2 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-                </div>
-                <div className="h-4 w-2/3 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-md mb-3 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <div className="h-3 w-16 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-md relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-                  </div>
-                  <div className="h-3 w-16 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-md relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-                  </div>
-                </div>
-              </div>
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+          {Array.from({ length: 3 }).map((_, idx) => (
+            <div key={`skeleton-${idx}`}>
+              <div className="w-full h-[209px] rounded-card bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-pulse mb-4" />
+              <div className="h-5 w-full bg-gray-200 animate-pulse rounded mb-2" />
+              <div className="h-5 w-3/4 bg-gray-200 animate-pulse rounded mb-2" />
+              <div className="h-4 w-full bg-gray-100 animate-pulse rounded mb-1" />
+              <div className="h-4 w-2/3 bg-gray-100 animate-pulse rounded mb-2" />
+              <div className="h-3 w-20 bg-gray-100 animate-pulse rounded" />
             </div>
-            
-            {/* 작은 카드 스켈레톤 (1개만 표시) */}
-            <div className="space-y-2 mt-4">
-              <SkeletonSmallCard />
-            </div>
-          </div>
-          
-          {/* 데스크탑용 스켈레톤 UI (그리드 레이아웃) */}
-          <div className="hidden lg:grid grid-cols-3 gap-6">
-            {Array.from({ length: 6 }).map((_, idx) => (
-              <div key={`skeleton-desktop-${idx}`} className="bg-white rounded-lg overflow-hidden relative">
-                <div className="h-56 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync relative rounded-lg overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-                </div>
-                <div className="p-4">
-                  <div className="h-6 w-3/4 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-md mb-3 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-                  </div>
-                  <div className="h-4 w-full bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-md mb-2 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-                  </div>
-                  <div className="h-4 w-2/3 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-md mb-3 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <div className="h-3 w-16 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-md relative overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-                    </div>
-                    <div className="h-3 w-16 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer-sync rounded-md relative overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-wave-sync"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          ))}
         </div>
       )}
-      
-      {/* 무한스크롤 감지를 위한 요소 (사용자에게 보이지 않음) */}
+
+      {/* Infinite scroll sentinel */}
       {hasMore && !loading && allNews.length > 0 && (
         <div
           ref={lastNewsElementRef}
@@ -1285,81 +827,14 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         />
       )}
 
-      {/* 더 이상 로드할 뉴스가 없음을 알리는 메시지 */}
+      {/* End of list message */}
       {!loading && !hasMore && allNews.length > 0 && allNews.length < maxNewsCount && (
-        <div className="text-center py-6 text-gray-500 text-sm">
+        <div className="text-center py-6 text-ksp-meta text-sm">
           <p>You've reached all available news.</p>
         </div>
       )}
 
-      {/* Add consistent bottom spacing */}
       <div className="mb-12"></div>
-
-      {/* 모바일 마지막 아이템 감지를 위한 스타일 */}
-      <style jsx>{`
-        .mobile-last-item {
-          margin-bottom: 50px;
-          position: relative;
-        }
-        .mobile-last-item::after {
-          content: '';
-          position: absolute;
-          left: 0;
-          right: 0;
-          bottom: -30px;
-          height: 30px;
-          background: transparent;
-        }
-        @media (max-width: 768px) {
-          div[key^="set-"]:last-child {
-            margin-bottom: 60px;
-          }
-        }
-        @media (min-width: 769px) {
-          div[key^="set-"]:last-child {
-            margin-bottom: 80px;
-          }
-        }
-        .animate-spin-slow {
-          animation: spin 2s linear infinite;
-        }
-        @keyframes spin {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg);
-          }
-        }
-        .animate-shimmer-sync {
-          background-size: 800px 100%;
-          animation: shimmer 2s infinite linear;
-          animation-delay: 0s !important;
-        }
-        @keyframes shimmer {
-          0% {
-            background-position: -400px 0;
-          }
-          100% {
-            background-position: 400px 0;
-          }
-        }
-        .animate-wave-sync {
-          animation: wave 2s infinite ease-in-out;
-          animation-delay: 0s !important;
-        }
-        @keyframes wave {
-          0% {
-            transform: translateX(-100%);
-          }
-          50% {
-            transform: translateX(100%);
-          }
-          100% {
-            transform: translateX(100%);
-          }
-        }
-      `}</style>
     </div>
   );
 };

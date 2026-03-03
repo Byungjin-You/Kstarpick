@@ -14,8 +14,7 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB = process.env.MONGODB_DB || 'kstarpick';
 
 if (!MONGODB_URI) {
-  console.error('[News API] MONGODB_URI environment variable is not defined');
-  throw new Error('MONGODB_URI environment variable is not defined');
+  console.warn('[News API] MONGODB_URI not defined - will use local data fallback in development');
 }
 
 // Configure formidable options
@@ -120,13 +119,77 @@ export default async function handler(req, res) {
   }
 }
 
+async function getNewsFromLocalData(req, res) {
+  try {
+    const localDataPath = path.join(process.cwd(), 'data', 'local-news.json');
+    if (!fs.existsSync(localDataPath)) {
+      return res.status(500).json({ success: false, message: 'Local data file not found. Run: fetch from production first.' });
+    }
+    const rawData = JSON.parse(fs.readFileSync(localDataPath, 'utf-8'));
+    let allNews = rawData.data.news || [];
+
+    const {
+      page = 1, limit = 10, category, featured,
+      sort = 'publishedAt', order = 'desc',
+      title, createdAfter, createdBefore
+    } = req.query;
+
+    // Apply filters
+    if (category && category !== 'all') {
+      allNews = allNews.filter(n => n.category === category);
+    }
+    if (featured === 'true') {
+      allNews = allNews.filter(n => n.featured);
+    }
+    if (title) {
+      const regex = new RegExp(title, 'i');
+      allNews = allNews.filter(n => regex.test(n.title));
+    }
+    if (createdAfter) {
+      const after = new Date(createdAfter);
+      allNews = allNews.filter(n => new Date(n.createdAt) >= after);
+    }
+    if (createdBefore) {
+      const before = new Date(createdBefore);
+      allNews = allNews.filter(n => new Date(n.createdAt) <= before);
+    }
+
+    // Sort
+    const sortField = sort === 'publishedAt' ? 'createdAt' : sort;
+    allNews.sort((a, b) => {
+      const va = a[sortField] || '';
+      const vb = b[sortField] || '';
+      return order === 'desc' ? (vb > va ? 1 : -1) : (va > vb ? 1 : -1);
+    });
+
+    const total = allNews.length;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const news = allNews.slice(skip, skip + parseInt(limit));
+
+    console.log(`[News API] Local data: ${news.length}/${total} articles (page ${page})`);
+    return res.status(200).json({
+      success: true,
+      data: { news, total, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil(total / parseInt(limit)) }
+    });
+  } catch (error) {
+    console.error('[News API] Local data error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
 async function getNews(req, res) {
   let client;
-  
+
   try {
     console.log('[News API] === 네이티브 MongoDB 연결 시작 ===');
     console.log('[News API] NODE_ENV:', process.env.NODE_ENV);
-    
+
+    // 로컬 개발 환경에서 MONGODB_URI가 없거나 USE_LOCAL_DATA가 설정된 경우 로컬 데이터 사용
+    if (!MONGODB_URI || process.env.USE_LOCAL_DATA === 'true') {
+      console.log('[News API] Using local data file (no MONGODB_URI or USE_LOCAL_DATA=true)');
+      return getNewsFromLocalData(req, res);
+    }
+
     // MongoDB 클라이언트 연결 - 로컬/프로덕션 환경 구분
     const isLocal = process.env.NODE_ENV === 'development' && MONGODB_URI.includes('localhost');
     const options = isLocal ? {
@@ -144,7 +207,7 @@ async function getNews(req, res) {
     };
 
     client = new MongoClient(MONGODB_URI, options);
-    
+
     await client.connect();
     console.log('[News API] MongoDB 연결 성공');
     
@@ -318,9 +381,14 @@ async function getNews(req, res) {
     });
   } catch (error) {
     console.error('[News API] 뉴스 조회 오류:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: error.message 
+    // DB 연결 실패 시 로컬 데이터 fallback
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[News API] DB connection failed, falling back to local data');
+      return getNewsFromLocalData(req, res);
+    }
+    return res.status(500).json({
+      success: false,
+      message: error.message
     });
   } finally {
     if (client) {
@@ -566,6 +634,7 @@ async function createNews(req, res, session) {
             email: session.user.email,
             image: session.user.image || '',
           },
+          publishedAt: new Date(),
           createdAt: new Date(),
           updatedAt: new Date(),
         };

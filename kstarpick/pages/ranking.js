@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import useScrollRestore from '../hooks/useScrollRestore';
 import Head from 'next/head';
 import Link from 'next/link';
 import { Eye, ChevronRight, Calendar, Star, Heart, Medal, Clock, Bookmark, Music, Tv, Film, Users } from 'lucide-react';
@@ -51,38 +52,8 @@ export default function Ranking({ mostViewedNews = [], todayNews = [], weekNews 
   const [isMobile, setIsMobile] = useState(false);
   const [activeTab, setActiveTab] = useState('today'); // 'today', 'week', 'month'
 
-  // 스크롤 위치 복원 로직
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const isBackToRanking = sessionStorage.getItem('isBackToRanking');
-    const savedScrollPosition = sessionStorage.getItem('rankingScrollPosition');
-
-    if (isBackToRanking === 'true' && savedScrollPosition) {
-      const scrollPos = parseInt(savedScrollPosition, 10);
-
-      const restoreScroll = () => {
-        window.scrollTo(0, scrollPos);
-        document.documentElement.scrollTop = scrollPos;
-        document.body.scrollTop = scrollPos;
-      };
-
-      // 여러 시도로 동적 콘텐츠 로딩을 고려
-      setTimeout(restoreScroll, 50);
-      setTimeout(restoreScroll, 100);
-      setTimeout(restoreScroll, 200);
-      setTimeout(restoreScroll, 300);
-      setTimeout(restoreScroll, 500);
-
-      requestAnimationFrame(() => {
-        setTimeout(restoreScroll, 100);
-        setTimeout(restoreScroll, 300);
-      });
-
-      // 플래그 제거
-      sessionStorage.removeItem('isBackToRanking');
-    }
-  }, []);
+  // 스크롤 위치 복원
+  useScrollRestore('rankingScrollPosition', 'isBackToRanking');
 
   // 화면 크기 감지
   useEffect(() => {

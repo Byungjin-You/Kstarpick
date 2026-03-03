@@ -69,10 +69,35 @@ export default async function handler(req, res) {
     }
   } catch (error) {
     console.error(`[API] Error processing request:`, error);
+    // DB 연결 실패 시 로컬 데이터 fallback (GET만)
+    if (req.method === 'GET' && (process.env.NODE_ENV === 'development' || process.env.USE_LOCAL_DATA === 'true')) {
+      return getNewsFromLocalById(req, res, id);
+    }
     return res.status(500).json({
       success: false,
       message: error.message || 'Internal server error'
     });
+  }
+}
+
+function getNewsFromLocalById(req, res, id) {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const localPath = path.join(process.cwd(), 'data', 'local-news.json');
+    if (!fs.existsSync(localPath)) {
+      return res.status(404).json({ success: false, message: 'Local data not found' });
+    }
+    const rawData = JSON.parse(fs.readFileSync(localPath, 'utf-8'));
+    const allNews = rawData.data.news || [];
+    const news = allNews.find(n => n._id === id || n.slug === id);
+    if (!news) {
+      return res.status(404).json({ success: false, message: 'News not found' });
+    }
+    console.log(`[News API] Local data: found article "${news.title}"`);
+    return res.status(200).json({ success: true, data: news });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 }
 

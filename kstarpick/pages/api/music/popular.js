@@ -89,7 +89,7 @@ export default async function handler(req, res) {
       
       return {
         _id: music._id,
-        title: decodeHtmlEntities(music.title) || '',
+        title: decodeHtmlEntities(music.songTitle || music.title) || '',
         artist: decodeHtmlEntities(music.artist) || '',
         position: position,
         previousPosition: previousPosition,
@@ -114,6 +114,19 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error('인기 음악 목록 조회 오류:', error);
+    // 로컬 개발 환경에서 DB 연결 실패 시 로컬 데이터 fallback
+    if (process.env.NODE_ENV === 'development' || process.env.USE_LOCAL_DATA === 'true') {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const localPath = path.join(process.cwd(), 'data', 'local-music.json');
+        if (fs.existsSync(localPath)) {
+          const localData = JSON.parse(fs.readFileSync(localPath, 'utf-8'));
+          console.log('[Music API] Falling back to local data');
+          return res.status(200).json(localData);
+        }
+      } catch (e) { /* ignore */ }
+    }
     return res.status(500).json({
       success: false,
       message: '서버 오류가 발생했습니다.',

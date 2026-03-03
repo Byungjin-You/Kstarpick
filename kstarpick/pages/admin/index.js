@@ -689,7 +689,7 @@ export default function AdminDashboard() {
           articles: dashboardStats.popularArticles.map(a => ({
             ...a,
             viewCount: (a.viewCount || 0) * dataMultiplier,
-            totalReactions: (a.totalReactions || 0) * dataMultiplier
+            totalReactions: a.totalReactions || 0
           })),
           categoryStats: (dashboardStats.contentStats?.categories || []).map(c => ({
             ...c,
@@ -1591,7 +1591,7 @@ export default function AdminDashboard() {
                               const maxViews = Math.max(...articles.map(a => (a.viewCount || 0) * dataMultiplier), 1);
                               return articles.map((article, i) => {
                                 const views = (article.viewCount || 0) * dataMultiplier;
-                                const reactions = (article.totalReactions || 0) * dataMultiplier;
+                                const reactions = article.totalReactions || 0;
                                 const viewPercent = Math.round((views / maxViews) * 100);
                                 const daysAgo = article.createdAt ? Math.max(1, Math.floor((Date.now() - new Date(article.createdAt).getTime()) / 86400000)) : 1;
                                 const viewsPerDay = Math.round(views / daysAgo);

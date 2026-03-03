@@ -40,7 +40,7 @@ async function getComments(req, res) {
   try {
     console.log(`[Comment API] Getting comments for news ID: ${req.query.id}`);
     
-    const { id, page = 1, limit = 10 } = req.query;
+    const { id, page = 1, limit = 200 } = req.query;
     
     if (!id) {
       return res.status(400).json({ success: false, message: 'News ID is required' });

@@ -1,5 +1,5 @@
 /* Google Fonts Import */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Poppins:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;700&family=Poppins:wght@400;500;600;700&display=swap');
 
 /* React Quill Editor Styles */
 @import 'react-quill/dist/quill.snow.css';
@@ -8,15 +8,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 :root {
-  --foreground-rgb: 0, 0, 0;
+  --foreground-rgb: 18, 18, 18;
   --background-start-rgb: 255, 255, 255;
   --background-end-rgb: 255, 255, 255;
-  --primary-color: #ff3e8e;
-  --primary-gradient: linear-gradient(90deg, #ff3e8e, #ff7461);
-  --secondary-color: #5f27cd;
-  --light-gray: #f5f5f5;
-  --border-color: #e0e0e0;
+  --primary-color: #2B7FFF;
+  --primary-gradient: linear-gradient(135deg, #2B7FFF, #7C3AED);
+  --secondary-color: #333333;
+  --light-gray: #F9FAFB;
+  --border-color: #E5E7EB;
 }
 
 html {
@@ -37,7 +46,7 @@ body {
   overflow-x: hidden;
   overflow-y: auto;
   color: rgb(var(--foreground-rgb));
-  font-family: 'Noto Sans', 'Malgun Gothic', sans-serif;
+  font-family: 'Inter', 'Pretendard', 'Noto Sans KR', 'Noto Sans', sans-serif;
   margin: 0;
   padding: 0;
   position: relative;

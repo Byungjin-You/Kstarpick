@@ -7,21 +7,6 @@ import { useRouter } from 'next/router';
 const CardNews = React.memo(({ cards, featured }) => {
   const router = useRouter();
 
-  // 뉴스 카드 클릭 시 홈 스크롤 위치 저장 - useCallback으로 메모이제이션
-  const handleNewsClick = React.useCallback((e) => {
-    if (typeof window !== 'undefined' && router.pathname === '/') {
-      // 클릭 시점의 정확한 스크롤 위치를 즉시 캡처
-      const currentScroll = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-
-      // 이미 저장된 값이 있고 0이 아니면 유지 (routeChangeStart에서 이미 저장했을 수 있음)
-      const existingScroll = sessionStorage.getItem('homeScrollPosition');
-      if (!existingScroll || existingScroll === '0' || parseInt(existingScroll) === 0) {
-        sessionStorage.setItem('homeScrollPosition', currentScroll.toString());
-      } else {
-      }
-    }
-  }, [router.pathname]);
-
   // Set up featured cards - memoize to prevent re-computation on every render
   const limitedFeaturedCards = React.useMemo(() => {
     // 최대 6개의 피처드 카드만 사용하도록 제한
@@ -217,7 +202,6 @@ const CardNews = React.memo(({ cards, featured }) => {
               key={card._id || card.id}
               href={`/news/${card.slug || card._id || card.id}`}
               passHref
-              onClick={handleNewsClick}
             >
               <div className="block cursor-pointer">
                 <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">
@@ -340,8 +324,7 @@ const CardNews = React.memo(({ cards, featured }) => {
                 key={card._id || card.id}
                 href={`/news/${card._id || card.id}`}
                 passHref
-                onClick={handleNewsClick}
-              >
+                >
                 <div
                   className={`flex-shrink-0 w-[67%] min-w-[230px] md:w-[320px] snap-center transition-all duration-300 cursor-pointer mr-4 md:mr-6 bg-transparent ${
                     activeCardIndex === index

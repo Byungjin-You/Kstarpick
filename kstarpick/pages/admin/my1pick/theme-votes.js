@@ -19,12 +19,16 @@ import {
   Check,
   X,
   Save,
-  Loader2
+  Loader2,
+  BarChart3,
+  Crown,
+  ChevronDown
 } from 'lucide-react';
 
 export default function My1PickThemeVotes() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState('season'); // 'season' | 'onepick'
   const [loading, setLoading] = useState(true);
   const [allCampaigns, setAllCampaigns] = useState([]); // 전체 데이터 캐시
   const [error, setError] = useState(null);
@@ -72,18 +76,32 @@ export default function My1PickThemeVotes() {
   const [generatedArticle, setGeneratedArticle] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  // 원픽차트 관련 state
+  const [onepickData, setOnepickData] = useState(null);
+  const [onepickLoading, setOnepickLoading] = useState(false);
+  const [onepickSeason, setOnepickSeason] = useState('');
+  const [onepickChartFilter, setOnepickChartFilter] = useState('all');
+  const [expandedChart, setExpandedChart] = useState(null);
+
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/admin/login');
     }
   }, [status, router]);
 
-  // 데이터 로드 (월 변경 시 다시 로드)
+  // Season Chart 데이터 로드 (월 변경 시 다시 로드)
   useEffect(() => {
-    if (session?.user?.role === 'admin') {
+    if (session?.user?.role === 'admin' && activeTab === 'season') {
       fetchAllData();
     }
-  }, [session, filters.month]);
+  }, [session, filters.month, activeTab]);
+
+  // 원픽차트 데이터 로드
+  useEffect(() => {
+    if (session?.user?.role === 'admin' && activeTab === 'onepick') {
+      fetchOnepickData();
+    }
+  }, [session, activeTab, onepickSeason]);
 
   // 전체 데이터 로드 (한 번만)
   const fetchAllData = async () => {
@@ -108,9 +126,41 @@ export default function My1PickThemeVotes() {
     }
   };
 
+  // 원픽차트 데이터 로드
+  const fetchOnepickData = async () => {
+    setOnepickLoading(true);
+    setError(null);
+    try {
+      const seasonParam = onepickSeason ? `?season=${onepickSeason}` : '';
+      console.log('[onepick] Fetching:', `/api/my1pick/onepick-charts${seasonParam}`);
+      const res = await fetch(`/api/my1pick/onepick-charts${seasonParam}`);
+      console.log('[onepick] Response status:', res.status);
+      const result = await res.json();
+      console.log('[onepick] Result:', result.success, 'seasons:', result.data?.seasons?.length, 'charts:', result.data?.charts?.length);
+      if (result.success) {
+        setOnepickData(result.data);
+        if (!onepickSeason && result.data.currentSeason) {
+          setOnepickSeason(result.data.currentSeason);
+        }
+        setError(null);
+      } else {
+        setError(result.message);
+      }
+    } catch (err) {
+      setError('원픽차트 데이터를 불러오는데 실패했습니다.');
+      console.error(err);
+    } finally {
+      setOnepickLoading(false);
+    }
+  };
+
   // 새로고침 버튼용
   const handleRefresh = () => {
-    setDataLoaded(false);
+    if (activeTab === 'onepick') {
+      fetchOnepickData();
+    } else {
+      setDataLoaded(false);
+    }
   };
 
   // 기사 생성 버튼 클릭
@@ -157,6 +207,7 @@ export default function My1PickThemeVotes() {
         body: JSON.stringify({
           campaignIdx: selectedCampaign.idx,
           campaignTitle: selectedCampaign.title,
+          articleType: selectedCampaign._type === 'onepick' ? 'onepick' : 'season',
           artistName: generatedArticle.voteData?.artistName,
           groupName: generatedArticle.voteData?.groupName,
           voteCategory: generatedArticle.voteData?.category,
@@ -184,6 +235,35 @@ export default function My1PickThemeVotes() {
       alert('저장 중 오류가 발생했습니다.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // 원픽차트 기사 생성
+  const handleGenerateOnepickArticle = async (chart) => {
+    setSelectedCampaign({ idx: chart.campaignIdx, title: chart.title, _type: 'onepick', _chart: chart });
+    setArticleModal(true);
+    setGenerating(true);
+    setGeneratedArticle(null);
+
+    try {
+      const res = await fetch('/api/my1pick/generate-onepick-article', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chart })
+      });
+
+      const result = await res.json();
+
+      if (result.success) {
+        setGeneratedArticle(result.data);
+      } else {
+        alert('기사 생성 실패: ' + result.message);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('기사 생성 중 오류가 발생했습니다.');
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -295,7 +375,7 @@ export default function My1PickThemeVotes() {
     );
   };
 
-  if (status === 'loading' || loading) {
+  if (status === 'loading' || (loading && activeTab === 'season')) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center h-64">
@@ -316,11 +396,290 @@ export default function My1PickThemeVotes() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
             <Vote className="text-purple-500" />
-            마이원픽 Season Chart 투표
+            마이원픽 투표 관리
           </h1>
-          <p className="text-gray-500 mt-1">마이원픽 Season Chart 투표 현황을 확인합니다.</p>
+          <p className="text-gray-500 mt-1">마이원픽 Season Chart / 1PICK Chart 투표 현황을 확인합니다.</p>
         </div>
 
+        {/* 탭 */}
+        <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1">
+          <button
+            onClick={() => setActiveTab('season')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'season'
+                ? 'bg-white text-purple-700 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <BarChart3 size={18} />
+            Season Chart
+          </button>
+          <button
+            onClick={() => setActiveTab('onepick')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'onepick'
+                ? 'bg-white text-purple-700 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Crown size={18} />
+            1PICK Chart
+          </button>
+        </div>
+
+        {/* ========== 원픽차트 탭 ========== */}
+        {activeTab === 'onepick' && (
+          <>
+            {onepickLoading ? (
+              <div className="flex items-center justify-center h-64">
+                <RefreshCw className="animate-spin text-purple-500" size={32} />
+              </div>
+            ) : onepickData ? (
+              <>
+                {/* 시즌 선택 + 필터 */}
+                <div className="bg-white rounded-xl shadow-sm border p-4 mb-6">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Filter size={16} className="text-gray-400" />
+                      <span className="text-sm font-medium text-gray-600">시즌:</span>
+                    </div>
+                    <select
+                      value={onepickSeason}
+                      onChange={(e) => setOnepickSeason(e.target.value)}
+                      className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    >
+                      {onepickData.seasons?.map(s => (
+                        <option key={s.season} value={s.season}>{s.season}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={onepickChartFilter}
+                      onChange={(e) => setOnepickChartFilter(e.target.value)}
+                      className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    >
+                      <option value="all">전체 차트</option>
+                      <option value="KPOP(Solo)">KPOP(Solo)</option>
+                      <option value="KPOP(Group)">KPOP(Group)</option>
+                      <option value="TROT">TROT</option>
+                      <option value="CELEB">CELEB</option>
+                      <option value="GLOBAL">GLOBAL</option>
+                      <option value="TREND(Male)">TREND(Male)</option>
+                      <option value="TREND(Female)">TREND(Female)</option>
+                    </select>
+                    <button
+                      onClick={handleRefresh}
+                      className="ml-auto flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+                    >
+                      <RefreshCw size={16} />
+                      새로고침
+                    </button>
+                  </div>
+                </div>
+
+                {/* 시즌 요약 */}
+                {(() => {
+                  const currentSeasonInfo = onepickData.seasons?.find(s => s.season === onepickSeason);
+                  const filteredCharts = onepickChartFilter === 'all'
+                    ? onepickData.charts
+                    : onepickData.charts?.filter(c => c.chartType === onepickChartFilter);
+                  const seasonTotalVotes = filteredCharts?.reduce((sum, c) => sum + (c.totalVotes || 0), 0) || 0;
+
+                  return (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-purple-600 text-sm font-medium">차트 수</p>
+                              <p className="text-2xl font-bold text-purple-700">{filteredCharts?.length || 0}</p>
+                            </div>
+                            <BarChart3 className="text-purple-400" size={32} />
+                          </div>
+                        </div>
+                        <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-4 border border-yellow-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-yellow-600 text-sm font-medium">총 투표수</p>
+                              <p className="text-2xl font-bold text-yellow-700">{formatNumber(seasonTotalVotes)}</p>
+                            </div>
+                            <Crown className="text-yellow-400" size={32} />
+                          </div>
+                        </div>
+                        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-blue-600 text-sm font-medium">투표 기간</p>
+                              <p className="text-sm font-bold text-blue-700">
+                                {currentSeasonInfo ? `${formatDate(currentSeasonInfo.startAt)} ~ ${formatDate(currentSeasonInfo.endAt)}` : '-'}
+                              </p>
+                            </div>
+                            <Clock className="text-blue-400" size={32} />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 차트별 카드 */}
+                      <div className="space-y-4">
+                        {filteredCharts?.map((chart) => (
+                          <div key={chart.campaignIdx} className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                            {/* 차트 헤더 */}
+                            <div
+                              className={`px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors ${
+                                expandedChart === chart.campaignIdx ? 'bg-purple-50' : ''
+                              }`}
+                              onClick={() => setExpandedChart(
+                                expandedChart === chart.campaignIdx ? null : chart.campaignIdx
+                              )}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+                                    {chart.chartType}
+                                  </span>
+                                  <span className="font-medium text-gray-800">{chart.title}</span>
+                                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                    chart.states === 'Y' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                                  }`}>
+                                    {chart.states === 'Y' ? '진행중' : '종료'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                  <div className="text-right">
+                                    <p className="text-xs text-gray-400">총 투표수</p>
+                                    <p className="font-bold text-purple-600">{formatNumber(chart.totalVotes)}</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-xs text-gray-400">후보</p>
+                                    <p className="font-bold text-gray-600">{chart.candidateCount}명</p>
+                                  </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleGenerateOnepickArticle(chart);
+                                    }}
+                                    disabled={!chart.rankings?.length}
+                                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                      chart.rankings?.length
+                                        ? 'bg-blue-500 text-white hover:bg-blue-600'
+                                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                    }`}
+                                  >
+                                    기사 생성
+                                  </button>
+                                  <ChevronDown
+                                    size={20}
+                                    className={`text-gray-400 transition-transform ${
+                                      expandedChart === chart.campaignIdx ? 'rotate-180' : ''
+                                    }`}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* 상위 3명 미리보기 */}
+                              {expandedChart !== chart.campaignIdx && chart.rankings?.length > 0 && (
+                                <div className="flex gap-4 mt-3">
+                                  {chart.rankings.slice(0, 3).map((r, i) => (
+                                    <div key={r.starIdx} className="flex items-center gap-2">
+                                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                                        i === 0 ? 'bg-yellow-500 text-white' :
+                                        i === 1 ? 'bg-gray-400 text-white' :
+                                        'bg-orange-400 text-white'
+                                      }`}>{i + 1}</span>
+                                      <span className="text-sm text-gray-700">{r.displayName}</span>
+                                      <span className="text-xs text-gray-400">{formatNumber(r.useQty)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* 확장: 전체 순위 */}
+                            {expandedChart === chart.campaignIdx && (
+                              <div className="border-t px-5 py-4 bg-gray-50">
+                                <div className="text-sm font-medium text-purple-700 mb-3 flex items-center gap-2">
+                                  <Trophy size={16} />
+                                  전체 순위 ({chart.rankings?.length || 0}명)
+                                </div>
+                                <div className="bg-white rounded-lg border overflow-hidden">
+                                  <table className="w-full">
+                                    <thead className="bg-gray-100">
+                                      <tr>
+                                        <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600 w-16">순위</th>
+                                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">이름</th>
+                                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">영문명</th>
+                                        <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600">득표수</th>
+                                        <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600">득표율</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y">
+                                      {chart.rankings?.map((r, index) => (
+                                        <tr
+                                          key={r.starIdx}
+                                          className={
+                                            index === 0 ? 'bg-yellow-50' :
+                                            index === 1 ? 'bg-gray-50' :
+                                            index === 2 ? 'bg-orange-50' : ''
+                                          }
+                                        >
+                                          <td className="px-4 py-3 text-center">
+                                            <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-sm font-bold ${
+                                              index === 0 ? 'bg-yellow-500 text-white' :
+                                              index === 1 ? 'bg-gray-400 text-white' :
+                                              index === 2 ? 'bg-orange-400 text-white' :
+                                              'bg-gray-200 text-gray-600'
+                                            }`}>{r.rank}</span>
+                                          </td>
+                                          <td className="px-4 py-3 font-medium text-gray-800">
+                                            {r.starName || r.displayName}
+                                          </td>
+                                          <td className="px-4 py-3 text-gray-500 text-sm">
+                                            {r.starNameEn || '-'}
+                                          </td>
+                                          <td className="px-4 py-3 text-right">
+                                            <span className="font-bold text-purple-600">{formatNumber(r.useQty)}</span>
+                                            <span className="text-gray-400 text-xs ml-1">표</span>
+                                          </td>
+                                          <td className="px-4 py-3 text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                              <div className="w-20 bg-gray-200 rounded-full h-2">
+                                                <div
+                                                  className="bg-purple-500 h-2 rounded-full"
+                                                  style={{ width: `${Math.min(r.votePercent, 100)}%` }}
+                                                />
+                                              </div>
+                                              <span className="text-sm text-gray-600 w-14 text-right">{r.votePercent}%</span>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+
+                        {(!filteredCharts || filteredCharts.length === 0) && (
+                          <div className="bg-white rounded-xl shadow-sm border p-12 text-center text-gray-500">
+                            해당 시즌의 원픽차트 데이터가 없습니다.
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
+              </>
+            ) : (
+              <div className="bg-white rounded-xl shadow-sm border p-12 text-center text-gray-500">
+                원픽차트 데이터가 없습니다. 동기화 스크립트를 먼저 실행해주세요.
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ========== Season Chart 탭 (기존) ========== */}
+        {activeTab === 'season' && (<>
         {/* 통계 카드 */}
         {data?.stats && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -584,6 +943,9 @@ export default function My1PickThemeVotes() {
           </div>
         )}
 
+        </>)}
+        {/* ========== Season Chart 탭 끝 ========== */}
+
         {/* 기사 생성 모달 */}
         {articleModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -708,7 +1070,13 @@ export default function My1PickThemeVotes() {
                     취소
                   </button>
                   <button
-                    onClick={() => handleGenerateArticle(selectedCampaign)}
+                    onClick={() => {
+                      if (selectedCampaign?._type === 'onepick') {
+                        handleGenerateOnepickArticle(selectedCampaign._chart);
+                      } else {
+                        handleGenerateArticle(selectedCampaign);
+                      }
+                    }}
                     className="px-4 py-2 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors flex items-center gap-2"
                   >
                     <RefreshCw size={16} />

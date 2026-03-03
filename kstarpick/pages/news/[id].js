@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -9,7 +9,7 @@ import Seo from '../../components/Seo';
 import StructuredData from '../../components/StructuredData';
 import Analytics from '../../components/Analytics';
 import { generateNewsArticleJsonLd, generateMetaTags, generateKeywords } from '../../utils/seoHelpers';
-import { Heart, MessageCircle, Share2, Calendar, Clock, User, ChevronLeft, ChevronRight, ArrowUp, Bookmark, Eye, TrendingUp, ExternalLink, MessageSquare, ThumbsUp, Send, X, Smile } from 'lucide-react';
+import { Heart, Share2, Calendar, Clock, User, ChevronRight, ArrowUp, Send, X, Smile } from 'lucide-react';
 import Cookies from 'js-cookie';
 import { connectToDatabase } from "../../utils/mongodb";
 import { ObjectId } from 'mongodb';
@@ -92,11 +92,9 @@ const InstagramEmbed = ({ url, className = "" }) => {
   const blockquoteRef = useRef(null);
   const postId = extractInstagramPostId(url);
 
-  console.log('[InstagramEmbed] 컴포넌트 렌더링:', { url, postId, isClient, hasRef: !!blockquoteRef.current });
 
   // 클라이언트 사이드 확인
   useEffect(() => {
-    console.log('[InstagramEmbed] isClient useEffect 실행');
     setIsClient(true);
   }, []);
   
@@ -115,16 +113,12 @@ const InstagramEmbed = ({ url, className = "" }) => {
 
   useEffect(() => {
     if (!isClient || !blockquoteRef.current) {
-      console.log('[InstagramEmbed] 조건 불충족 - isClient:', isClient, 'blockquoteRef:', !!blockquoteRef.current);
       return;
     }
 
-    console.log('[InstagramEmbed] 초기화 시작 - blockquote 렌더링 확인됨');
-    console.log('[InstagramEmbed] window.instgrm 상태:', !!window.instgrm);
 
     // 스크립트가 없으면 로드
     if (!window.instgrm && window.loadInstagramScript) {
-      console.log('[InstagramEmbed] Instagram 스크립트 로드 요청');
       window.loadInstagramScript();
     }
 
@@ -134,17 +128,13 @@ const InstagramEmbed = ({ url, className = "" }) => {
     const processInstagramEmbed = () => {
       // blockquote가 실제로 DOM에 있는지 확인
       if (!blockquoteRef.current || !document.body.contains(blockquoteRef.current)) {
-        console.log('[InstagramEmbed] blockquote가 DOM에 없음');
         return false;
       }
 
-      console.log('[InstagramEmbed] 처리 시도 - instgrm:', !!window.instgrm, 'Embeds:', !!window.instgrm?.Embeds);
 
       if (window.instgrm?.Embeds) {
         try {
-          console.log('[InstagramEmbed] process() 실행 중...');
           window.instgrm.Embeds.process();
-          console.log('[InstagramEmbed] process() 성공');
           return true;
         } catch (error) {
           console.error('[InstagramEmbed] process() 실행 오류:', error);
@@ -155,13 +145,11 @@ const InstagramEmbed = ({ url, className = "" }) => {
 
     // 즉시 처리 시도
     if (processInstagramEmbed()) {
-      console.log('[InstagramEmbed] 즉시 처리 성공');
       return;
     }
 
     // 스크립트 로드 완료 이벤트 리스너
     eventListener = () => {
-      console.log('[InstagramEmbed] Instagram 스크립트 로드 완료 이벤트 수신');
       setTimeout(() => {
         processInstagramEmbed();
       }, 50);
@@ -175,18 +163,15 @@ const InstagramEmbed = ({ url, className = "" }) => {
 
     const retryProcess = () => {
       if (retryCount >= maxRetries) {
-        console.warn('[InstagramEmbed] 최대 재시도 횟수 도달');
         return;
       }
 
       if (!processInstagramEmbed()) {
         retryCount++;
-        console.log(`[InstagramEmbed] 재시도 #${retryCount}/${maxRetries}`);
         // 처음 10번은 빠르게 (100ms), 이후는 느리게 (500ms)
         const delay = retryCount <= 10 ? 100 : 500;
         processTimer = setTimeout(retryProcess, delay);
       } else {
-        console.log('[InstagramEmbed] 재시도 성공!');
       }
     };
 
@@ -297,16 +282,12 @@ const TwitterEmbed = ({ url, className = "" }) => {
 
   useEffect(() => {
     if (!isClient || !embedRef.current) {
-      console.log('[TwitterEmbed] 조건 ���충족 - isClient:', isClient, 'embedRef:', !!embedRef.current);
       return;
     }
 
-    console.log('[TwitterEmbed] 초기화 시작 - embedRef 렌더링 확인됨');
-    console.log('[TwitterEmbed] window.twttr 상태:', !!window.twttr);
 
     // 스크립트가 없으면 로드
     if (!window.twttr && window.loadTwitterScript) {
-      console.log('[TwitterEmbed] Twitter 스크립트 로드 요청');
       window.loadTwitterScript();
     }
 
@@ -316,11 +297,9 @@ const TwitterEmbed = ({ url, className = "" }) => {
     const processTwitterEmbed = () => {
       // embedRef가 실제로 DOM에 있는지 확인
       if (!embedRef.current || !document.body.contains(embedRef.current)) {
-        console.log('[TwitterEmbed] embedRef가 DOM에 없음');
         return false;
       }
 
-      console.log('[TwitterEmbed] 처리 시도 - twttr:', !!window.twttr, 'widgets:', !!window.twttr?.widgets);
 
       if (window.twttr?.widgets) {
         try {
@@ -333,7 +312,6 @@ const TwitterEmbed = ({ url, className = "" }) => {
           const tweetIdMatch = url.match(/\/status(?:es)?\/(\d+)/);
           if (tweetIdMatch) {
             const tweetId = tweetIdMatch[1];
-            console.log('[TwitterEmbed] 트윗 ID 추출:', tweetId);
 
             // 트위터 위젯 생성
             window.twttr.widgets.createTweet(
@@ -348,19 +326,16 @@ const TwitterEmbed = ({ url, className = "" }) => {
               }
             ).then((element) => {
               if (element) {
-                console.log('[TwitterEmbed] 트위터 위젯 생성 성공');
                 // 높이 자동 조정
                 setTimeout(() => {
                   const iframe = element.querySelector('iframe');
                   if (iframe) {
                     const height = iframe.offsetHeight || iframe.scrollHeight;
-                    console.log('[TwitterEmbed] 감지된 높이:', height);
                     setEmbedHeight(Math.min(height + 20, 600));
                   }
                 }, 1000);
                 return true;
               } else {
-                console.warn('[TwitterEmbed] 트위터 위젯 생성 결과가 null');
                 return false;
               }
             }).catch((error) => {
@@ -382,13 +357,11 @@ const TwitterEmbed = ({ url, className = "" }) => {
 
     // 즉시 처리 시도
     if (processTwitterEmbed()) {
-      console.log('[TwitterEmbed] 즉시 처리 시작됨');
       return;
     }
 
     // 스크립트 로드 완료 이벤트 리스너
     eventListener = () => {
-      console.log('[TwitterEmbed] Twitter 스크립트 로드 완료 이벤트 수신');
       setTimeout(() => {
         processTwitterEmbed();
       }, 50);
@@ -402,18 +375,15 @@ const TwitterEmbed = ({ url, className = "" }) => {
 
     const retryProcess = () => {
       if (retryCount >= maxRetries) {
-        console.warn('[TwitterEmbed] 최대 재시도 횟수 도달');
         return;
       }
 
       if (!processTwitterEmbed()) {
         retryCount++;
-        console.log(`[TwitterEmbed] 재시도 #${retryCount}/${maxRetries}`);
         // 처음 10번은 빠르게 (100ms), 이후는 느리게 (500ms)
         const delay = retryCount <= 10 ? 100 : 500;
         processTimer = setTimeout(retryProcess, delay);
       } else {
-        console.log('[TwitterEmbed] 재시도 성공!');
       }
     };
 
@@ -473,7 +443,6 @@ const RiddleEmbed = ({ riddleId, className = "" }) => {
   }, []);
 
   useEffect(() => {
-    console.log('[RiddleEmbed] 초기화 - riddleId:', riddleId, 'isClient:', isClient);
     
     if (!isClient || !riddleId) {
       if (!riddleId) {
@@ -485,7 +454,6 @@ const RiddleEmbed = ({ riddleId, className = "" }) => {
     }
 
     // 직접 iframe 방식 사용 - 스크립트 의존성 제거
-    console.log('[RiddleEmbed] 직접 iframe 방식으로 초기화');
     setLoading(false); // 스크립트 로딩 필요 없음
   }, [riddleId, isClient]);
 
@@ -588,7 +556,6 @@ const RiddleEmbed = ({ riddleId, className = "" }) => {
             display: 'block'
           }}
           onLoad={() => {
-            console.log(`[RiddleEmbed] iframe 로드 완료 - ID: ${riddleId}`);
             setLoading(false);
           }}
           onError={() => {
@@ -609,35 +576,11 @@ const extractInstagramPostId = (url) => {
   return match ? match[1] : null;
 };
 
-// 콘텐츠에서 Instagram 링크를 임베드로 변환하는 함수
-const processInstagramEmbeds = (content) => {
-  if (!content) return content;
-  
-  // Instagram URL 패턴 (포스트와 릴)
-  const instagramRegex = /https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel)\/([A-Za-z0-9_-]+)(?:\/[^?\s]*)?(?:\?[^?\s]*)?/g;
-  
-  let processedContent = content;
-  const matches = [...content.matchAll(instagramRegex)];
-  
-  matches.forEach((match, index) => {
-    const fullUrl = match[0];
-    const postId = match[1];
-    
-    // 임베드 플레이스홀더 생성
-    const embedPlaceholder = `<div class="instagram-embed-placeholder" data-url="${fullUrl}" data-index="${index}"></div>`;
-    
-    // 링크를 플레이스홀더로 교체
-    processedContent = processedContent.replace(fullUrl, embedPlaceholder);
-  });
-  
-  return processedContent;
-};
 
 // 콘텐츠에서 Riddle 임베드를 처리하는 함수 (개선된 버전)
 const processRiddleEmbeds = (content) => {
   if (!content) return content;
   
-  console.log('[processRiddleEmbeds] 원본 콘텐츠 길이:', content.length);
   
   // 더 강력한 Riddle 임베드 HTML 패턴 매칭 (여러 패턴 지원)
   const riddlePatterns = [
@@ -659,14 +602,12 @@ const processRiddleEmbeds = (content) => {
   // 각 패턴으로 매칭 시도
   riddlePatterns.forEach((regex, patternIndex) => {
     const matches = [...processedContent.matchAll(regex)];
-    console.log(`[processRiddleEmbeds] 패턴 ${patternIndex + 1}에서 ${matches.length}개 발견`);
     
     matches.forEach((match, index) => {
       const fullMatch = match[0];
       const riddleId = match[1];
       
       if (riddleId && !foundRiddles.some(r => r.id === riddleId)) {
-        console.log(`[processRiddleEmbeds] Riddle ID 발견: ${riddleId}`);
         foundRiddles.push({ id: riddleId, fullMatch });
         
         // Riddle 플레이스홀더 생성
@@ -678,7 +619,6 @@ const processRiddleEmbeds = (content) => {
     });
   });
   
-  console.log(`[processRiddleEmbeds] 총 ${foundRiddles.length}개의 Riddle 발견`);
   return processedContent;
 };
 
@@ -692,28 +632,15 @@ const ArticleContent = ({ content }) => {
 
   // 클라이언트 사이드 확인
   useEffect(() => {
-    console.log('[ArticleContent] 클라이언트 마운트됨');
-    console.log('[ArticleContent] content prop 받음:', content ? content.substring(0, 100) + '...' : 'null');
     setIsClient(true);
   }, []);
 
-  // processedContent 상태 변경 추적
-  useEffect(() => {
-    console.log('[ArticleContent] processedContent 상태 변경됨:', {
-      hasProcessedContent: !!processedContent,
-      length: processedContent?.length || 0,
-      includesInstagram: processedContent?.includes('instagram-media') || false,
-      includesTwitter: processedContent?.includes('twitter-tweet') || false
-    });
-  }, [processedContent]);
 
   useEffect(() => {
     if (!content || !isClient) {
-      console.log('[ArticleContent] content 처리 건너뜀:', { hasContent: !!content, isClient });
       return;
     }
 
-    console.log('[ArticleContent] content 처리 시작, 원본 길이:', content.length);
 
     // HTML 엔티티 디코딩 함수 - 강화된 버전
     const decodeHtmlEntities = (str) => {
@@ -732,15 +659,12 @@ const ArticleContent = ({ content }) => {
         .replace(/&#39;/g, "'")
         .replace(/&amp;/g, '&'); // 이것은 마지막에 해야 함
       
-      console.log('[ArticleContent] 디코딩 전:', str.substring(0, 100));
-      console.log('[ArticleContent] 디코딩 후:', decoded.substring(0, 100));
       
       return decoded;
     };
     
     // 콘텐츠를 먼저 디코딩
     let decodedContent = decodeHtmlEntities(content);
-    console.log('[ArticleContent] HTML 디코딩 후:', decodedContent.substring(0, 200));
 
     // 1. 유튜브 임베드 처리
     let processed = decodedContent.replace(
@@ -763,15 +687,11 @@ const ArticleContent = ({ content }) => {
     const hasInstagramEmbed = processed.includes('instagram-media');
 
     if (hasInstagramEmbed) {
-      console.log('[ArticleContent] Instagram blockquote가 이미 존재 - 그대로 사용');
-      console.log('[ArticleContent] processed content 길이:', processed.length);
-      console.log('[ArticleContent] processed content includes instagram-media:', processed.includes('instagram-media'));
       // Instagram 임베드 콘텐츠 감지를 위해 즉시 스크립트 로드
       if (typeof window !== 'undefined' && window.loadInstagramScript) {
         window.loadInstagramScript();
       }
       setProcessedContent(processed);
-      console.log('[ArticleContent] setProcessedContent 호출됨');
       setInstagramUrls([]);
     } else {
       // Instagram 링크 찾기 및 추출 (기존 방식)
@@ -779,7 +699,6 @@ const ArticleContent = ({ content }) => {
       const matches = [...processed.matchAll(instagramRegex)];
       const urls = matches.map(match => match[0]);
       
-      console.log('Found Instagram URLs:', urls);
       
       // 3. Instagram 링크를 고유한 플레이스홀더로 교체 (순서대로 처리)
       let placeholderIndex = 0;
@@ -795,8 +714,6 @@ const ArticleContent = ({ content }) => {
         }
       });
 
-      console.log('Processed content with placeholders:', processed);
-      console.log('Placeholder map:', placeholderMap);
 
       setInstagramUrls(urls);
     }
@@ -805,7 +722,6 @@ const ArticleContent = ({ content }) => {
     const hasTwitterEmbed = processed.includes('twitter-tweet');
     
     if (hasTwitterEmbed) {
-      console.log('Twitter 임베드 코드가 이미 존재');
       // Twitter 임베드 코드가 이미 있으면 그대로 사용
       setTwitterUrls([]);
     } else {
@@ -814,7 +730,6 @@ const ArticleContent = ({ content }) => {
       const twitterMatches = [...processed.matchAll(twitterRegex)];
       const twitterUrlList = twitterMatches.map(match => match[0]);
       
-      console.log('Found Twitter URLs:', twitterUrlList);
       
       // Twitter 링크를 플레이스홀더로 교체
       let twitterPlaceholderIndex = 0;
@@ -834,14 +749,10 @@ const ArticleContent = ({ content }) => {
     }
     
     // 5. Riddle 임베드 처리 (개선된 버전)
-    console.log('[ArticleContent] Riddle 임베드 처리 시작');
-    console.log('[ArticleContent] 처리할 콘텐츠 샘플:', processed.substring(0, 500));
     
     // Riddle 관련 키워드 존재 여부 확인
     const hasRiddleKeyword = processed.includes('riddle') || processed.includes('Riddle');
     const hasDataRidId = processed.includes('data-rid-id');
-    console.log('[ArticleContent] Riddle 키워드 존재:', hasRiddleKeyword);
-    console.log('[ArticleContent] data-rid-id 존재:', hasDataRidId);
     
     // 여러 Riddle 패턴으로 검색 (HTML 엔티티 디코딩된 형태도 매칭)
     const riddlePatterns = [
@@ -862,31 +773,25 @@ const ArticleContent = ({ content }) => {
     const riddlePlaceholderMap = new Map();
     
     riddlePatterns.forEach((regex, patternIndex) => {
-      console.log(`[ArticleContent] 패턴 ${patternIndex + 1} 시도:`, regex.toString().substring(0, 100));
       const riddleMatches = [...processed.matchAll(regex)];
-      console.log(`[ArticleContent] 패턴 ${patternIndex + 1}에서 ${riddleMatches.length}개 Riddle 발견`);
       
       if (riddleMatches.length > 0) {
         riddleMatches.forEach((match, matchIndex) => {
-          console.log(`[ArticleContent] 매치 ${matchIndex + 1}:`, match[0].substring(0, 150));
           const fullMatch = match[0];
           const riddleId = match[1];
           
           if (riddleId && !riddlePlaceholderMap.has(fullMatch)) {
-            console.log(`[ArticleContent] 새로운 Riddle ID 처리: ${riddleId}`);
             const uniqueId = `RIDDLE_PLACEHOLDER_${riddlePlaceholderIndex}`;
             riddlePlaceholderMap.set(fullMatch, uniqueId);
             processed = processed.replace(fullMatch, uniqueId);
             riddleIdList.push(riddleId);
             riddlePlaceholderIndex++;
             
-            console.log(`[ArticleContent] Riddle ${riddleId}를 ${uniqueId}로 교체 완료`);
           }
         });
       }
     });
     
-    console.log(`[ArticleContent] 총 ${riddleIdList.length}개의 Riddle ID 추출:`, riddleIdList);
     setRiddleIds(riddleIdList);
     
     setProcessedContent(processed);
@@ -894,45 +799,30 @@ const ArticleContent = ({ content }) => {
 
   // Instagram 스크립트 로딩 및 처리
   useEffect(() => {
-    console.log('[ArticleContent] Instagram useEffect 진입:', {
-      isClient,
-      hasProcessedContent: !!processedContent,
-      processedContentLength: processedContent?.length || 0,
-      includesInstagram: processedContent?.includes('instagram-media') || false
-    });
-
     if (!isClient || !processedContent || !processedContent.includes('instagram-media')) {
-      console.log('[ArticleContent] Instagram useEffect 건너뜀 - 조건 미충족');
       return;
     }
-    console.log('[ArticleContent] Instagram blockquote 감지 - 처리 시작');
 
     let retryCount = 0;
     const maxRetries = 30;
     let timer = null;
 
     const processInstagram = () => {
-      console.log(`[ArticleContent] Instagram 처리 시도 #${retryCount + 1}`);
 
       // 스크립트가 로드되었는지 확인
       if (window.instgrm && window.instgrm.Embeds) {
         const blockquotes = document.querySelectorAll('blockquote.instagram-media');
-        console.log(`[ArticleContent] Instagram blockquote 요소 발견: ${blockquotes.length}개`);
 
         if (blockquotes.length > 0) {
           try {
-            console.log('[ArticleContent] instgrm.Embeds.process() 실행');
             window.instgrm.Embeds.process();
-            console.log('[ArticleContent] Instagram 처리 완료');
             return true;
           } catch (error) {
             console.error('[ArticleContent] Instagram 처리 오류:', error);
           }
         } else {
-          console.log('[ArticleContent] Instagram blockquote가 DOM에 없음');
         }
       } else {
-        console.log('[ArticleContent] Instagram 스크립트 대기 중...');
         // 스크립트 로드 요청
         if (window.loadInstagramScript) {
           window.loadInstagramScript();
@@ -945,7 +835,6 @@ const ArticleContent = ({ content }) => {
         const delay = retryCount <= 10 ? 100 : 500;
         timer = setTimeout(processInstagram, delay);
       } else {
-        console.warn('[ArticleContent] Instagram 처리 최대 재시도 도달');
       }
 
       return false;
@@ -962,34 +851,27 @@ const ArticleContent = ({ content }) => {
   // Twitter 스크립트 로딩 및 처리
   useEffect(() => {
     if (!isClient || !processedContent || !processedContent.includes('twitter-tweet')) return;
-    console.log('[ArticleContent] Twitter blockquote 감지 - 처리 시작');
 
     let retryCount = 0;
     const maxRetries = 30;
     let timer = null;
 
     const processTwitter = () => {
-      console.log(`[ArticleContent] Twitter 처리 시도 #${retryCount + 1}`);
 
       // 스크립트가 로드되었는지 확인
       if (window.twttr && window.twttr.widgets) {
         const blockquotes = document.querySelectorAll('blockquote.twitter-tweet');
-        console.log(`[ArticleContent] Twitter blockquote 요소 발견: ${blockquotes.length}개`);
 
         if (blockquotes.length > 0) {
           try {
-            console.log('[ArticleContent] twttr.widgets.load() 실행');
             window.twttr.widgets.load();
-            console.log('[ArticleContent] Twitter 처리 완료');
             return true;
           } catch (error) {
             console.error('[ArticleContent] Twitter 처리 오류:', error);
           }
         } else {
-          console.log('[ArticleContent] Twitter blockquote가 DOM에 없음');
         }
       } else {
-        console.log('[ArticleContent] Twitter 스크립트 대기 중...');
         // 스크립트 로드 요청
         if (window.loadTwitterScript) {
           window.loadTwitterScript();
@@ -1002,7 +884,6 @@ const ArticleContent = ({ content }) => {
         const delay = retryCount <= 10 ? 100 : 500;
         timer = setTimeout(processTwitter, delay);
       } else {
-        console.warn('[ArticleContent] Twitter 처리 최대 재시도 도달');
       }
 
       return false;
@@ -1024,7 +905,6 @@ const ArticleContent = ({ content }) => {
     const placeholderRegex = /(INSTAGRAM_PLACEHOLDER_|TWITTER_PLACEHOLDER_|RIDDLE_PLACEHOLDER_)(\d+)/g;
     const parts = processedContent.split(placeholderRegex);
     
-    console.log('Split parts:', parts);
     
     return parts.map((part, index) => {
       // Instagram 플레이스홀더 처리
@@ -1033,7 +913,6 @@ const ArticleContent = ({ content }) => {
         const url = instagramUrls[placeholderIndex];
         
         if (url) {
-          console.log('Rendering Instagram embed for URL:', url);
           return (
             <InstagramEmbed 
               key={`instagram-${placeholderIndex}`} 
@@ -1050,7 +929,6 @@ const ArticleContent = ({ content }) => {
         const url = twitterUrls[placeholderIndex];
         
         if (url) {
-          console.log('Rendering Twitter embed for URL:', url);
           return (
             <TwitterEmbed 
               key={`twitter-${placeholderIndex}`} 
@@ -1067,7 +945,6 @@ const ArticleContent = ({ content }) => {
         const riddleId = riddleIds[placeholderIndex];
         
         if (riddleId) {
-          console.log('[renderContent] Riddle 임베드 렌더링 - ID:', riddleId, 'Index:', placeholderIndex);
           return (
             <RiddleEmbed 
               key={`riddle-${placeholderIndex}`} 
@@ -1076,7 +953,6 @@ const ArticleContent = ({ content }) => {
             />
           );
         } else {
-          console.warn('[renderContent] Riddle ID를 찾을 수 없음 - Index:', placeholderIndex, 'Available IDs:', riddleIds);
         }
       }
       
@@ -1233,26 +1109,6 @@ const formatCommentDate = (date) => {
   return date.toLocaleDateString('en-US', options);
 };
 
-// English translations for Korean titles and summaries
-const getEnglishTitle = (koreanTitle) => {
-  if (koreanTitle.includes('방탄소년단')) return 'BTS Announces New Album Release';
-  if (koreanTitle.includes('블랙핑크')) return 'BLACKPINK Announces Additional World Tour Dates';
-  if (koreanTitle.includes('아이브')) return 'IVE Prepares for June Comeback with New Song';
-  if (koreanTitle.includes('뉴진스')) return 'NewJeans Releases New Digital Single for Summer';
-  if (koreanTitle.includes('스트레이 키즈')) return 'Stray Kids Successfully Completes US Tour';
-  if (koreanTitle.includes('에스파')) return 'aespa Reveals Teaser Images for New Album';
-  return 'K-POP News: ' + koreanTitle;
-};
-
-const getEnglishSummary = (koreanSummary) => {
-  if (koreanSummary.includes('방탄소년단')) return 'BTS is scheduled to release a new album this summer.';
-  if (koreanSummary.includes('블랙핑크')) return 'BLACKPINK has announced additional concerts for their world tour.';
-  if (koreanSummary.includes('아이브')) return 'IVE is preparing a new song ahead of their June comeback.';
-  if (koreanSummary.includes('뉴진스')) return 'NewJeans has released a new digital single aimed at summer.';
-  if (koreanSummary.includes('스트레이 키즈')) return 'Stray Kids has successfully concluded their US tour.';
-  if (koreanSummary.includes('에스파')) return 'aespa has revealed teaser images for their new album.';
-  return 'Latest K-POP news and updates.';
-};
 
 // Sample comments data
 const comments = [
@@ -1310,7 +1166,6 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [isLinkCopied, setIsLinkCopied] = useState(false);
-  const [estimatedReadTime, setEstimatedReadTime] = useState('6');
   const [isMounted, setIsMounted] = useState(false);
   const [userId, setUserId] = useState('');
   const [newComment, setNewComment] = useState('');
@@ -1337,9 +1192,6 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
   const [showMoreNewsSection, setShowMoreNewsSection] = useState(false);
   const [isMoreNewsSectionHiding, setIsMoreNewsSectionHiding] = useState(false);
 
-  // For optimized scroll handling and position saving
-  const lastScrollY = useRef(0);
-  const ticking = useRef(false);
   const previousPathRef = useRef(null);
   
   // 컴포넌트 마운트 상태 설정
@@ -1396,88 +1248,30 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
     }
   }, [newsArticle]);
 
-  // 최적화된 스크롤 이벤트 핸들러 - requestAnimationFrame 사용
-  const handleScroll = useCallback(() => {
-    if (typeof window === 'undefined') return;
-
-    // window.scrollY와 document.documentElement.scrollTop 모두 확인
-    const scrollY = window.pageYOffset || document.documentElement.scrollTop || window.scrollY || 0;
-    lastScrollY.current = scrollY;
-
-    if (!ticking.current) {
-      window.requestAnimationFrame(() => {
-        const currentScrollY = lastScrollY.current;
-
-        // 백투탑 버튼 표시 여부
-        if (currentScrollY > 300) {
-          setShowBackToTop(true);
-        } else {
-          setShowBackToTop(false);
-        }
-
-        // 헤더 높이 계산 - 계산 간소화
-        const windowHeight = window.innerHeight;
-        const maxScroll = windowHeight * 0.4; // 조금 더 빠르게 축소되도록 조정
-
-        // 스크롤에 따라 헤더 높이 조절 (60vh에서 최소 25vh까지)
-        if (currentScrollY <= maxScroll) {
-          // 값을 직접 계산하여 상태 설정 횟수 최소화
-          const newHeight = Math.max(25, 60 - (currentScrollY / maxScroll) * 35);
-          // 소수점 첫째 자리까지만 사용하여 상태 업데이트 최소화
-          setHeaderHeight(Math.round(newHeight * 10) / 10);
-        } else {
-          setHeaderHeight(25); // 최소 높이
-        }
-
-        ticking.current = false;
-      });
-
-      ticking.current = true;
-    }
-  }, []);
-
   // 스크롤 이벤트 등록 - 패시브 이벤트로 성능 향상
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const scrollHandler = () => {
-      // document.body.scrollTop을 우선순위로 확인
-      const scrollY = document.body.scrollTop || window.pageYOffset || document.documentElement.scrollTop || window.scrollY || 0;
+      const scrollY = window.scrollY || 0;
 
-      // 백투탑 버튼 표시 여부
-      if (scrollY > 300) {
-        setShowBackToTop(true);
-      } else {
-        setShowBackToTop(false);
-      }
+      setShowBackToTop(scrollY > 300);
 
-      // 헤더 높이 계산
-      const windowHeight = window.innerHeight;
-      const maxScroll = windowHeight * 0.4;
-
+      // 헤더 높이 계산 (60vh → 25vh)
+      const maxScroll = window.innerHeight * 0.4;
       if (scrollY <= maxScroll) {
         const newHeight = Math.max(25, 60 - (scrollY / maxScroll) * 35);
         setHeaderHeight(Math.round(newHeight * 10) / 10);
       } else {
         setHeaderHeight(25);
       }
-
     };
 
-    // 여러 방법으로 스크롤 이벤트 등록
     window.addEventListener('scroll', scrollHandler, { passive: true });
-    document.addEventListener('scroll', scrollHandler, { passive: true });
-    document.body.addEventListener('scroll', scrollHandler, { passive: true });
-
-    // 초기 상태 체크
-    setTimeout(() => {
-      scrollHandler();
-    }, 100);
+    scrollHandler();
 
     return () => {
       window.removeEventListener('scroll', scrollHandler);
-      document.removeEventListener('scroll', scrollHandler);
-      document.body.removeEventListener('scroll', scrollHandler);
     };
   }, []);
 
@@ -1576,7 +1370,6 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
         const absoluteTop = currentScroll + rect.top;
         const scrollToPosition = absoluteTop - headerOffset;
 
-        console.log('Scrolling to Related News:', scrollToPosition);
 
         // 스크롤 실행
         setTimeout(() => {
@@ -1586,7 +1379,6 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
           });
         }, 100);
       } else {
-        console.log('Already at or past Related News - no scroll needed');
       }
       // rect.top이 0 이하면 Related News가 이미 화면에 보이거나 위에 있음 -> 스크롤 안 함
     }
@@ -1828,7 +1620,6 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
   }, [relatedArticles, newsArticle]);
 
 
-
   // 뉴스 기사를 찾을 수 없는 경우
   if (!newsArticle) {
     return (
@@ -1853,7 +1644,7 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
   }
   
   // SEO 데이터 생성
-  const jsonLd = newsArticle ? generateNewsArticleJsonLd(newsArticle) : null;
+  const jsonLd = generateNewsArticleJsonLd(newsArticle);
   // 뉴스 기사에서 첫 번째 이미지 추출
   const extractFirstImageFromContent = (content) => {
     if (!content) return null;
@@ -2890,9 +2681,37 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
 }
 
 export async function getServerSideProps({ params }) {
+  const { id } = params;
+
+  // USE_LOCAL_DATA=true일 때 DB 연결 없이 로컬 데이터 사용
+  if (process.env.USE_LOCAL_DATA === 'true') {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const localPath = path.join(process.cwd(), 'data', 'local-news.json');
+      if (fs.existsSync(localPath)) {
+        const rawData = JSON.parse(fs.readFileSync(localPath, 'utf-8'));
+        const allNews = rawData.data.news || [];
+        const newsArticle = allNews.find(n => n._id === id || n.slug === id);
+        if (newsArticle) {
+          const relatedArticles = allNews
+            .filter(n => n._id !== newsArticle._id && n.category === newsArticle.category)
+            .slice(0, 12);
+          return {
+            props: {
+              newsArticle: { ...newsArticle, thumbnailUrl: newsArticle.thumbnailUrl || newsArticle.coverImage },
+              relatedArticles
+            }
+          };
+        }
+      }
+    } catch (e) {
+      console.error('[News Detail] Local data error:', e);
+    }
+    return { notFound: true };
+  }
+
   try {
-    const { id } = params;
-    
     // MongoDB에서 데이터 가져오기
     const { db } = await connectToDatabase();
     
@@ -2917,7 +2736,6 @@ export async function getServerSideProps({ params }) {
     
     // 뉴스를 찾지 못한 경우
     if (!newsArticle) {
-      console.log(`News not found for ID/slug: ${id}`);
       return {
         notFound: true
       };

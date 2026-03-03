@@ -2,7 +2,7 @@ import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 
-export default function Logo() {
+export default function Logo({ mobile = false }) {
   const [isClient, setIsClient] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const router = useRouter();
@@ -70,16 +70,19 @@ export default function Logo() {
     }
   };
   
+  const logoHeight = mobile ? 16 : 40;
+  const logoWidth = mobile ? 54 : 135;
+
   // Server-side rendering - return a simpler version
   if (!isClient) {
     return (
       <div className="block cursor-pointer" onClick={handleLogoClick}>
-        <div className="w-auto h-[40px] flex items-center">
+        <div className={`w-auto flex items-center`} style={{ height: logoHeight }}>
           <Image
             src="/images/logo1.svg"
             alt="Kstarpick Logo"
-            width={135}
-            height={40}
+            width={logoWidth}
+            height={logoHeight}
             className="object-contain"
             priority
           />
@@ -87,7 +90,7 @@ export default function Logo() {
       </div>
     );
   }
-  
+
   // Client-side rendering
   return (
     <div
@@ -96,14 +99,13 @@ export default function Logo() {
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleLogoClick}
     >
-      <div className={`w-auto h-[40px] relative flex items-center transition-all duration-300 ${isHovered ? 'scale-105' : ''}`}>
+      <div className={`w-auto relative flex items-center transition-all duration-300 ${isHovered ? 'scale-105' : ''}`} style={{ height: logoHeight }}>
         <div className="flex items-center">
-          {/* 이미지 로고 */}
           <Image
             src="/images/logo1.svg"
             alt="Kstarpick Logo"
-            width={135}
-            height={40}
+            width={logoWidth}
+            height={logoHeight}
             className="object-contain"
             priority
           />

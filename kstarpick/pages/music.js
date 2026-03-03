@@ -6,6 +6,7 @@ import Seo from '../components/Seo';
 import Link from 'next/link';
 import { Music as MusicIcon, TrendingUp, Calendar, BarChart2, Disc, Play, Award, ArrowRight, ChevronRight, X, RefreshCcw, Star, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import useScrollRestore from '../hooks/useScrollRestore';
 import MainLayout from '../components/MainLayout';
 import { decodeHtmlEntities } from '../utils/helpers';
 import MoreNews from '../components/MoreNews';
@@ -26,38 +27,8 @@ export default function Music({ musicNews = [], topSongs = [], newsPagination })
   const [showAll, setShowAll] = useState(false);
   const initialDisplayCount = 10;
 
-  // 스크롤 위치 복원 로직
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const isBackToMusic = sessionStorage.getItem('isBackToMusic');
-    const savedScrollPosition = sessionStorage.getItem('musicScrollPosition');
-
-    if (isBackToMusic === 'true' && savedScrollPosition) {
-      const scrollPos = parseInt(savedScrollPosition, 10);
-
-      const restoreScroll = () => {
-        window.scrollTo(0, scrollPos);
-        document.documentElement.scrollTop = scrollPos;
-        document.body.scrollTop = scrollPos;
-      };
-
-      // 여러 시도로 동적 콘텐츠 로딩을 고려
-      setTimeout(restoreScroll, 50);
-      setTimeout(restoreScroll, 100);
-      setTimeout(restoreScroll, 200);
-      setTimeout(restoreScroll, 300);
-      setTimeout(restoreScroll, 500);
-
-      requestAnimationFrame(() => {
-        setTimeout(restoreScroll, 100);
-        setTimeout(restoreScroll, 300);
-      });
-
-      // 플래그 제거
-      sessionStorage.removeItem('isBackToMusic');
-    }
-  }, []);
+  // 스크롤 위치 복원
+  useScrollRestore('musicScrollPosition', 'isBackToMusic');
 
   // 화면 크기 감지를 위한 useEffect
   useEffect(() => {

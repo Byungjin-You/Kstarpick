@@ -1,61 +1,44 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import React from 'react';
-import Head from 'next/head';
 import dynamic from 'next/dynamic';
-import { TrendingUp, Music as MusicIcon, Star, Tv, ChevronDown, Bookmark, Heart, Share2, ArrowUp, ArrowDown, Play, Hash, ChevronRight, Eye, Instagram, Clock, Clapperboard, Users, ChevronLeft, X } from 'lucide-react';
-import Link from 'next/link';
+import { X } from 'lucide-react';
 import MainLayout from '../components/MainLayout';
-import CardNews from '../components/CardNews';
 import { useRouter } from 'next/router';
-import { decodeHtmlEntities } from '../utils/helpers';
 import Seo from '../components/Seo';
 import StructuredData from '../components/StructuredData';
-import { generateWebsiteJsonLd, generateHomePageJsonLd } from '../utils/seoHelpers';
-// Import Swiper React components
-import { Swiper, SwiperSlide } from 'swiper/react';
-// Import Swiper styles
-import 'swiper/css';
-import 'swiper/css/pagination';
-// Import required modules
-import { Pagination, Navigation } from 'swiper/modules';
-// Import RecommendedNews dynamically with no SSR to avoid hooks consistency issues
-const RecommendedNews = dynamic(() => import('../components/RecommendedNews'), { ssr: false });
+import { generateHomePageJsonLd } from '../utils/seoHelpers';
+// New homepage components
+import HeroSection from '../components/home/HeroSection';
+import NewsCardGrid from '../components/home/NewsCardGrid';
+import ArticleCardGrid from '../components/home/ArticleCardGrid';
+import WatchNewsSection from '../components/home/WatchNewsSection';
+import KpopRankingSection from '../components/home/KpopRankingSection';
+import Sidebar from '../components/home/Sidebar';
+import CommentTicker from '../components/home/CommentTicker';
+import TrendingNow from '../components/home/TrendingNow';
 // Import MoreNews component (also with no SSR to avoid hooks issues with Intersection Observer)
 const MoreNews = dynamic(() => import('../components/MoreNews').then(mod => {
-  // 컴포넌트를 React.memo로 감싸서 불필요한 리렌더링 방지
-  const MemoizedMoreNews = React.memo(mod.default, () => true); // 항상 true 반환하여 재렌더링 방지
+  const MemoizedMoreNews = React.memo(mod.default, () => true);
   return { default: MemoizedMoreNews };
 }), {
   ssr: false,
-  // 고정 키 사용으로 리마운트 방지
   key: "moreNews-component",
   loading: () => (
     <div className="py-8 text-center">
-      <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" style={{ borderColor: '#233CFA', borderRightColor: 'transparent' }}></div>
-      <p className="mt-2 text-gray-500">Loading...</p>
+      <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" style={{ borderColor: '#2B7FFF', borderRightColor: 'transparent' }}></div>
+      <p className="mt-2 text-ksp-meta">Loading...</p>
     </div>
   )
 });
 
 function Home({ initialData }) {
-  // React hooks
-  const [activeTab, setActiveTab] = useState("recent");
-  const [sliderIndex, setSliderIndex] = useState(0);
-  const scrollContainerRef = useRef(null);
   const router = useRouter();
   
   // 🚀 서버에서 받은 초기 데이터로 상태 초기화
-  const [loading, setLoading] = useState(false);
   const [newsArticles, setNewsArticles] = useState(initialData?.newsArticles || []);
   const [featuredArticles, setFeaturedArticles] = useState(initialData?.featuredArticles || []);
   const [topSongs, setTopSongs] = useState(initialData?.topSongs || []);
   const [watchNews, setWatchNews] = useState(initialData?.watchNews || []);
-  const [popularNews, setPopularNews] = useState(initialData?.popularNews || {
-    drama: [],
-    movie: [],
-    kpop: [],
-    celeb: []
-  });
   const [rankingNews, setRankingNews] = useState(initialData?.rankingNews || []);
   const [moreNews, setMoreNews] = useState(initialData?.moreNews || []);
   const [error, setError] = useState(null);
@@ -66,10 +49,40 @@ function Home({ initialData }) {
   // 기존 상태들
   const [loadedMoreNews, setLoadedMoreNews] = useState(false);
   const [initialMoreNews, setInitialMoreNews] = useState([]);
-  const [scrollState, setScrollState] = useState({ canScrollLeft: false, canScrollRight: true });
   const [showYoutubeModal, setShowYoutubeModal] = useState(false);
   const [currentYoutubeUrl, setCurrentYoutubeUrl] = useState('');
-  
+
+  // 사이드바 sticky top 계산 (사이드바가 뷰포트보다 길면 음수 top으로 하단 고정)
+  const sidebarStickyRef = useRef(null);
+  const [sidebarStickyTop, setSidebarStickyTop] = useState(92);
+  useEffect(() => {
+    const el = sidebarStickyRef.current;
+    if (!el) return;
+    const HEADER_H = 92;
+
+    const calcTop = () => {
+      const sH = el.offsetHeight;
+      const vH = window.innerHeight;
+      if (sH <= vH - HEADER_H) {
+        setSidebarStickyTop(HEADER_H);
+      } else {
+        // 사이드바 하단이 뷰포트 하단에 닿으면 고정
+        setSidebarStickyTop(vH - sH - 40);
+      }
+    };
+
+    // 초기 계산 + 사이드바 높이 변화 감지
+    const timer = setTimeout(calcTop, 300);
+    const observer = new ResizeObserver(calcTop);
+    observer.observe(el);
+    window.addEventListener('resize', calcTop);
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+      window.removeEventListener('resize', calcTop);
+    };
+  }, []);
+
   // 홈에서 다른 페이지로 이동하는 함수
   const navigateToPage = (path, e) => {
     if (e) {
@@ -123,21 +136,6 @@ function Home({ initialData }) {
     return false; // 이벤트 전파 중지
   };
   
-  // 카테고리 탭 상태 관리
-  const [activeCategoryTab, setActiveCategoryTab] = useState("all");
-  
-  const [currentFeatureIndex, setCurrentFeatureIndex] = useState(0);
-  const [currentDramaIndex, setCurrentDramaIndex] = useState(0);
-  const [currentMovieIndex, setCurrentMovieIndex] = useState(0);
-  const [currentMusicIndex, setCurrentMusicIndex] = useState(0);
-  const [currentCelebIndex, setCurrentCelebIndex] = useState(0);
-  const [showDramaThumbnail, setShowDramaThumbnail] = useState(true);
-  const [showMovieThumbnail, setShowMovieThumbnail] = useState(true);
-  const [showMusicThumbnail, setShowMusicThumbnail] = useState(true);
-  const [showCelebThumbnail, setShowCelebThumbnail] = useState(true);
-  // 빈 배열로 초기화하여 깜빡임 방지
-  const [topStoriesData, setTopStoriesData] = useState([]);
-  const [isTopStoriesLoading, setIsTopStoriesLoading] = useState(true);
   const [todayRankingNews, setTodayRankingNews] = useState([]);
 
   // 뉴스 데이터가 없으면 빈 배열을 사용 - useMemo로 메모이제이션하여 불필요한 재렌더링 방지
@@ -158,7 +156,7 @@ function Home({ initialData }) {
 
   // 이제 SSR로 데이터를 받으므로 클라이언트 사이드 로딩 불필요
 
-  // 스크롤 위치 복원 로직 - 뉴스 페이지에서 뒤로가기 시
+  // 스크롤 위치 복원 - 뉴스 페이지에서 뒤로가기 시
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -167,52 +165,29 @@ function Home({ initialData }) {
 
     if (isBackToHome === 'true' && savedScrollPosition) {
       const targetScrollPos = parseInt(savedScrollPosition, 10);
-      let restoreAttempts = 0;
-      const maxAttempts = 15;
-      const tolerance = 10; // 10px 오차 허용
+      if (isNaN(targetScrollPos) || targetScrollPos <= 0) {
+        sessionStorage.removeItem('isBackToHome');
+        return;
+      }
 
+      let restored = false;
       const restoreScroll = () => {
-        const currentScroll = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
-
-        // 이미 목표 위치에 충분히 가까우면 더 이상 조정하지 않음
-        if (Math.abs(currentScroll - targetScrollPos) < tolerance) {
+        if (restored) return;
+        const current = window.scrollY || document.documentElement.scrollTop || 0;
+        if (Math.abs(current - targetScrollPos) < 10) {
+          restored = true;
           return;
         }
-
-        // 최대 시도 횟수 초과 시 중단
-        if (restoreAttempts >= maxAttempts) {
-          return;
-        }
-
-        restoreAttempts++;
         window.scrollTo(0, targetScrollPos);
         document.documentElement.scrollTop = targetScrollPos;
         document.body.scrollTop = targetScrollPos;
       };
 
-      // 여러 시도로 동적 콘텐츠 로딩을 고려
-      const timeouts = [50, 100, 200, 300, 500, 800, 1000, 1500];
-      timeouts.forEach(delay => {
+      // 홈은 MoreNews dynamic import로 DOM 높이가 늦게 변하므로 여유 있게
+      [50, 150, 400, 800, 1500].forEach(delay => {
         setTimeout(restoreScroll, delay);
       });
 
-      requestAnimationFrame(() => {
-        [100, 300, 600, 1000].forEach(delay => {
-          setTimeout(restoreScroll, delay);
-        });
-      });
-
-      // 이미지 로딩 완료 후 최종 스크롤 복원
-      if (document.readyState === 'complete') {
-        setTimeout(restoreScroll, 100);
-      } else {
-        window.addEventListener('load', () => {
-          setTimeout(restoreScroll, 100);
-          setTimeout(restoreScroll, 300);
-        });
-      }
-
-      // 플래그 제거
       sessionStorage.removeItem('isBackToHome');
     }
   }, []);
@@ -227,17 +202,6 @@ function Home({ initialData }) {
       }
     }
   }, []); // 페이지 로드 시 한 번만 실행
-
-  // 랭킹 뉴스가 로드되면 슬라이더 데이터를 업데이트 (초기 표시 이후)
-  useEffect(() => {
-    if (todayRankingNews.length > 0) {
-      // Today 랭킹 뉴스 1~6위를 가져와서 랜덤으로 섞기
-      const topNews = todayRankingNews.slice(0, 6);
-      const shuffledNews = shuffleArray(topNews);
-      setTopStoriesData(shuffledNews);
-      setIsTopStoriesLoading(false);
-    }
-  }, [todayRankingNews]);
 
   // topSongs 데이터 검사 및 수정
   useEffect(() => {
@@ -309,32 +273,6 @@ function Home({ initialData }) {
     };
   }, [showYoutubeModal]);
 
-  // 피처드 뉴스 롤링을 위한 useEffect
-  useEffect(() => {
-    // featured 배열이 비어있으면 타이머를 설정하지 않음
-    if (!featured || featured.length <= 1) return;
-    
-    // 5초마다 다음 피처드 뉴스로 변경
-    const timer = setInterval(() => {
-      setCurrentFeatureIndex((prevIndex) => (prevIndex + 1) % featured.length);
-    }, 5000);
-    
-    // 컴포넌트 언마운트 시 타이머 정리
-    return () => clearInterval(timer);
-  }, [featured]);
-
-  // 이미지 에러 핸들러
-  const handleImageError = (e) => {
-    e.target.onerror = null;
-    e.target.src = '/images/placeholder.jpg';
-    console.log('이미지 로딩 에러:', e.target.alt);
-  };
-
-  // 현재 카테고리의 현재 뉴스 가져오기
-  const getCurrentNews = (category, index) => {
-    const news = popularNews[category] || [];
-    return news.length > 0 ? news[index] : null;
-  };
 
   // 유튜브 모달 열기
   const openYoutubeModal = (url, e) => {
@@ -498,8 +436,8 @@ function Home({ initialData }) {
       setInitialMoreNews(moreNews);
       setLoadedMoreNews(true);
     } else if (newsArticles?.length > 0) {
-      // moreNews가 없으면 newsArticles 배열에서 데이터 가져옴
-      const newsForMoreNews = newsArticles.slice(0, 20);
+      // 다른 섹션에서 이미 사용 중인 기사(0~10)를 제외하고 11번째부터 사용
+      const newsForMoreNews = newsArticles.slice(11);
       setInitialMoreNews(newsForMoreNews);
       setLoadedMoreNews(true);
     }
@@ -517,52 +455,28 @@ function Home({ initialData }) {
       threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
       threeDaysAgo.setHours(0, 0, 0, 0);
 
-      // 병렬로 나머지 API 호출 (Watch News 제외)
+      // 병렬로 나머지 API 호출
       const [
-        dramaNewsRes,
-        movieNewsRes,
-        kpopNewsRes,
-        celebNewsRes,
         rankingNewsRes,
         todayRankingNewsRes,
         moreNewsRes
       ] = await Promise.all([
-        fetch(`/api/news/drama?limit=5`), // 드라마 뉴스 3개 → 5개로 변경
-        fetch(`/api/news/movie?limit=5`),
-        fetch(`/api/news?category=kpop&limit=5`),
-        fetch(`/api/news/celeb?limit=5`),
         fetch(`/api/news?limit=10&sort=viewCount`),
-        fetch(`/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${threeDaysAgo.toISOString()}`), // today 랭킹 뉴스
+        fetch(`/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${threeDaysAgo.toISOString()}`),
         fetch(`/api/news?limit=20&sort=createdAt&order=desc`)
       ]);
 
       const [
-        dramaNews,
-        movieNews,
-        kpopNews,
-        celebNews,
         rankingNews,
         todayRankingNews,
         moreNews
       ] = await Promise.all([
-        dramaNewsRes.json(),
-        movieNewsRes.json(),
-        kpopNewsRes.json(),
-        celebNewsRes.json(),
         rankingNewsRes.json(),
         todayRankingNewsRes.json(),
         moreNewsRes.json()
       ]);
 
-      // 상태 업데이트 (Watch News 제외)
-      setPopularNews(prev => ({
-        ...prev,
-        drama: dramaNews.success ? dramaNews.data || [] : [],
-        movie: movieNews.success ? movieNews.data || [] : [],
-        kpop: kpopNews.success ? kpopNews.data?.news || [] : [],
-        celeb: celebNews.success ? celebNews.data || [] : []
-      }));
-      
+      // 상태 업데이트
       setRankingNews(rankingNews.success ? rankingNews.data.news || [] : []);
       setTodayRankingNews(todayRankingNews.success ? todayRankingNews.data.news || [] : []); // today 랭킹 뉴스 설정
       setMoreNews(moreNews.success ? moreNews.data.news || [] : []);
@@ -581,6 +495,7 @@ function Home({ initialData }) {
     }
   }, []);
 
+
   return (
     <MainLayout>
       <Seo
@@ -592,1236 +507,179 @@ function Home({ initialData }) {
       />
       <StructuredData type="website" />
 
-      <main className="pt-0 pb-12 bg-white">
-        <div className="container mx-auto px-4">
-          {/* 히어로 섹션 - 현대적 디자인 */}
-          <section className="mb-0">
-            <div className="relative overflow-hidden md:rounded-lg">
-              {/* 흰색 배경 */}
-              <div className="absolute inset-0 bg-white z-0"></div>
+      <main className="pt-0 pb-16 bg-white lg:bg-[#F8F9FA]">
+        {/* Full-width 2-column layout: Main (1212px) + Sidebar (500px) */}
+        <div className="max-w-[1772px] mx-auto px-0 lg:px-10 pt-0 lg:pt-8">
+          <div className="flex flex-col lg:flex-row gap-0 lg:gap-[60px]">
+            {/* Left: Main Content Area (1212px) */}
+            <div className="flex-1 min-w-0 lg:max-w-content">
 
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-0 md:gap-8 relative z-10">
-                {/* 콘텐츠 영역 - 왼쪽 */}
-                <div className="lg:col-span-3 p-4 md:pt-16 md:pb-16 md:pl-0 md:pr-8">
-                  <div className="max-w-2xl">
-                    {/* Latest Updates 라벨 - md 이상에서만 보임 */}
-                    <div className="hidden md:flex items-center space-x-3 mb-4 md:mb-6">
-                      <div className="px-4 py-1.5 rounded-full text-sm font-medium inline-flex items-center" style={{ backgroundColor: '#E8EDFF', color: '#233CFA' }}>
-                        <span className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
-                        Latest Updates
-                      </div>
-                      <div className="h-px flex-grow bg-gradient-to-r from-gray-300 to-transparent"></div>
-                    </div>
-
-                    {/* 헤드라인과 설명 텍스트 - 모바일에서는 숨김 */}
-                    <div className="hidden md:block">
-                      <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-3 md:mb-6 leading-tight">
-                        <span className="text-gray-900">
-                          Your K-POP News Hub
-                        </span>
-                      </h1>
-
-                      <p className="text-gray-700 text-base md:text-xl mb-4 md:mb-8 leading-relaxed">
-                        Exclusive interviews and trending stories from the world of K-POP, K-drama, and Korean entertainment.
-                      </p>
-                    </div>
-
-                    {/* 카테고리 빠른 링크 - 모바일에서 숨김, 데스크탑에서만 표시 */}
-                    <div className="hidden md:grid grid-cols-4 gap-3 mt-4">
-                      <a href="/music" onClick={(e) => navigateToPage('/music', e)} className="flex flex-col items-center justify-center py-3 bg-white rounded-xl transition-all hover:shadow-md">
-                        <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center mb-2">
-                          <img src="/images/icons8-playlist-94.png" alt="Music" className="w-11 h-11" />
-                        </div>
-                        <span className="text-xs font-medium text-gray-800">Music</span>
-                      </a>
-                      <a href="/drama" onClick={(e) => navigateToPage('/drama', e)} className="flex flex-col items-center justify-center py-3 bg-white rounded-xl transition-all hover:shadow-md">
-                        <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center mb-2">
-                          <img src="/images/icons8-circled-play-button-50.png" alt="Drama" className="w-11 h-11" />
-                        </div>
-                        <span className="text-xs font-medium text-gray-800">Drama</span>
-                      </a>
-                      <a href="/celeb" onClick={(e) => navigateToPage('/celeb', e)} className="flex flex-col items-center justify-center py-3 bg-white rounded-xl transition-all hover:shadow-md">
-                        <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center mb-2">
-                          <img src="/images/icons8-profile-94.png" alt="Celebs" className="w-11 h-11" />
-                        </div>
-                        <span className="text-xs font-medium text-gray-800">Celebs</span>
-                      </a>
-                      <a href="/tvfilm" onClick={(e) => navigateToPage('/tvfilm', e)} className="flex flex-col items-center justify-center py-3 bg-white rounded-xl transition-all hover:shadow-md">
-                        <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center mb-2">
-                          <img src="/images/icons8-clapperboard-50.png" alt="TV/Film" className="w-11 h-11" />
-                        </div>
-                        <span className="text-xs font-medium text-gray-800">TV/Film</span>
-                      </a>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* 피처드 카드 - 오른쪽 */}
-                <div className="lg:col-span-2 p-0 md:p-12 flex flex-col items-center">
-                  {topStoriesData && topStoriesData.length > 0 && (
-                    <>
-                      <div className="w-full flex justify-between items-center mb-4 hidden md:flex">
-                        <h3 className="text-gray-900 font-bold text-lg">Today's Top Stories</h3>
-                        <div
-                          className="text-sm font-medium flex items-center transition-colors cursor-pointer"
-                          style={{ color: '#233CFA' }}
-                          onMouseEnter={(e) => e.currentTarget.style.color = '#1a2db8'}
-                          onMouseLeave={(e) => e.currentTarget.style.color = '#233CFA'}
-                          onClick={() => {
-                            navigateToPage('/ranking');
-                          }}
-                        >
-                          <ChevronRight size={16} className="ml-1" />
-                        </div>
-                      </div>
-                      
-                      {/* 모바일에서만 패딩 없이 확장되는 슬라이더 */}
-                      <div className="w-full relative md:static -mx-4 md:mx-0">
-                        <Swiper
-                          modules={[Pagination, Navigation]}
-                          direction="horizontal"
-                          className="w-full rounded-md relative"
-                          grabCursor={false}
-                          touchEventsTarget="container"
-                          preventInteractionOnTransition={true}
-                          touchReleaseOnEdges={true}
-                          touchStartPreventDefault={false}
-                          simulateTouch={false}
-                          allowTouchMove={false}
-                          navigation={{
-                            nextEl: '.swiper-button-next',
-                            prevEl: '.swiper-button-prev',
-                          }}
-                        >
-                          {topStoriesData.map((item, index) => (
-                            <SwiperSlide key={item._id || item.id}>
-                              <div
-                                className="w-full block cursor-pointer"
-                                onClick={(e) => {
-                                  // _app.js의 routeChangeStart에서 스크롤 저장을 처리하므로 여기서는 제거
-                                  navigateToPage(`/news/${item._id || item.id}`, e);
-                                }}
-                              >
-                                <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">
-                                  <div className="h-64 overflow-hidden relative rounded-md">
-                                    {/* 이미지 */}
-                                    {item.coverImage && (
-                                      <img
-                                        src={item.coverImage}
-                                        alt={item.title}
-                                        className="w-full h-full object-cover transition-transform duration-500"
-                                        onError={(e) => {
-                                          e.target.onerror = null;
-                                          e.target.src = "/images/placeholder.jpg";
-                                        }}
-                                      />
-                                    )}
-                                  </div>
-
-                                  <div className="p-4">
-                                    <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#006fff] transition-colors">
-                                      {item.title}
-                                    </h3>
-
-                                    <p className="text-gray-600 text-xs line-clamp-2 mb-3">
-                                      {item.content && item.content.trim()
-                                        ? item.content.replace(/<[^>]*>/g, '').slice(0, 120) + '...'
-                                        : item.summary
-                                          ? item.summary.slice(0, 120) + '...'
-                                          : 'No content available'}
-                                    </p>
-
-                                    <div className="flex justify-between items-end">
-                                      {/* 시간 배지 */}
-                                      <div className="flex items-center text-gray-500 text-xs">
-                                        <Clock size={12} className="mr-1 text-gray-500" />
-                                        <span>{new Date(item.createdAt || item.date).toLocaleDateString()}</span>
-                                      </div>
-
-                                      {/* Read more 버튼 */}
-                                      <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#233CFA' }}>
-                                        Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" style={{ color: '#233CFA' }} />
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </SwiperSlide>
-                          ))}
-                        </Swiper>
-                      </div>
-                    </>
-                  )}
-                </div>
+              {/* Mobile Comment Ticker - above hero */}
+              <div className="lg:hidden px-4 py-3">
+                <CommentTicker comments={initialData?.recentComments || []} onNavigate={navigateToPage} />
               </div>
-            </div>
 
-            {/* 모바일 전용 카테고리 필터 - 슬라이더 하단에 배치 */}
-            <div className="block md:hidden w-full mt-2 mb-4 px-4">
-              <div className="grid grid-cols-4 gap-2">
-                <a href="/music" onClick={(e) => navigateToPage('/music', e)} className="flex flex-col items-center justify-center py-3 bg-white rounded-xl transition-all">
-                  <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center mb-2">
-                    <img src="/images/icons8-playlist-94.png" alt="Music" className="w-11 h-11" />
-                  </div>
-                  <span className="text-xs font-medium text-gray-800">Music</span>
-                </a>
-                <a href="/drama" onClick={(e) => navigateToPage('/drama', e)} className="flex flex-col items-center justify-center py-3 bg-white rounded-xl transition-all">
-                  <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center mb-2">
-                    <img src="/images/icons8-circled-play-button-50.png" alt="Drama" className="w-11 h-11" />
-                  </div>
-                  <span className="text-xs font-medium text-gray-800">Drama</span>
-                </a>
-                <a href="/celeb" onClick={(e) => navigateToPage('/celeb', e)} className="flex flex-col items-center justify-center py-3 bg-white rounded-xl transition-all">
-                  <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center mb-2">
-                    <img src="/images/icons8-profile-94.png" alt="Celebs" className="w-11 h-11" />
-                  </div>
-                  <span className="text-xs font-medium text-gray-800">Celebs</span>
-                </a>
-                <a href="/tvfilm" onClick={(e) => navigateToPage('/tvfilm', e)} className="flex flex-col items-center justify-center py-3 bg-white rounded-xl transition-all">
-                  <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center mb-2">
-                    <img src="/images/icons8-clapperboard-50.png" alt="TV/Film" className="w-11 h-11" />
-                  </div>
-                  <span className="text-xs font-medium text-gray-800">TV/Film</span>
-                </a>
+              {/* Hero Section + 4-card grid */}
+              <HeroSection
+                article={articles[0]}
+                onNavigate={navigateToPage}
+              >
+                <NewsCardGrid
+                  articles={articles.slice(1, 5)}
+                  onNavigate={navigateToPage}
+                />
+              </HeroSection>
+
+              {/* Mobile separator */}
+              <div className="lg:hidden h-2 bg-[#F3F4F6]" />
+
+              {/* Mobile Trending NOW - below hero */}
+              <div className="lg:hidden px-4 py-4">
+                <TrendingNow items={todayRankingNews.length > 0 ? todayRankingNews : rankingNews} onNavigate={navigateToPage} showCard={false} />
               </div>
-            </div>
 
-            {/* 모바일 전용 카테고리 필터 - featured news 위에 배치 */}
-            <div className="mt-8 md:mt-16">
-              <CardNews
-                cards={articles}
-                featured={featured}
-              />
-              <RecommendedNews allNews={articles} />
-            </div>
-          </section>
+              {/* Mobile separator */}
+              <div className="lg:hidden h-2 bg-[#F3F4F6]" />
 
-          {/* Watch News Section - 영상 뉴스 전용 섹션 (클라이언트에서만 렌더링) */}
-          {isClientMounted && watchNews && watchNews.length > 0 && (
-          <section className="mb-8 md:mb-16">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center">
-                {/* YouTube Logo Icon */}
-                <div className="mr-4 flex-shrink-0">
-                  <img
-                    src="/images/icons8-youtube-logo-50.png"
-                    alt="YouTube Logo"
-                    className="h-12 w-12 object-contain"
+              {/* Latest News - 3-col large cards with descriptions */}
+              <div className="bg-white border-0 lg:border-[1.5px] border-ksp-border rounded-none lg:rounded-xl py-5 lg:py-8 px-4 lg:px-6 mb-0 lg:mb-8">
+                <div className="flex items-center justify-between mb-5 lg:mb-7">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-[21px] lg:text-[26px] font-black"><span style={{ color: '#2B7FFF' }}>Latest</span> <span style={{ color: '#101828' }}>News</span></h2>
+                    <span className="text-xl lg:text-2xl">🔥</span>
+                  </div>
+                  <button onClick={() => navigateToPage('/news')} className="flex items-center gap-[10px] text-[12px] lg:text-[14px] font-bold hover:underline" style={{ color: '#2B7FFF', letterSpacing: '-0.0107em' }}>
+                    See more
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="#2B7FFF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </button>
+                </div>
+                <ArticleCardGrid
+                  articles={articles.slice(5, 8)}
+                  onNavigate={navigateToPage}
+                />
+              </div>
+
+              {/* Mobile separator */}
+              <div className="lg:hidden h-2 bg-[#F3F4F6]" />
+
+              {/* Recommended News - 3-col large cards with descriptions */}
+              <div className="bg-white border-0 lg:border-[1.5px] border-ksp-border rounded-none lg:rounded-xl py-5 lg:py-8 px-4 lg:px-6 mb-0 lg:mb-8">
+                <div className="flex items-center justify-between mb-5 lg:mb-7">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-[21px] lg:text-[26px] font-black"><span style={{ color: '#2B7FFF' }}>Recommended</span> <span style={{ color: '#101828' }}>News</span></h2>
+                    <span className="text-xl lg:text-2xl">💓</span>
+                  </div>
+                  <button onClick={() => navigateToPage('/news')} className="flex items-center gap-[10px] text-[12px] lg:text-[14px] font-bold hover:underline" style={{ color: '#2B7FFF', letterSpacing: '-0.0107em' }}>
+                    See more
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="#2B7FFF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </button>
+                </div>
+                <ArticleCardGrid
+                  articles={featured.length >= 3 ? featured.slice(0, 3) : articles.slice(8, 11)}
+                  onNavigate={navigateToPage}
+                />
+              </div>
+
+              {/* Mobile separator */}
+              <div className="lg:hidden h-2 bg-[#F3F4F6]" />
+
+              {/* Watch News - Featured video + list */}
+              {watchNews && watchNews.length > 0 && (
+                <>
+                <div className="bg-white border-0 lg:border-[1.5px] border-ksp-border rounded-none lg:rounded-xl py-5 lg:py-8 px-4 lg:px-6 mb-0 lg:mb-8">
+                  <div className="flex items-center justify-between mb-5 lg:mb-7">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-[21px] lg:text-[26px] font-black"><span style={{ color: '#2B7FFF' }}>Watch</span> <span style={{ color: '#101828' }}>News</span></h2>
+                      <span className="text-xl lg:text-2xl">👀</span>
+                    </div>
+                    <button onClick={() => navigateToPage('/news')} className="flex items-center gap-[10px] text-[12px] lg:text-[14px] font-bold hover:underline" style={{ color: '#2B7FFF', letterSpacing: '-0.0107em' }}>
+                      See more
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="#2B7FFF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </button>
+                  </div>
+                  <WatchNewsSection
+                    articles={watchNews}
+                    onNavigate={navigateToPage}
+                    onPlayVideo={openYoutubeModal}
                   />
                 </div>
-                <div>
-                  <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#233CFA' }}>Video Content</span>
-                  <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center group">
-                    Watch News
-                  </h2>
-                </div>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {watchNews.slice(0, 6).map((video) => (
-                <div
-                  key={video._id || video.id}
-                  className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative cursor-pointer"
-                  onClick={() => {
-                    navigateToPage(`/news/${video._id || video.id}`);
-                  }}
-                >
-                  <div className="h-64 overflow-hidden relative rounded-md">
-                    <img
-                      src={video.coverImage || '/images/news/default-news.jpg'}
-                      alt={video.title}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-md"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = "/images/news/default-news.jpg";
-                      }}
-                    />
+                {/* Mobile separator */}
+                <div className="lg:hidden h-2 bg-[#F3F4F6]" />
+                </>
+              )}
 
-                    {/* 반투명 그라디언트 오버레이 */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-                  </div>
-                  
-                  <div className="p-4">
-                    <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#006fff] transition-colors">
-                      {video.title.replace('Watch:', '')}
-                    </h3>
-
-                    <p className="text-gray-600 text-xs line-clamp-2 mb-3">
-                      {video.content
-                        ? video.content.replace(/<[^>]*>/g, '')
-                        : video.summary || ''}
-                    </p>
-
-                    <div className="flex justify-between items-end">
-                      {/* 시간 배지 */}
-                      <div className="flex items-center text-gray-500 text-xs">
-                        <Clock size={12} className="mr-1 text-gray-500" />
-                        <span>{new Date(video.createdAt || video.date).toLocaleDateString()}</span>
-                      </div>
-
-                      {/* Watch now 버튼 */}
-                      <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#233CFA' }}>
-                        Watch now <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" style={{ color: '#233CFA' }} />
-                      </span>
+              {/* K-POP Ranking */}
+              {topSongs && topSongs.length > 0 && (
+                <>
+                <div className="bg-white border-0 lg:border-[1.5px] border-ksp-border rounded-none lg:rounded-xl py-5 lg:py-8 px-4 lg:px-6 mb-0 lg:mb-8">
+                  <div className="flex items-center justify-between mb-5 lg:mb-7">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-[21px] lg:text-[26px] font-black"><span style={{ color: '#2B7FFF' }}>K-POP</span> <span style={{ color: '#101828' }}>Ranking</span></h2>
+                      <span className="text-xl lg:text-2xl">⭐</span>
                     </div>
+                    <button onClick={() => navigateToPage('/music')} className="flex items-center gap-[10px] text-[12px] lg:text-[14px] font-bold hover:underline" style={{ color: '#2B7FFF', letterSpacing: '-0.0107em' }}>
+                      See more
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="#2B7FFF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </button>
                   </div>
-                </div>
-              ))}
-            </div>
-          </section>
-          )}
-
-          {/* Popular News Section - 카테고리별 인기 뉴스 롤링 */}
-          <section className="mb-8 md:mb-16">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center">
-                {/* Fire Icon */}
-                <div className="mr-4 flex-shrink-0">
-                  <img
-                    src="/images/icons8-fire-50.png"
-                    alt="Fire Icon"
-                    className="h-12 w-12 object-contain"
+                  <KpopRankingSection
+                    songs={topSongs}
+                    onPlayVideo={openYoutubeModal}
                   />
                 </div>
-                <div>
-                  <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#233CFA' }}>Discover More</span>
-                  <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center group">
-                    Popular News
-                  </h2>
-                </div>
-              </div>
-            </div>
-            
-            {/* 카테고리 그리드 레이아웃 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-              {/* 드라마 섹션 */}
-              <div className="bg-white rounded-xl overflow-hidden">
-                <div className="bg-white border-b border-gray-200 px-4 py-3">
-                  <h3 className="font-bold flex items-center justify-between text-gray-900">
-                    <div className="flex items-center">
-                      <Tv size={16} className="mr-2 text-gray-900" style={{ strokeWidth: 2 }}/>
-                      <span className="text-gray-900">Drama</span>
-                    </div>
-                    <Link
-                      href="/drama"
-                      className="text-gray-900 hover:opacity-70"
-                    >
-                      <ChevronRight size={20} className="hover:scale-110 transition-transform" />
-                    </Link>
-                  </h3>
-                </div>
-                
-                <div className="p-4">
-                  {popularNews.drama && popularNews.drama.length > 0 ? (
-                    <>
-                      {/* 썸네일 영역 */}
-                      <div className="relative h-64 mb-4 rounded-md overflow-hidden">
-                        <div className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
-                          showDramaThumbnail ? 'opacity-100' : 'opacity-0'
-                        }`}>
-                          {getCurrentNews('drama', currentDramaIndex)?.coverImage && (
-                            <div
-                              className="block h-full cursor-pointer"
-                              onClick={() => {
-                                navigateToPage(`/news/${getCurrentNews('drama', currentDramaIndex)._id || getCurrentNews('drama', currentDramaIndex).id}`);
-                              }}
-                            >
-                              <div className="relative h-full">
-                                <img
-                                  src={getCurrentNews('drama', currentDramaIndex).coverImage}
-                                  alt={getCurrentNews('drama', currentDramaIndex).title}
-                                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-300 rounded-md"
-                                  onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.src = "/images/placeholder.jpg";
-                                  }}
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
-                                <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-                                  <h4 className="font-medium text-base line-clamp-2">
-                                    {getCurrentNews('drama', currentDramaIndex)?.title}
-                                  </h4>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* 뉴스 목록 */}
-                      <div className="space-y-4">
-                        {popularNews.drama.slice(0, 4).map((news, index) => (
-                          <div
-                            key={news._id || news.id || index}
-                            className={`flex items-center py-2.5 cursor-pointer ${
-                              currentDramaIndex === index
-                                ? 'bg-white rounded-lg px-3'
-                                : 'hover:bg-gray-50 px-3 rounded-lg'
-                            }`}
-                            onClick={() => {
-                              // 현재 섹션의 뉴스가 선택되면 페이지 이동
-                              if (currentDramaIndex === index) {
-                                navigateToPage(`/news/${news._id || news.id || news.slug}`);
-                              } else {
-                                // 다른 뉴스를 선택하면 썸네일 변경만 수행
-                                setShowDramaThumbnail(false);
-                                setTimeout(() => {
-                                  setCurrentDramaIndex(index);
-                                  setShowDramaThumbnail(true);
-                                }, 300);
-                              }
-                            }}
-                          >
-                            <div className={`flex-shrink-0 w-7 h-7 min-w-[28px] rounded-full flex items-center justify-center font-bold text-xs mr-3 overflow-hidden ${
-                              currentDramaIndex === index
-                                ? 'text-white shadow-md border border-white'
-                                : 'bg-gray-100 text-gray-700'
-                            }`}
-                            style={currentDramaIndex === index ? { backgroundColor: '#233CFA' } : {}}>
-                              {currentDramaIndex === index && (
-                                <div className="absolute inset-0 bg-white/20 scale-x-0 animate-shine"></div>
-                              )}
-                              {index + 1}
-                            </div>
-                            <div className="overflow-hidden">
-                              <h4 className={`text-sm ${
-                                currentDramaIndex === index ? 'font-bold' : 'font-medium'
-                              } line-clamp-2 text-gray-900 transition-all`}
-                              style={currentDramaIndex === index ? { color: '#233CFA' } : {}}>
-                                {news.title}
-                              </h4>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="p-4 text-center text-gray-500">
-                      <p>No drama news available</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+                </>
+              )}
 
-              {/* 영화 섹션 */}
-              <div className="bg-white rounded-xl overflow-hidden">
-                <div className="bg-white border-b border-gray-200 px-4 py-3">
-                  <h3 className="font-bold flex items-center justify-between text-gray-900">
-                    <div className="flex items-center">
-                      <Clapperboard size={16} className="mr-2 text-gray-900" style={{ strokeWidth: 2 }}/>
-                      <span className="text-gray-900">Movie</span>
-                    </div>
-                    <Link
-                      href="/movie"
-                      className="text-gray-900 hover:opacity-70"
-                    >
-                      <ChevronRight size={20} className="hover:scale-110 transition-transform" />
-                    </Link>
-                  </h3>
-                </div>
-                
-                <div className="p-4">
-                  {popularNews.movie && popularNews.movie.length > 0 ? (
-                    <>
-                      {/* 썸네일 영역 */}
-                      <div className="relative h-64 mb-4 rounded-md overflow-hidden">
-                        <div className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
-                          showMovieThumbnail ? 'opacity-100' : 'opacity-0'
-                        }`}>
-                          {getCurrentNews('movie', currentMovieIndex)?.coverImage && (
-                            <div
-                              className="block h-full cursor-pointer"
-                              onClick={() => {
-                                navigateToPage(`/news/${getCurrentNews('movie', currentMovieIndex)._id || getCurrentNews('movie', currentMovieIndex).id}`);
-                              }}
-                            >
-                              <div className="relative h-full">
-                                <img
-                                  src={getCurrentNews('movie', currentMovieIndex).coverImage}
-                                  alt={getCurrentNews('movie', currentMovieIndex).title}
-                                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-300 rounded-md"
-                                  onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.src = "/images/placeholder.jpg";
-                                  }}
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
-                                <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-                                  <h4 className="font-medium text-base line-clamp-2">
-                                    {getCurrentNews('movie', currentMovieIndex)?.title}
-                                  </h4>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* 뉴스 목록 */}
-                      <div className="space-y-4">
-                        {popularNews.movie.slice(0, 4).map((news, index) => (
-                          <div
-                            key={news._id || news.id || index}
-                            className={`flex items-center py-2.5 cursor-pointer ${
-                              currentMovieIndex === index
-                                ? 'bg-white rounded-lg px-3'
-                                : 'hover:bg-gray-50 px-3 rounded-lg'
-                            }`}
-                            onClick={() => {
-                              // 현재 섹션의 뉴스가 선택되면 페이지 이동
-                              if (currentMovieIndex === index) {
-                                navigateToPage(`/news/${news._id || news.id || news.slug}`);
-                              } else {
-                                // 다른 뉴스를 선택하면 썸네일 변경만 수행
-                                setShowMovieThumbnail(false);
-                                setTimeout(() => {
-                                  setCurrentMovieIndex(index);
-                                  setShowMovieThumbnail(true);
-                                }, 300);
-                              }
-                            }}
-                          >
-                            <div className={`flex-shrink-0 w-7 h-7 min-w-[28px] rounded-full flex items-center justify-center font-bold text-xs mr-3 overflow-hidden ${
-                              currentMovieIndex === index
-                                ? 'text-white shadow-md border border-white'
-                                : 'bg-gray-100 text-gray-700'
-                            }`}
-                            style={currentMovieIndex === index ? { backgroundColor: '#233CFA' } : {}}>
-                              {currentMovieIndex === index && (
-                                <div className="absolute inset-0 bg-white/20 scale-x-0 animate-shine"></div>
-                              )}
-                              {index + 1}
-                            </div>
-                            <div className="overflow-hidden">
-                              <h4 className={`text-sm ${
-                                currentMovieIndex === index ? 'font-bold' : 'font-medium'
-                              } line-clamp-2 text-gray-900 transition-all`}
-                              style={currentMovieIndex === index ? { color: '#233CFA' } : {}}>
-                                {news.title}
-                              </h4>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="p-4 text-center text-gray-500">
-                      <p>No movie news available</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <div className="lg:hidden h-2 bg-[#F3F4F6]" />
 
-              {/* 음악 섹션 */}
-              <div className="bg-white rounded-xl overflow-hidden">
-                <div className="bg-white border-b border-gray-200 px-4 py-3">
-                  <h3 className="font-bold flex items-center justify-between text-gray-900">
-                    <div className="flex items-center">
-                      <MusicIcon size={16} className="mr-2 text-gray-900" style={{ strokeWidth: 2 }}/>
-                      <span className="text-gray-900">K-pop</span>
-                    </div>
-                    <Link
-                      href="/music"
-                      className="text-gray-900 hover:opacity-70"
-                    >
-                      <ChevronRight size={20} className="hover:scale-110 transition-transform" />
-                    </Link>
-                  </h3>
-                </div>
-                
-                <div className="p-4">
-                  {popularNews.kpop && popularNews.kpop.length > 0 ? (
-                    <>
-                      {/* 썸네일 영역 */}
-                      <div className="relative h-64 mb-4 rounded-md overflow-hidden">
-                        <div className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
-                          showMusicThumbnail ? 'opacity-100' : 'opacity-0'
-                        }`}>
-                          {(() => {
-                            const currentKpopNews = getCurrentNews('kpop', currentMusicIndex);
-                            return currentKpopNews?.coverImage;
-                          })() && (
-                            <div
-                              className="block h-full cursor-pointer"
-                              onClick={() => {
-                                navigateToPage(`/news/${getCurrentNews('kpop', currentMusicIndex)._id || getCurrentNews('kpop', currentMusicIndex).id}`);
-                              }}
-                            >
-                              <div className="relative h-full">
-                                <img
-                                  src={getCurrentNews('kpop', currentMusicIndex).coverImage}
-                                  alt={getCurrentNews('kpop', currentMusicIndex).title}
-                                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-300 rounded-md"
-                                  onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.src = "/images/placeholder.jpg";
-                                  }}
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
-                                <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-                                  <h4 className="font-medium text-base line-clamp-2">
-                                    {getCurrentNews('kpop', currentMusicIndex)?.title}
-                                  </h4>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* 뉴스 목록 */}
-                      <div className="space-y-4">
-                        {popularNews.kpop.slice(0, 4).map((news, index) => (
-                          <div 
-                            key={news._id || news.id || index}
-                            className={`flex items-center py-2.5 cursor-pointer ${
-                              currentMusicIndex === index
-                                ? 'bg-white rounded-lg px-3'
-                                : 'hover:bg-gray-50 px-3 rounded-lg'
-                            }`}
-                            onClick={() => {
-                              // 현재 섹션의 뉴스가 선택되면 페이지 이동
-                              if (currentMusicIndex === index) {
-                                navigateToPage(`/news/${news._id || news.id || news.slug}`);
-                              } else {
-                                // 다른 뉴스를 선택하면 썸네일 변경만 수행
-                                setShowMusicThumbnail(false);
-                                setTimeout(() => {
-                                  setCurrentMusicIndex(index);
-                                  setShowMusicThumbnail(true);
-                                }, 300);
-                              }
-                            }}
-                          >
-                            <div className={`flex-shrink-0 w-7 h-7 min-w-[28px] rounded-full flex items-center justify-center font-bold text-xs mr-3 overflow-hidden ${
-                              currentMusicIndex === index
-                                ? 'text-white shadow-md border border-white'
-                                : 'bg-gray-100 text-gray-700'
-                            }`}
-                            style={currentMusicIndex === index ? { backgroundColor: '#233CFA' } : {}}>
-                              {currentMusicIndex === index && (
-                                <div className="absolute inset-0 bg-white/20 scale-x-0 animate-shine"></div>
-                              )}
-                              {index + 1}
-                            </div>
-                            <div className="overflow-hidden">
-                              <h4 className={`text-sm ${
-                                currentMusicIndex === index ? 'font-bold' : 'font-medium'
-                              } line-clamp-2 text-gray-900 transition-all`}
-                              style={currentMusicIndex === index ? { color: '#233CFA' } : {}}>
-                                {news.title}
-                              </h4>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="p-4 text-center text-gray-500">
-                      <p>No K-pop news available</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 셀럽 섹션 */}
-              <div className="bg-white rounded-xl overflow-hidden">
-                <div className="bg-white border-b border-gray-200 px-4 py-3">
-                  <h3 className="font-bold flex items-center justify-between text-gray-900">
-                    <div className="flex items-center">
-                      <Users size={16} className="mr-2 text-gray-900" style={{ strokeWidth: 2 }}/>
-                      <span className="text-gray-900">Celebrity</span>
-                    </div>
-                    <Link
-                      href="/celebrity"
-                      className="text-gray-900 hover:opacity-70"
-                    >
-                      <ChevronRight size={20} className="hover:scale-110 transition-transform" />
-                    </Link>
-                  </h3>
-                </div>
-                
-                <div className="p-4">
-                  {popularNews.celeb && popularNews.celeb.length > 0 ? (
-                    <>
-                      {/* 썸네일 영역 */}
-                      <div className="relative h-64 mb-4 rounded-md overflow-hidden">
-                        <div className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
-                          showCelebThumbnail ? 'opacity-100' : 'opacity-0'
-                        }`}>
-                          {getCurrentNews('celeb', currentCelebIndex)?.coverImage && (
-                            <div
-                              className="block h-full cursor-pointer"
-                              onClick={() => {
-                                navigateToPage(`/news/${getCurrentNews('celeb', currentCelebIndex)._id || getCurrentNews('celeb', currentCelebIndex).id}`);
-                              }}
-                            >
-                              <div className="relative h-full">
-                                <img
-                                  src={getCurrentNews('celeb', currentCelebIndex).coverImage}
-                                  alt={getCurrentNews('celeb', currentCelebIndex).title}
-                                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-300 rounded-md"
-                                  onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.src = "/images/placeholder.jpg";
-                                  }}
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
-                                <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-                                  <h4 className="font-medium text-base line-clamp-2">
-                                    {getCurrentNews('celeb', currentCelebIndex)?.title}
-                                  </h4>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* 뉴스 목록 */}
-                      <div className="space-y-4">
-                        {popularNews.celeb.slice(0, 4).map((news, index) => (
-                          <div 
-                            key={news._id || news.id || index}
-                            className={`flex items-center py-2.5 cursor-pointer ${
-                              currentCelebIndex === index
-                                ? 'bg-white rounded-lg px-3'
-                                : 'hover:bg-gray-50 px-3 rounded-lg'
-                            }`}
-                            onClick={() => {
-                              // 현재 섹션의 뉴스가 선택되면 페이지 이동
-                              if (currentCelebIndex === index) {
-                                navigateToPage(`/news/${news._id || news.id || news.slug}`);
-                              } else {
-                                // 다른 뉴스를 선택하면 썸네일 변경만 수행
-                                setShowCelebThumbnail(false);
-                                setTimeout(() => {
-                                  setCurrentCelebIndex(index);
-                                  setShowCelebThumbnail(true);
-                                }, 300);
-                              }
-                            }}
-                          >
-                            <div className={`flex-shrink-0 w-7 h-7 min-w-[28px] rounded-full flex items-center justify-center font-bold text-xs mr-3 overflow-hidden ${
-                              currentCelebIndex === index
-                                ? 'text-white shadow-md border border-white'
-                                : 'bg-gray-100 text-gray-700'
-                            }`}
-                            style={currentCelebIndex === index ? { backgroundColor: '#233CFA' } : {}}>
-                              {currentCelebIndex === index && (
-                                <div className="absolute inset-0 bg-white/20 scale-x-0 animate-shine"></div>
-                              )}
-                              {index + 1}
-                            </div>
-                            <div className="overflow-hidden">
-                              <h4 className={`text-sm ${
-                                currentCelebIndex === index ? 'font-bold' : 'font-medium'
-                              } line-clamp-2 text-gray-900 transition-all`}
-                              style={currentCelebIndex === index ? { color: '#233CFA' } : {}}>
-                                {news.title}
-                              </h4>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="p-4 text-center text-gray-500">
-                      <p>No celebrity news available</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Top K-POP Songs Section - 고급스러운 디자인 */}
-          <section className="mb-8 md:mb-16">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center">
-                {/* Musical Note Icon */}
-                <div className="mr-4 flex-shrink-0">
-                  <img
-                    src="/images/icons8-musical-note-50.png"
-                    alt="Musical Note Icon"
-                    className="h-12 w-12 object-contain"
+              {/* MoreNews - Infinite Scroll */}
+              <div className="bg-white border-0 lg:border-[1.5px] border-ksp-border rounded-none lg:rounded-xl py-5 lg:py-8 px-4 lg:px-6">
+                {loadedMoreNews && (
+                  <MoreNews
+                    initialNews={initialMoreNews}
+                    key="more-news-permanent-instance"
                   />
-                </div>
-                <div>
-                  <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#233CFA' }}>WEEKLY CHART</span>
-                  <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center group">
-                    Top K-POP Songs
-                  </h2>
-                </div>
-                </div>
+                )}
               </div>
-              
-              {/* 배경 장식과 메인 컨테이너 */}
-              <div className="relative rounded-[32px] shadow-2xl overflow-hidden">
-                {/* 배경 그라디언트 */}
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100"></div>
-
-                {/* 장식용 원형 요소들 */}
-                <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-gradient-to-bl from-blue-200/40 to-indigo-300/40 blur-3xl"></div>
-                <div className="absolute -bottom-48 -left-48 w-[500px] h-[500px] rounded-full bg-gradient-to-tr from-indigo-200/30 to-blue-200/30 blur-3xl"></div>
-                <div className="absolute top-1/3 right-1/4 w-32 h-32 rounded-full bg-blue-100/50 blur-2xl"></div>
-
-                {/* 장식용 아이콘들 */}
-                <div className="absolute top-12 right-12 opacity-20" style={{ color: '#233CFA' }}>
-                  <MusicIcon size={60} strokeWidth={1} />
-                </div>
-                <div className="absolute bottom-12 left-16 opacity-20" style={{ color: '#233CFA' }}>
-                  <MusicIcon size={80} strokeWidth={1} />
-              </div>
-              
-                <div className="relative p-8 md:p-12 z-10">
-                  {/* 최상위 1위 곡 - 스포트라이트 디자인 */}
-                  {topSongs && topSongs.length > 0 && (
-                    <div className="mb-12 relative">
-                      <div className="absolute -top-5 -left-5 text-xs font-bold text-white px-3 py-1 rounded-full shadow-lg z-10" style={{ background: 'linear-gradient(to right, #233CFA, #1a2db8)' }}>
-                        #1 TOP SONG
-                      </div>
-                      
-                      <div 
-                        onClick={(e) => {
-                          e.preventDefault(); 
-                          openYoutubeModal(topSongs[0].youtubeUrl, e);
-                        }}
-                        className="group bg-white/70 backdrop-blur-lg rounded-3xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-500 cursor-pointer border border-white/80"
-                      >
-                        <div className="grid grid-cols-1 md:grid-cols-7 overflow-hidden">
-                          {/* 왼쪽 앨범 커버와 순위 */}
-                          <div className="md:col-span-3 p-6 md:p-10 relative overflow-hidden flex items-center justify-center">
-                            {/* 빛나는 배경 효과 */}
-                            <div className="absolute inset-0 bg-gradient-to-br from-blue-100 via-indigo-100 to-blue-200 opacity-50"></div>
-                            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-40 h-40 rounded-full blur-3xl animate-pulse" style={{ backgroundColor: 'rgba(35, 60, 250, 0.2)' }}></div>
-                            
-                            {/* 1위 태그 */}
-                            <div className="absolute top-4 left-4 z-20 bg-gradient-to-r from-yellow-400 to-amber-600 text-white text-xl font-bold w-12 h-12 rounded-full flex items-center justify-center shadow-lg border-2 border-white animate-pulse">
-                              1
-                    </div>
-                            
-                            {/* 커버 이미지 */}
-                            <div className="relative h-56 w-56 rounded-full overflow-hidden border-[6px] border-white shadow-2xl rotate-0 group-hover:rotate-[5deg] transition-all duration-700 z-10">
-                              {topSongs[0].coverImage ? (
-                                <img 
-                                  src={topSongs[0].coverImage} 
-                                  alt={topSongs[0].title}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.src = '/images/placeholder.jpg';
-                                  }}
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-white font-bold text-4xl" style={{ background: 'linear-gradient(to bottom right, #233CFA, #1a2db8)' }}>
-                                  {topSongs[0].title && topSongs[0].title.charAt(0)}
-                                </div>
-                              )}
-                              
-                              {/* CD 효과 - 가운데 구멍 */}
-                              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/80 border border-gray-300 shadow-inner z-10"></div>
-                              
-                              {/* 플레이 버튼 오버레이 */}
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-all duration-500">
-                                <button 
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    openYoutubeModal(topSongs[0].youtubeUrl, e);
-                                  }}
-                                  className="bg-white/90 p-3 rounded-full hover:bg-white hover:scale-110 transition-all duration-300 shadow-lg"
-                                  style={{ color: '#233CFA' }}
-                                >
-                                  <Play size={32} className="ml-1" />
-                                </button>
-                              </div>
-                            </div>
-                            
-                            {/* 순위 변동 표시 */}
-                            {topSongs[0].previousPosition !== topSongs[0].position && (
-                              <div className="absolute bottom-4 right-4 z-10">
-                                {topSongs[0].previousPosition > topSongs[0].position ? (
-                                  <span className="bg-emerald-500 text-white text-sm font-bold px-3 py-1.5 rounded-full flex items-center shadow-lg">
-                                    <ArrowUp size={16} className="mr-1" />
-                                    {topSongs[0].previousPosition - topSongs[0].position}
-                          </span>
-                        ) : (
-                                  <span className="bg-orange-500 text-white text-sm font-bold px-3 py-1.5 rounded-full flex items-center shadow-lg">
-                                    <ArrowDown size={16} className="mr-1" />
-                                    {topSongs[0].position - topSongs[0].previousPosition}
-                        </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* 오른쪽 곡 정보 */}
-                          <div className="md:col-span-4 p-6 md:px-10 md:py-14 flex flex-col justify-center">
-                            <div className="text-sm font-semibold mb-2 uppercase tracking-wider" style={{ color: '#233CFA' }}>Hot Track</div>
-                            <h3 className="text-2xl md:text-3xl font-extrabold text-gray-800 transition-colors mb-3 line-clamp-2 group-hover:opacity-80">
-                              {decodeHtmlEntities(topSongs[0].title)}
-                            </h3>
-                            <p className="text-lg md:text-xl font-bold mb-4" style={{ color: '#233CFA' }}>{decodeHtmlEntities(topSongs[0].artist)}</p>
-                            
-                            <div className="mt-3 flex flex-wrap gap-4">
-                              {/* 조회수 */}
-                              <div className="flex items-center px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full shadow-sm">
-                                <Eye size={18} className="mr-2" style={{ color: '#233CFA' }} />
-                                <span className="text-gray-700 font-medium">{(topSongs[0].dailyViews || topSongs[0].dailyViewsFields?.dailyViews || 0).toLocaleString()} views</span>
-                    </div>
-
-                    {/* 재생 버튼 */}
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          openYoutubeModal(topSongs[0].youtubeUrl, e);
-                        }}
-                        className="inline-flex items-center px-4 py-2 text-white font-medium rounded-full hover:shadow-lg transition-all hover:scale-105"
-                        style={{ background: 'linear-gradient(to right, #233CFA, #1a2db8)' }}
-                      >
-                        <Play size={18} className="mr-2" /> Watch MV
-                      </button>
-                    </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* 2-10위 곡 - 그리드 레이아웃 조정 */}
-                  <div className="grid grid-cols-1 gap-8 sm:gap-6 md:gap-8">
-                    {/* 2-3위 곡 - 더 큰 카드 (2개를 한 줄에) */}
-                    {topSongs && topSongs.length > 1 && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-3 md:gap-8 mb-2 sm:mb-3 md:mb-6">
-                        {topSongs.slice(1, 3).map((song, index) => (
-                          <div key={song._id || song.id} className="relative">
-                            {/* 순위 배지 - 절대 위치로 배치하고 높은 z-index 부여 */}
-                            <div className="absolute -top-4 -left-4 z-50">
-                              <div className={`w-11 h-11 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-lg border-2 border-white ${
-                                index === 0 
-                                  ? 'bg-gradient-to-r from-slate-400 to-slate-600' 
-                                  : 'bg-gradient-to-r from-amber-400 to-amber-600'
-                              }`}>
-                                {index + 2}
-                              </div>
-                            </div>
-                            
-                            <div
-                              onClick={(e) => {
-                                e.preventDefault(); 
-                                openYoutubeModal(song.youtubeUrl, e);
-                              }}
-                              className="group bg-white/60 backdrop-blur-sm rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer hover:shadow-xl border border-white/80 hover:bg-white/90 hover:translate-y-[-5px] p-6 pt-7"
-                            >
-                              <div className="flex items-center">
-                                {/* 앨범 커버 - 더 크게, 비율 고정 */}
-                                <div className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-lg mr-5 group-hover:scale-105 transition-all duration-500 flex-shrink-0">
-                      {song.coverImage ? (
-                        <img 
-                          src={song.coverImage} 
-                          alt={song.title}
-                                      className="w-full h-full object-cover"
-                                      style={{ aspectRatio: "1/1" }}
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = '/images/placeholder.jpg';
-                          }}
-                        />
-                      ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-white font-bold text-2xl" style={{ background: 'linear-gradient(to bottom right, #233CFA, #1a2db8)' }}>
-                        {song.title && song.title.charAt(0)}
-                      </div>
-                      )}
-                                
-                                {/* CD 효과 - 가운데 구멍 */}
-                                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white/80 border border-gray-300 shadow-inner"></div>
-                                
-                                {/* 플레이 버튼 오버레이 */}
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-all duration-500">
-                                  <button 
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      openYoutubeModal(song.youtubeUrl, e);
-                                    }}
-                                    className="bg-white/90 p-2 rounded-full hover:bg-white hover:scale-110 transition-all"
-                                    style={{ color: '#233CFA' }}
-                                  >
-                                    <Play size={18} className="ml-0.5" />
-                                  </button>
-                                </div>
-                  </div>
-                  
-                                {/* 곡 정보 - 더 크게 */}
-                                <div className="flex-grow pr-7">
-                                  <h4 className="font-bold text-gray-800 text-lg line-clamp-1 transition-colors group-hover:opacity-80">
-                        {song.title}
-                                  </h4>
-                                  <p className="text-sm font-medium line-clamp-1 mt-1" style={{ color: '#233CFA' }}>{song.artist}</p>
-                                  
-                                  <div className="flex items-center mt-2 md:mt-3">
-                                    <Eye size={12} className="text-gray-400 mr-1" />
-                                    <span className="text-[10px] md:text-xs text-gray-500 whitespace-nowrap">{(song.dailyViews || song.dailyViewsFields?.dailyViews || 0).toLocaleString()} views</span>
-                                  </div>
-                  </div>
-                                
-                                {/* 순위 변동 표시 */}
-                                {song.previousPosition !== song.position && (
-                                  <div className="absolute top-3 right-3 z-10">
-                                    {song.previousPosition > song.position ? (
-                                      <span className="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center shadow-md">
-                                        <ArrowUp size={14} className="mr-1" />
-                                        {song.previousPosition - song.position}
-                                      </span>
-                                    ) : (
-                                      <span className="bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center shadow-md">
-                                        <ArrowDown size={14} className="mr-1" />
-                                        {song.position - song.previousPosition}
-                                      </span>
-                                    )}
-                </div>
-                                )}
-                  </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    
-                    {/* 4-5위 곡 - 중간 크기 카드 (2개를 한 줄에) */}
-                    {topSongs && topSongs.length > 3 && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-3 md:gap-8">
-                        {topSongs.slice(3, 5).map((song, index) => (
-                          <div key={song._id || song.id} className="relative">
-                            {/* 순위 배지 */}
-                            <div className="absolute -top-3 -left-3 z-50">
-                              <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-base font-bold shadow-lg border-2 border-white" style={{ background: 'linear-gradient(to right, #233CFA, #1a2db8)' }}>
-                                {index + 4}
             </div>
-                            </div>
-                            
-                            <div
-                              onClick={(e) => {
-                                e.preventDefault(); 
-                                openYoutubeModal(song.youtubeUrl, e);
-                              }}
-                              className="group bg-white/60 backdrop-blur-sm rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer hover:shadow-xl border border-white/80 hover:bg-white/90 hover:translate-y-[-5px] p-3 sm:p-4 md:p-6 pt-5 md:pt-7"
-                            >
-                              <div className="flex items-center">
-                                {/* 앨범 커버 - 더 크게, 비율 고정 */}
-                                <div className="relative w-20 sm:w-24 h-20 sm:h-24 rounded-full overflow-hidden border-4 border-white shadow-lg mr-3 sm:mr-5 group-hover:scale-105 transition-all duration-500 flex-shrink-0">
-                      {song.coverImage ? (
-                                  <img 
-                                    src={song.coverImage} 
-                                    alt={song.title}
-                                    className="w-full h-full object-cover"
-                                    style={{ aspectRatio: "1/1" }}
-                                    onError={(e) => {
-                                      e.target.onerror = null;
-                                      e.target.src = '/images/placeholder.jpg';
-                                    }}
-                                  />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-white font-bold text-2xl" style={{ background: 'linear-gradient(to bottom right, #233CFA, #1a2db8)' }}>
-                        {song.title && song.title.charAt(0)}
-                      </div>
-                                )}
-                                
-                                {/* CD 효과 - 가운데 구멍 */}
-                                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white/80 border border-gray-300 shadow-inner"></div>
-                                
-                                {/* 플레이 버튼 오버레이 */}
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                  <button 
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      openYoutubeModal(song.youtubeUrl, e);
-                                    }}
-                                    className="bg-white/90 p-1.5 rounded-full hover:bg-white hover:scale-110 transition-all"
-                                    style={{ color: '#233CFA' }}
-                                  >
-                                    <Play size={16} className="ml-0.5" />
-                                  </button>
-                  </div>
-                </div>
-                
-                                {/* 곡 정보 */}
-                                <div className="flex-grow pr-7">
-                                  <h4 className="font-bold text-gray-800 line-clamp-1 transition-colors group-hover:opacity-80">
-                                    {decodeHtmlEntities(song.title)}
-                                  </h4>
-                                  <p className="text-sm font-medium line-clamp-1 mt-1" style={{ color: '#233CFA' }}>{decodeHtmlEntities(song.artist)}</p>
-                                  
-                                  <div className="flex items-center mt-2">
-                                    <Eye size={12} className="text-gray-400 mr-1" />
-                                    <span className="text-[10px] md:text-xs text-gray-500 whitespace-nowrap">{(song.dailyViews || song.dailyViewsFields?.dailyViews || 0).toLocaleString()} views</span>
-                                  </div>
+
+            {/* Right: Sidebar (500px, Naver-style bi-directional sticky) */}
+            <div className="hidden lg:block w-[500px] flex-shrink-0">
+              <div ref={sidebarStickyRef} className="sticky" style={{ top: sidebarStickyTop + 'px' }}>
+                <Sidebar
+                  rankingNews={todayRankingNews.length > 0 ? todayRankingNews : rankingNews}
+                  popularArticles={rankingNews}
+                  recentComments={initialData?.recentComments || []}
+                  onSearch={(q) => router.push(`/search?q=${encodeURIComponent(q)}`)}
+                  onNavigate={navigateToPage}
+                />
               </div>
-              
-                                {/* 순위 변동 표시 - 더 작게 */}
-                                {song.previousPosition !== song.position && (
-                                  <div className="absolute top-3 right-3 z-10">
-                                    {song.previousPosition > song.position ? (
-                                      <span className="bg-emerald-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full flex items-center shadow-md">
-                                        <ArrowUp size={10} />
-                                        {song.previousPosition - song.position}
-                                      </span>
-                                    ) : (
-                                      <span className="bg-orange-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full flex items-center shadow-md">
-                                        <ArrowDown size={10} />
-                                        {song.position - song.previousPosition}
-                                      </span>
-                                    )}
-                        </div>
-                                )}
-                      </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    
-                    {/* 6-10위 곡 - 작은 카드 (3개를 한 줄에) */}
-                    {topSongs && topSongs.length > 5 && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
-                        {topSongs.slice(5, 10).map((song, index) => (
-                          <div key={song._id || song.id} className="relative">
-                            {/* 순위 배지 */}
-                            <div className="absolute -top-2.5 -left-2.5 z-50">
-                              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg border-2 border-white bg-gradient-to-r from-pink-500 to-purple-600">
-                                {index + 6}
-                              </div>
-                            </div>
-                            
-                            <div
-                              onClick={(e) => {
-                                e.preventDefault(); 
-                                openYoutubeModal(song.youtubeUrl, e);
-                              }}
-                              className="group bg-white/60 backdrop-blur-sm rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer hover:shadow-xl border border-white/80 hover:bg-white/90 hover:translate-y-[-5px] p-4 pt-5"
-                            >
-                              <div className="flex items-center">
-                                {/* 앨범 커버 - 더 작게 */}
-                                <div className="relative w-16 h-16 rounded-full overflow-hidden border-3 border-white shadow-lg mr-3 group-hover:scale-105 transition-all duration-500 flex-shrink-0">
-                                  {song.coverImage ? (
-                                    <img 
-                                      src={song.coverImage} 
-                                      alt={song.title}
-                                      className="w-full h-full object-cover"
-                                      style={{ aspectRatio: "1/1" }}
-                        onError={(e) => {
-                          e.target.onerror = null;
-                                      e.target.src = '/images/placeholder.jpg';
-                                    }}
-                                  />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-400 to-purple-600 text-white font-bold text-lg">
-                        {song.title && song.title.charAt(0)}
-                      </div>
-                                )}
-                                
-                                {/* CD 효과 - 가운데 구멍 */}
-                                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white/80 border border-gray-300 shadow-inner"></div>
-                                
-                                {/* 플레이 버튼 오버레이 */}
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                  <button 
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      openYoutubeModal(song.youtubeUrl, e);
-                                    }}
-                                    className="bg-white/90 text-pink-600 p-1 rounded-full hover:bg-white hover:scale-110 transition-all"
-                                  >
-                                    <Play size={14} className="ml-0.5" />
-                                  </button>
-                        </div>
-                      </div>
-                      
-                              {/* 곡 정보 - 더 작게 */}
-                              <div className="flex-grow pr-6">
-                                <h4 className="font-bold text-gray-800 text-sm line-clamp-1 group-hover:text-pink-600 transition-colors">
-                                  {decodeHtmlEntities(song.title)}
-                                </h4>
-                                <p className="text-xs text-purple-600 font-medium line-clamp-1 mt-0.5">{decodeHtmlEntities(song.artist)}</p>
-                              </div>
-                              
-                              {/* 순위 변동 표시 - 더 작게 */}
-                              {song.previousPosition !== song.position && (
-                                <div className="absolute top-2 right-2 z-10">
-                                  {song.previousPosition > song.position ? (
-                                    <span className="bg-emerald-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full flex items-center shadow-md">
-                                      <ArrowUp size={10} />
-                                      {song.previousPosition - song.position}
-                                    </span>
-                                  ) : (
-                                    <span className="bg-orange-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full flex items-center shadow-md">
-                                      <ArrowDown size={10} />
-                                      {song.position - song.previousPosition}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-                  )}
-                  
-                  {/* 데이터가 없는 경우 */}
-                  {(!topSongs || topSongs.length <= 1) && (
-                    <div className="text-center p-10 text-gray-500">
-                      No more music data available
-                    </div>
-                  )}
-                </div>
-              </div>
-              </div>
-            </section>
+            </div>
+          </div>
         </div>
       </main>
 
       {/* YouTube Modal */}
       {showYoutubeModal && (
-        <div 
-          className="fixed inset-0 z-[9999] overflow-y-auto overflow-x-hidden flex items-center justify-center bg-black/90 backdrop-blur-md p-4" 
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
           onClick={closeYoutubeModal}
         >
-          <div className="relative w-full max-w-4xl mx-auto">
-            {/* 닫기 버튼 - 더 크고 모바일에서 쉽게 탭할 수 있게 조정 */}
+          <div className="relative w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                closeYoutubeModal();
-              }}
-              className="absolute -top-16 right-0 md:-top-12 p-4 md:p-3 text-white bg-black/60 rounded-full hover:bg-black/80 transition-colors z-10 shadow-lg"
+              onClick={closeYoutubeModal}
+              className="absolute -top-12 right-0 p-3 text-white bg-black/60 rounded-full hover:bg-black/80 transition-colors z-10"
               aria-label="Close modal"
             >
-              <X size={32} className="md:w-6 md:h-6" />
+              <X size={24} />
             </button>
-            
-            {/* 모달 내용 */}
-            <div 
-              className="bg-black rounded-xl overflow-hidden shadow-2xl" 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-            >
+            <div className="bg-black rounded-xl overflow-hidden shadow-2xl">
               <div className="relative pb-[56.25%] h-0">
-                <iframe 
+                <iframe
                   src={currentYoutubeUrl}
                   className="absolute top-0 left-0 w-full h-full border-0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
                   allowFullScreen
-                  frameBorder="0"
-                  playsInline
-                  webkit-playsinline="true"
                   title="YouTube video player"
                 ></iframe>
               </div>
@@ -1830,25 +688,9 @@ function Home({ initialData }) {
         </div>
       )}
 
-      {/* More News You Might Like - 모바일에서만 보이는 섹션 */}
-      <div className="bg-white pt-8 md:pt-0">
-        <div className="container mx-auto px-4">
-          {loadedMoreNews && (
-            <MoreNews
-              initialNews={initialMoreNews}
-              // 뒤로가기 시 컴포넌트가 다시 마운트되지 않도록 고정 키 사용
-              key="more-news-permanent-instance"
-            />
-          )}
-        </div>
-      </div>
-
-      {/* 푸터 영역 */}
-      {/* ... existing footer content */}
     </MainLayout>
   );
 }
-
 // 캐시 문제 해결을 위해 서버 사이드 렌더링으로 임시 변경
 export async function getServerSideProps() {
   try {
@@ -1864,17 +706,19 @@ export async function getServerSideProps() {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     sevenDaysAgo.setHours(0, 0, 0, 0);
     
-    // 병렬로 핵심 API 호출 (Watch News 추가)
+    // 병렬로 핵심 API 호출 (Watch News + Recent Comments 추가)
     const [
       mainNewsRes,
       featuredNewsRes,
       musicRes,
-      watchNewsRes
+      watchNewsRes,
+      recentCommentsRes
     ] = await Promise.all([
       fetch(`${serverUrl}/api/news?limit=20`),
       fetch(`${serverUrl}/api/news?featured=true&limit=20&createdAfter=${sevenDaysAgo.toISOString()}`),
       fetch(`${serverUrl}/api/music/popular?limit=5`),
-      fetch(`${serverUrl}/api/music/popular?limit=5`) // 임시로 중복 호출 (Watch News는 클라이언트에서)
+      fetch(`${serverUrl}/api/music/popular?limit=5`), // 임시로 중복 호출 (Watch News는 클라이언트에서)
+      fetch(`${serverUrl}/api/comments/recent?limit=10`)
     ]);
 
     // 응답을 JSON으로 파싱
@@ -1882,12 +726,14 @@ export async function getServerSideProps() {
       mainNews,
       featuredNews,
       music,
-      watchNewsInitial
+      watchNewsInitial,
+      recentComments
     ] = await Promise.all([
       mainNewsRes.json(),
       featuredNewsRes.json(),
       musicRes.json(),
-      watchNewsRes.json()
+      watchNewsRes.json(),
+      recentCommentsRes.json()
     ]);
 
     // Watch News는 클라이언트에서 처리 (하이드레이션 에러 방지)
@@ -1906,7 +752,8 @@ export async function getServerSideProps() {
       },
       rankingNews: [], // 클라이언트에서 로드
       topSongs: music.success ? (music.data || music.musics)?.slice(0, 5) || [] : [],
-      moreNews: [] // 클라이언트에서 로드
+      moreNews: [], // 클라이언트에서 로드
+      recentComments: recentComments.success ? recentComments.data?.slice(0, 10) || [] : []
     };
 
     if (process.env.NODE_ENV === 'development') {
@@ -1936,7 +783,8 @@ export async function getServerSideProps() {
           popularNews: { drama: [], movie: [], kpop: [], celeb: [] },
           rankingNews: [],
           topSongs: [],
-          moreNews: []
+          moreNews: [],
+          recentComments: []
         }
       }
     };

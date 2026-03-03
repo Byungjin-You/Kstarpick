@@ -36,9 +36,29 @@ module.exports = {
           900: '#881337',
           950: '#4c0519',
         },
+        ksp: {
+          dark: '#121212',
+          text: '#333333',
+          meta: '#99A1AF',
+          border: '#E5E7EB',
+          'border-light': '#F3F4F6',
+          bg: '#FFFFFF',
+          'bg-light': '#F9FAFB',
+          accent: '#2B7FFF',
+        },
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
+        sans: ['Inter', 'Pretendard', 'Noto Sans KR', 'sans-serif'],
+      },
+      maxWidth: {
+        'content': '1212px',
+      },
+      borderRadius: {
+        'card': '14px',
+        'badge': '100px',
+      },
+      boxShadow: {
+        'card': '0px 1px 3px rgba(0,0,0,0.1), 0px 1px 2px -1px rgba(0,0,0,0.1)',
       },
       animation: {
         'spin-slow': 'spin 2s linear infinite',

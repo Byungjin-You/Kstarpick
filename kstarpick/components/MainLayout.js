@@ -126,7 +126,7 @@ const MainLayout = ({ children }) => {
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      <main className="flex-grow pt-14">
+      <main className="flex-grow pt-[48px] lg:pt-[84px]">
         {children}
       </main>
       <Footer />
@@ -138,10 +138,10 @@ const MainLayout = ({ children }) => {
           className="fixed bottom-6 right-6 p-3 bg-white rounded-full shadow-lg transition-all hover:scale-110 z-[9999]"
           aria-label="맨 위로 이동"
           style={{
-            border: '2px solid #233CFA',
+            border: '2px solid #2B7FFF',
           }}
         >
-          <ArrowUp size={20} color="#233CFA" />
+          <ArrowUp size={20} color="#2B7FFF" />
         </button>
       )}
     </div>

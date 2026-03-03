@@ -210,39 +210,65 @@ const Header = () => {
     searchInputRef.current?.focus();
   };
 
+  // Navigation items
+  const navItems = [
+    { path: '/', label: 'Home' },
+    { path: '/drama', label: 'Drama' },
+    { path: '/tvfilm', label: 'TV/Film' },
+    { path: '/music', label: 'Music' },
+    { path: '/celeb', label: 'Celeb' },
+    { path: '/ranking', label: 'Ranking' },
+  ];
+
   // Render a simplified header during server-side rendering
   if (!isMounted) {
     return (
       <header className="fixed top-0 z-50 bg-white w-full">
-        <div
-          className="w-full border-t-[5px] border-solid border-x-0 border-b-0 shadow-[0px_2px_3px_rgba(0,0,0,0.15)]"
-          style={{ borderImage: 'linear-gradient(to right, #233CFA, #1d31cb) 1' }}
-        >
-          <div className="max-w-[1200px] mx-auto px-4">
-            <div className="flex justify-between items-center h-16">
+        <div className="w-full border-b border-[#F3F4F6] lg:border-b-2 lg:border-ksp-border">
+          <div className="max-w-[1772px] mx-auto px-4 lg:px-10">
+            {/* Desktop SSR */}
+            <div className="hidden lg:flex justify-between items-center h-[84px]">
               <div className="flex items-center">
                 <div className="mr-6 flex-shrink-0">
-                  <div className="block cursor-pointer">
-                    <Logo />
-                  </div>
+                  <div className="block cursor-pointer"><Logo /></div>
                 </div>
-                <nav className="hidden lg:flex items-center h-full">
-                  <div className="h-16 inline-flex items-center px-4 font-medium text-[15px] text-[#333] cursor-pointer">HOME</div>
-                  <div className="h-16 inline-flex items-center px-4 font-medium text-[15px] text-[#333] cursor-pointer">DRAMA</div>
-                  <div className="h-16 inline-flex items-center px-4 font-medium text-[15px] text-[#333] cursor-pointer">TV/FILM</div>
-                  <div className="h-16 inline-flex items-center px-4 font-medium text-[15px] text-[#333] cursor-pointer">MUSIC</div>
-                  <div className="h-16 inline-flex items-center px-4 font-medium text-[15px] text-[#333] cursor-pointer">CELEB</div>
-                  <div className="h-16 inline-flex items-center px-4 font-medium text-[15px] text-[#333] cursor-pointer">RANKING</div>
+                <nav className="flex items-center h-full gap-8">
+                  <div className="inline-flex items-center font-bold text-base text-ksp-accent cursor-pointer">HOME</div>
+                  <div className="inline-flex items-center font-medium text-base text-[#333333] cursor-pointer">DRAMA</div>
+                  <div className="inline-flex items-center font-medium text-base text-[#333333] cursor-pointer">TV/FILM</div>
+                  <div className="inline-flex items-center font-medium text-base text-[#333333] cursor-pointer">MUSIC</div>
+                  <div className="inline-flex items-center font-medium text-base text-[#333333] cursor-pointer">CELEB</div>
+                  <div className="inline-flex items-center font-medium text-base text-[#333333] cursor-pointer">RANKING</div>
                 </nav>
               </div>
-              <div className="flex items-center h-full">
-                <button className="p-2 flex items-center justify-center text-[#666]" aria-label="Search">
-                  <Search size={20} strokeWidth={2.5} />
-                </button>
-                <button className="ml-2 p-2 lg:hidden flex items-center justify-center text-[#666]" aria-label="Toggle menu">
-                  <Menu size={24} strokeWidth={2.5} />
-                </button>
+              <div className="flex items-center h-full gap-3">
+                <div className="flex items-center justify-center w-9 h-9 rounded-full text-[#4A5565]">
+                  <Search size={18} strokeWidth={2} />
+                </div>
+                <div className="flex items-center justify-center px-3 py-2 bg-ksp-accent text-white font-bold text-sm rounded-[10px]" style={{ fontFamily: "'Inter', sans-serif" }}>
+                  Sign in
+                </div>
               </div>
+            </div>
+            {/* Mobile SSR - single row */}
+            <div className="lg:hidden relative flex items-center h-[48px]">
+              <div className="flex-shrink-0">
+                <div className="block cursor-pointer">
+                  <img src="/images/k-logo-mobile.svg" alt="KstarPick" width={16} height={17} />
+                </div>
+              </div>
+              <nav className="flex items-center gap-3 overflow-x-auto hide-scrollbar pl-3 flex-1 min-w-0 h-full">
+                {navItems.map(item => (
+                  <div key={item.path} className={`relative flex-shrink-0 flex items-center h-full text-[15px] ${item.path === '/' ? 'font-bold text-ksp-accent' : 'font-medium text-[#6A7282]'}`} style={{ letterSpacing: '-0.015em' }}>
+                    {item.label}
+                    {item.path === '/' && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-ksp-accent" />}
+                  </div>
+                ))}
+              </nav>
+              <div className="absolute right-0 top-[5px] w-6 h-[38px] pointer-events-none" style={{ background: 'linear-gradient(270deg, white 0%, transparent 100%)' }} />
+              <button className="p-1 flex-shrink-0 flex items-center justify-center text-[#6A7282] ml-1" aria-label="Search">
+                <Search size={20} strokeWidth={1.67} />
+              </button>
             </div>
           </div>
         </div>
@@ -255,103 +281,117 @@ const Header = () => {
     <header className="fixed top-0 z-50 bg-white w-full">
       {/* Top navigation bar */}
       <div
-        className={`w-full border-t-[5px] border-solid border-x-0 border-b-0 transition-shadow duration-300 ${
-          isScrolled ? 'shadow-[0px_4px_6px_rgba(0,0,0,0.2)]' : 'shadow-[0px_2px_3px_rgba(0,0,0,0.15)]'
+        className={`w-full border-b border-[#F3F4F6] lg:border-b-2 lg:border-ksp-border transition-shadow duration-300 ${
+          isScrolled ? 'shadow-[0px_2px_8px_rgba(0,0,0,0.08)]' : ''
         }`}
-        style={{ borderImage: 'linear-gradient(to right, #233CFA, #1d31cb) 1' }}
       >
-        <div className="max-w-[1200px] mx-auto px-4">
-          {/* Desktop and Tablet Layout */}
-          <div className="flex justify-between items-center h-16">
-            {/* Left Section - Logo and Primary Nav */}
+        <div className="max-w-[1772px] mx-auto px-4 lg:px-10">
+
+          {/* === Desktop Layout (lg+) === */}
+          <div className="hidden lg:flex justify-between items-center h-[84px]">
             <div className="flex items-center">
-              {/* Logo - Visible on all screens */}
               <div className="mr-6 flex-shrink-0">
                 <div onClick={(e) => {
                   e.preventDefault();
-                  // 모든 세션 스토리지 초기화
                   sessionStorage.clear();
-                  // 페이지 완전 새로고침
                   window.location.href = '/';
                 }} className="block cursor-pointer">
                   <Logo />
                 </div>
               </div>
-              
-              {/* Primary Navigation - Hidden on Mobile */}
-              <nav className="hidden lg:flex items-center h-full">
-                <Link href="/" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#233cfa] transition-colors duration-200 cursor-pointer ${
-                  router.pathname === '/' ? 'text-[#233cfa] font-semibold' : 'text-[#333]'
-                }`} onClick={router.pathname === '/' ? handleSameMenuClick : undefined}>
-                  HOME
-                </Link>
-                <Link href="/drama" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#233cfa] transition-colors duration-200 cursor-pointer ${
-                  router.pathname === '/drama' ? 'text-[#233cfa] font-semibold' : 'text-[#333]'
-                }`} onClick={router.pathname === '/drama' ? handleSameMenuClick : undefined}>
-                  DRAMA
-                </Link>
-                <Link href="/tvfilm" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#233cfa] transition-colors duration-200 cursor-pointer ${
-                  router.pathname === '/tvfilm' ? 'text-[#233cfa] font-semibold' : 'text-[#333]'
-                }`} onClick={router.pathname === '/tvfilm' ? handleSameMenuClick : undefined}>
-                  TV/FILM
-                </Link>
-                <Link href="/music" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#233cfa] transition-colors duration-200 cursor-pointer ${
-                  router.pathname === '/music' ? 'text-[#233cfa] font-semibold' : 'text-[#333]'
-                }`} onClick={router.pathname === '/music' ? handleSameMenuClick : undefined}>
-                  MUSIC
-                </Link>
-                <Link href="/celeb" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#233cfa] transition-colors duration-200 cursor-pointer ${
-                  router.pathname === '/celeb' ? 'text-[#233cfa] font-semibold' : 'text-[#333]'
-                }`} onClick={router.pathname === '/celeb' ? handleSameMenuClick : undefined}>
-                  CELEB
-                </Link>
-                <Link href="/ranking" className={`h-16 inline-flex items-center px-4 font-medium text-[15px] hover:text-[#233cfa] transition-colors duration-200 cursor-pointer ${
-                  router.pathname === '/ranking' ? 'text-[#233cfa] font-semibold' : 'text-[#333]'
-                }`} onClick={router.pathname === '/ranking' ? handleSameMenuClick : undefined}>
-                  RANKING
-                </Link>
+              <nav className="flex items-center h-full gap-8">
+                {navItems.map(item => (
+                  <Link key={item.path} href={item.path} className={`inline-flex items-center text-base hover:text-ksp-accent transition-colors duration-200 cursor-pointer ${
+                    router.pathname === item.path ? 'text-ksp-accent font-bold' : 'text-[#333333] font-medium'
+                  }`} style={{ fontFamily: "'Noto Sans', sans-serif" }} onClick={router.pathname === item.path ? handleSameMenuClick : undefined}>
+                    {item.label.toUpperCase()}
+                  </Link>
+                ))}
               </nav>
             </div>
-            
-            {/* Right Section - Actions */}
-            <div className="flex items-center h-full">
-              {/* Search Button - Visible on all screens, icon only */}
+            <div className="flex items-center h-full gap-3">
               <button
                 onClick={toggleSearch}
-                className={`p-2 flex items-center justify-center transition-colors duration-200 ${
-                  isSearchOpen ? 'text-[#233cfa]' : 'text-[#666] hover:text-[#233cfa]'
+                className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors ${
+                  isSearchOpen ? 'bg-gray-100 text-ksp-accent' : 'hover:bg-gray-100 text-[#4A5565]'
                 }`}
                 aria-label="Search"
               >
-                <Search size={20} strokeWidth={2.5} />
+                <Search size={18} strokeWidth={2} />
               </button>
-
-              {/* Mobile Menu Toggle - Visible only on Mobile/Tablet */}
-              <button
-                onClick={toggleMenu}
-                className={`ml-2 p-2 lg:hidden flex items-center justify-center transition-colors duration-200 ${
-                  isMenuOpen ? 'text-[#233cfa]' : 'text-[#666] hover:text-[#233cfa]'
-                }`}
-                aria-label="Toggle menu"
+              <Link
+                href="/auth/signin"
+                className="flex items-center justify-center px-3 py-2 bg-ksp-accent text-white font-bold text-sm rounded-[10px] hover:opacity-90 transition-opacity"
+                style={{ fontFamily: "'Inter', sans-serif", letterSpacing: '-0.01em' }}
               >
-                {isMenuOpen ? <X size={24} strokeWidth={2.5} /> : <Menu size={24} strokeWidth={2.5} />}
-              </button>
+                Sign in
+              </Link>
             </div>
           </div>
+
+          {/* === Mobile Layout (below lg) - single row === */}
+          <div className="lg:hidden relative flex items-center h-[48px]">
+            {/* K Logo */}
+            <div className="flex-shrink-0">
+              <div onClick={(e) => {
+                e.preventDefault();
+                sessionStorage.clear();
+                window.location.href = '/';
+              }} className="block cursor-pointer">
+                <img src="/images/k-logo-mobile.svg" alt="KstarPick" width={16} height={17} />
+              </div>
+            </div>
+            {/* Horizontal scrollable tabs */}
+            <nav className="flex items-center gap-3 overflow-x-auto hide-scrollbar pl-3 flex-1 min-w-0 h-full">
+              {navItems.map(item => {
+                const isActive = router.pathname === item.path;
+                return (
+                  <Link
+                    key={item.path}
+                    href={item.path}
+                    className={`relative flex-shrink-0 flex items-center h-full text-[15px] transition-colors ${
+                      isActive
+                        ? 'font-bold text-ksp-accent'
+                        : 'font-medium text-[#6A7282]'
+                    }`}
+                    style={{ fontFamily: "'Inter', 'Pretendard', sans-serif", letterSpacing: '-0.015em' }}
+                    onClick={isActive ? handleSameMenuClick : undefined}
+                  >
+                    {item.label}
+                    {isActive && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-ksp-accent" />}
+                  </Link>
+                );
+              })}
+            </nav>
+            {/* Right edge fade */}
+            <div className="absolute right-[36px] top-[5px] w-6 h-[38px] pointer-events-none" style={{ background: 'linear-gradient(270deg, white 0%, transparent 100%)' }} />
+            {/* Search icon */}
+            <button
+              onClick={toggleSearch}
+              className={`p-1 flex-shrink-0 flex items-center justify-center transition-colors ml-1 ${
+                isSearchOpen ? 'text-ksp-accent' : 'text-[#6A7282]'
+              }`}
+              aria-label="Search"
+            >
+              <Search size={20} strokeWidth={1.67} />
+            </button>
+          </div>
+
         </div>
       </div>
 
-      {/* Search input (slides down when active) - 모바일과 데스크톱 공통 */}
+      {/* Search input (slides down when active) */}
       {isSearchOpen && (
-        <div className="w-full bg-white border-b border-gray-200 shadow-md py-3 md:py-4">
-          <div className="max-w-[1200px] mx-auto px-4">
+        <div className="w-full bg-white border-b border-ksp-border shadow-card py-3 md:py-4">
+          <div className="max-w-[1772px] mx-auto px-4 lg:px-10">
             <form onSubmit={handleSearch} className="flex">
-              <div className="flex-1 flex items-center bg-gray-100 rounded-lg overflow-hidden">
+              <div className="flex-1 flex items-center bg-ksp-bg-light rounded-lg overflow-hidden">
+                <Search size={18} className="text-ksp-meta ml-3 flex-shrink-0" />
                 <input
                   ref={searchInputRef}
                   type="text"
                   placeholder={isMobile ? "Search K-POP news..." : "Search K-POP news, dramas, artists..."}
-                  className="w-full py-2 md:py-3 px-3 md:px-4 bg-transparent border-none focus:outline-none text-gray-800 text-sm md:text-base"
+                  className="w-full py-2.5 md:py-3 px-3 bg-transparent border-none focus:outline-none text-ksp-dark text-sm md:text-base placeholder:text-ksp-meta"
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                 />
@@ -359,7 +399,7 @@ const Header = () => {
                   <button
                     type="button"
                     onClick={clearSearch}
-                    className="px-2 md:px-3 text-gray-400 hover:text-gray-600"
+                    className="px-2 md:px-3 text-ksp-meta hover:text-ksp-text"
                   >
                     <X size={isMobile ? 16 : 18} strokeWidth={2.5} />
                   </button>
@@ -368,8 +408,7 @@ const Header = () => {
               <button
                 type="submit"
                 disabled={isSearching}
-                className="ml-2 px-3 md:px-6 py-2 md:py-3 text-white font-medium rounded-lg text-sm md:text-base"
-                style={{ backgroundColor: '#233cfa' }}
+                className="ml-2 px-3 md:px-6 py-2 md:py-3 bg-ksp-accent text-white font-medium rounded-lg text-sm md:text-base hover:opacity-90 transition-opacity"
               >
                 {isSearching ? (
                   <Loader2 size={isMobile ? 16 : 20} strokeWidth={2.5} className="animate-spin" />
@@ -380,69 +419,11 @@ const Header = () => {
               <button
                 type="button"
                 onClick={() => setIsSearchOpen(false)}
-                className="ml-2 px-2 md:px-4 py-2 md:py-3 text-gray-500 hover:text-gray-700 text-sm md:text-base"
+                className="ml-2 px-2 md:px-4 py-2 md:py-3 text-ksp-meta hover:text-ksp-text text-sm md:text-base"
               >
                 {isMobile ? "✕" : "Cancel"}
               </button>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Mobile Navigation Menu (Slides down when active) */}
-      {isMenuOpen && (
-        <div className="lg:hidden fixed top-16 left-0 w-full h-[calc(100vh-4rem)] bg-white z-50 animate-slide-in-top">
-          <div className="container mx-auto px-5 py-6">
-            <nav className="flex flex-col space-y-4">
-              <button
-                className={`text-lg font-medium flex items-center py-2 text-left ${
-                  router.pathname === '/' ? 'text-[#233cfa]' : 'text-gray-800'
-                }`}
-                onClick={() => handleMobileMenuClick('/')}
-              >
-                HOME
-              </button>
-              <button
-                className={`text-lg font-medium flex items-center py-2 text-left ${
-                  router.pathname === '/drama' ? 'text-[#233cfa]' : 'text-gray-800'
-                }`}
-                onClick={() => handleMobileMenuClick('/drama')}
-              >
-                DRAMA
-              </button>
-              <button
-                className={`text-lg font-medium flex items-center py-2 text-left ${
-                  router.pathname === '/tvfilm' ? 'text-[#233cfa]' : 'text-gray-800'
-                }`}
-                onClick={() => handleMobileMenuClick('/tvfilm')}
-              >
-                TV/FILM
-              </button>
-              <button
-                className={`text-lg font-medium flex items-center py-2 text-left ${
-                  router.pathname === '/music' ? 'text-[#233cfa]' : 'text-gray-800'
-                }`}
-                onClick={() => handleMobileMenuClick('/music')}
-              >
-                MUSIC
-              </button>
-              <button
-                className={`text-lg font-medium flex items-center py-2 text-left ${
-                  router.pathname === '/celeb' ? 'text-[#233cfa]' : 'text-gray-800'
-                }`}
-                onClick={() => handleMobileMenuClick('/celeb')}
-              >
-                CELEB
-              </button>
-              <button
-                className={`text-lg font-medium flex items-center py-2 text-left ${
-                  router.pathname === '/ranking' ? 'text-[#233cfa]' : 'text-gray-800'
-                }`}
-                onClick={() => handleMobileMenuClick('/ranking')}
-              >
-                RANKING
-              </button>
-            </nav>
           </div>
         </div>
       )}

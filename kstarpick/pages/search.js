@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import useScrollRestore from '../hooks/useScrollRestore';
 import Head from 'next/head';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
@@ -38,43 +39,8 @@ export default function SearchPage() {
     }
   }, [router.isReady, router.query.q]);
 
-  // Scroll position restoration
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const isBackToSearch = sessionStorage.getItem('isBackToSearch');
-    const savedScrollPosition = sessionStorage.getItem('searchScrollPosition');
-
-    if (isBackToSearch === 'true' && savedScrollPosition) {
-      const scrollPos = parseInt(savedScrollPosition, 10);
-
-      const restoreScroll = () => {
-        document.body.scrollTop = scrollPos;
-        document.documentElement.scrollTop = scrollPos;
-        window.scrollTo(0, scrollPos);
-      };
-
-      // Multiple attempts to ensure dynamic content is loaded
-      setTimeout(restoreScroll, 0);
-      setTimeout(restoreScroll, 50);
-      setTimeout(restoreScroll, 100);
-      setTimeout(restoreScroll, 200);
-      setTimeout(restoreScroll, 300);
-      setTimeout(restoreScroll, 500);
-      setTimeout(restoreScroll, 800);
-
-      requestAnimationFrame(() => {
-        setTimeout(restoreScroll, 100);
-        setTimeout(restoreScroll, 300);
-        setTimeout(restoreScroll, 500);
-      });
-
-      setTimeout(() => {
-        sessionStorage.removeItem('isBackToSearch');
-        sessionStorage.removeItem('searchScrollPosition');
-      }, 1000);
-    }
-  }, [router.asPath]);
+  // 스크롤 위치 복원
+  useScrollRestore('searchScrollPosition', 'isBackToSearch', { deps: [router.asPath] });
 
   const performSearch = async (query) => {
     setIsLoading(true);

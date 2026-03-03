@@ -43,44 +43,38 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       window.history.scrollRestoration = 'manual';
     }
 
-    // 홈 페이지와 드라마 페이지에서 스크롤 위치를 주기적으로 저장 (throttle 적용)
+    // 페이지별 스크롤 저장 설정 맵
+    const pageScrollConfig = {
+      '/': { key: 'homeScrollPosition' },
+      '/drama': { key: 'dramaScrollPosition', flag: 'isBackToDrama' },
+      '/tvfilm': { key: 'tvfilmScrollPosition', flag: 'isBackToTvfilm' },
+      '/music': { key: 'musicScrollPosition', flag: 'isBackToMusic' },
+      '/celeb': { key: 'celebScrollPosition', flag: 'isBackToCeleb' },
+      '/ranking': { key: 'rankingScrollPosition', flag: 'isBackToRanking' },
+      '/search': { key: 'searchScrollPosition', flag: 'isBackToSearch' },
+    };
+
+    // 스크롤 위치를 주기적으로 저장 (throttle 적용)
     let lastSavedScroll = 0;
     let scrollSaveTimer = null;
+    // 뒤로가기 전환 중 스크롤 저장 일시 중지 (복원 중 덮어쓰기 방지)
+    let isScrollSavePaused = false;
 
-    // 실제 스크롤 위치 가져오기 (window.scrollY, body.scrollTop, documentElement.scrollTop 모두 확인)
     const getScrollPosition = () => {
       return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
     };
 
     const savePageScroll = () => {
+      // routeChangeStart가 이미 정확한 값을 저장한 경우(hasScrollSaved) 또는
+      // 뒤로가기 전환 중(isScrollSavePaused)에는 덮어쓰기 방지
+      if (isScrollSavePaused || hasScrollSaved) return;
       const currentScroll = getScrollPosition();
-      // 10px 이상 차이날 때만 저장 (불필요한 저장 방지)
       if (Math.abs(currentScroll - lastSavedScroll) > 10) {
         lastSavedScroll = currentScroll;
-
-        // 홈 페이지 스크롤 저장
-        if (router.pathname === '/') {
-          sessionStorage.setItem('homeScrollPosition', currentScroll.toString());
-        }
-        // 드라마 페이지 스크롤 저장
-        else if (router.pathname === '/drama') {
-          sessionStorage.setItem('dramaScrollPosition', currentScroll.toString());
-        }
-        // TV & Film 페이지 스크롤 저장
-        else if (router.pathname === '/tvfilm') {
-          sessionStorage.setItem('tvfilmScrollPosition', currentScroll.toString());
-        }
-        // Music 페이지 스크롤 저장
-        else if (router.pathname === '/music') {
-          sessionStorage.setItem('musicScrollPosition', currentScroll.toString());
-        }
-        // Celeb 페이지 스크롤 저장
-        else if (router.pathname === '/celeb') {
-          sessionStorage.setItem('celebScrollPosition', currentScroll.toString());
-        }
-        // Ranking 페이지 스크롤 저장
-        else if (router.pathname === '/ranking') {
-          sessionStorage.setItem('rankingScrollPosition', currentScroll.toString());
+        // router.pathname 대신 window.location.pathname 사용 (클로저 stale 방지)
+        const config = pageScrollConfig[window.location.pathname];
+        if (config) {
+          sessionStorage.setItem(config.key, currentScroll.toString());
         }
       }
     };
@@ -99,13 +93,15 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
 
     // 뒤로가기 플래그 추적
     let isNavigatingBack = false;
+    // routeChangeComplete에서 사용할 뒤로가기 플래그
+    let isBackNavigation = false;
     // 중복 저장 방지 플래그
     let hasScrollSaved = false;
 
     // popstate 이벤트로 뒤로가기 감지
     const handlePopState = () => {
       isNavigatingBack = true;
-      // 충분히 긴 시간으로 설정 (routeChangeStart가 실행될 때까지)
+      isBackNavigation = true;
       setTimeout(() => {
         isNavigatingBack = false;
       }, 2000);
@@ -123,46 +119,14 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       // 로고 클릭 확인
       const isLogoClick = sessionStorage.getItem('logoClicked') === 'true';
 
-      // 홈 페이지에서 나갈 때 현재 스크롤 위치 저장 (로고 클릭이 아닌 경우만)
-      // 스크롤이 0이어도 저장 (슬라이더 클릭 등의 경우를 위해)
-      // 중복 저장 방지: hasScrollSaved가 false일 때만 저장
-      if (router.pathname === '/' && !isLogoClick && !hasScrollSaved) {
-        sessionStorage.setItem('homeScrollPosition', currentScroll.toString());
-        hasScrollSaved = true; // 저장 완료 플래그 설정
-      }
-
-      // 드라마 페이지에서 뉴스로 이동할 때 스크롤 위치 저장
-      if (router.pathname === '/drama' && url.startsWith('/news/') && !isLogoClick && !hasScrollSaved) {
-        sessionStorage.setItem('dramaScrollPosition', currentScroll.toString());
-        sessionStorage.setItem('isBackToDrama', 'true');
-        hasScrollSaved = true;
-      }
-
-      // TV & Film 페이지에서 뉴스로 이동할 때 스크롤 위치 저장
-      if (router.pathname === '/tvfilm' && url.startsWith('/news/') && !isLogoClick && !hasScrollSaved) {
-        sessionStorage.setItem('tvfilmScrollPosition', currentScroll.toString());
-        sessionStorage.setItem('isBackToTvfilm', 'true');
-        hasScrollSaved = true;
-      }
-
-      // Music 페이지에서 뉴스로 이동할 때 스크롤 위치 저장
-      if (router.pathname === '/music' && url.startsWith('/news/') && !isLogoClick && !hasScrollSaved) {
-        sessionStorage.setItem('musicScrollPosition', currentScroll.toString());
-        sessionStorage.setItem('isBackToMusic', 'true');
-        hasScrollSaved = true;
-      }
-
-      // Celeb 페이지에서 뉴스로 이동할 때 스크롤 위치 저장
-      if (router.pathname === '/celeb' && url.startsWith('/news/') && !isLogoClick && !hasScrollSaved) {
-        sessionStorage.setItem('celebScrollPosition', currentScroll.toString());
-        sessionStorage.setItem('isBackToCeleb', 'true');
-        hasScrollSaved = true;
-      }
-
-      // Ranking 페이지에서 뉴스로 이동할 때 스크롤 위치 저장
-      if (router.pathname === '/ranking' && url.startsWith('/news/') && !isLogoClick && !hasScrollSaved) {
-        sessionStorage.setItem('rankingScrollPosition', currentScroll.toString());
-        sessionStorage.setItem('isBackToRanking', 'true');
+      // 페이지별 스크롤 위치 저장 (맵 기반 통합)
+      const config = pageScrollConfig[router.pathname];
+      if (config && !isLogoClick && !hasScrollSaved) {
+        sessionStorage.setItem(config.key, currentScroll.toString());
+        // 홈이 아닌 페이지에서 뉴스로 이동할 때 뒤로가기 플래그 설정
+        if (config.flag && url.startsWith('/news/')) {
+          sessionStorage.setItem(config.flag, 'true');
+        }
         hasScrollSaved = true;
       }
 
@@ -208,19 +172,26 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
     };
 
     const handleRouteChangeComplete = () => {
-      // 모든 페이지 이동 시 무조건 최상단으로 스크롤
-      window.scrollTo(0, 0);
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-
-      // requestAnimationFrame으로 확실하게 최상단 유지
-      requestAnimationFrame(() => {
+      if (!isBackNavigation) {
+        // 순방향 이동: 최상단으로 스크롤
         window.scrollTo(0, 0);
         document.documentElement.scrollTop = 0;
         document.body.scrollTop = 0;
-      });
 
-      // 네비게이션 완료 후 중복 저장 방지 플래그 리셋
+        requestAnimationFrame(() => {
+          window.scrollTo(0, 0);
+          document.documentElement.scrollTop = 0;
+          document.body.scrollTop = 0;
+        });
+      } else {
+        // 뒤로가기: scrollTo(0) 안 함 → 페이지의 자체 복원 로직이 처리
+        // 스크롤 저장 일시 중지 (복원 중 덮어쓰기 방지)
+        isScrollSavePaused = true;
+        setTimeout(() => { isScrollSavePaused = false; }, 2000);
+      }
+
+      // 플래그 리셋
+      isBackNavigation = false;
       hasScrollSaved = false;
     };
 
