@@ -17,6 +17,7 @@ kstarpick/kstarpick/
 kstarpick/.next/
 
 # Node modules
+node_modules/
 kstarpick/node_modules/
 
 # Uploads (local only)
