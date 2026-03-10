@@ -17,7 +17,7 @@ export default async function handler(req, res) {
         if (!mongoose.Types.ObjectId.isValid(id)) {
           return res.status(400).json({ success: false, error: '유효하지 않은 ID 형식입니다.' });
         }
-        
+
         // 해당 ID의 연예인 찾기
         const celebrity = await Celebrity.findById(id);
         

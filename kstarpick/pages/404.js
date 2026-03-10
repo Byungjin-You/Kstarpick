@@ -29,35 +29,25 @@ export default function Custom404() {
           </p>
           
           <div className="space-y-4">
-            <Link href="/">
-              <a className="inline-block bg-pink-500 text-white px-6 py-3 rounded-lg hover:bg-pink-600 transition-colors">
+            <Link href="/" className="inline-block bg-pink-500 text-white px-6 py-3 rounded-lg hover:bg-pink-600 transition-colors">
                 홈페이지로 이동
-              </a>
             </Link>
-            
+
             <div className="flex justify-center space-x-4 mt-4">
-              <Link href="/drama">
-                <a className="text-pink-500 hover:text-pink-600 transition-colors">
+              <Link href="/drama" className="text-pink-500 hover:text-pink-600 transition-colors">
                   드라마
-                </a>
               </Link>
               <span className="text-gray-300">|</span>
-              <Link href="/music">
-                <a className="text-pink-500 hover:text-pink-600 transition-colors">
+              <Link href="/music" className="text-pink-500 hover:text-pink-600 transition-colors">
                   음악
-                </a>
               </Link>
               <span className="text-gray-300">|</span>
-              <Link href="/tvfilm">
-                <a className="text-pink-500 hover:text-pink-600 transition-colors">
+              <Link href="/tvfilm" className="text-pink-500 hover:text-pink-600 transition-colors">
                   TV/영화
-                </a>
               </Link>
               <span className="text-gray-300">|</span>
-              <Link href="/celeb">
-                <a className="text-pink-500 hover:text-pink-600 transition-colors">
+              <Link href="/celeb" className="text-pink-500 hover:text-pink-600 transition-colors">
                   연예인
-                </a>
               </Link>
             </div>
           </div>

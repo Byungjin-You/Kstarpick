@@ -201,7 +201,6 @@ const CardNews = React.memo(({ cards, featured }) => {
             <Link
               key={card._id || card.id}
               href={`/news/${card.slug || card._id || card.id}`}
-              passHref
             >
               <div className="block cursor-pointer">
                 <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">
@@ -323,7 +322,6 @@ const CardNews = React.memo(({ cards, featured }) => {
               <Link
                 key={card._id || card.id}
                 href={`/news/${card._id || card.id}`}
-                passHref
                 >
                 <div
                   className={`flex-shrink-0 w-[67%] min-w-[230px] md:w-[320px] snap-center transition-all duration-300 cursor-pointer mr-4 md:mr-6 bg-transparent ${

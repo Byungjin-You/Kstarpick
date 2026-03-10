@@ -22,7 +22,28 @@ import Seo from '../../components/Seo';
 import StructuredData from '../../components/StructuredData';
 import Footer from '../../components/Footer';
 
+// PC layout sidebar components
+import CommentTicker from '../../components/home/CommentTicker';
+import TrendingNow from '../../components/home/TrendingNow';
+import MoreNews from '../../components/MoreNews';
+
 const fetcher = url => axios.get(url).then(res => res.data);
+
+// Editor's PICK time ago helper
+const getTimeAgo = (dateStr) => {
+  if (!dateStr) return '';
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diffMs = now - date;
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m`;
+  if (diffHr < 24) return `${diffHr}h`;
+  if (diffDay < 7) return `${diffDay}d`;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
 
 // 외부 이미지 허용 도메인 목록 추가
 const safeDomains = [
@@ -78,6 +99,37 @@ const ensureLocalImage = (imageUrl) => {
 // 외부 URL인지 확인하는 함수
 const isExternalUrl = (url) => {
   return url && (url.startsWith('http://') || url.startsWith('https://'));
+};
+
+// reviewHtml에서 helpful count 파싱
+const getHelpfulCount = (review) => {
+  if (review.helpfulCount > 0) return review.helpfulCount;
+  const match = review.reviewHtml?.match(/<b>(\d+)<\/b>\s*people found this review helpful/);
+  return match ? parseInt(match[1], 10) : 0;
+};
+
+// 리뷰 정렬 함수
+const sortReviews = (reviewList, mode) => {
+  const sorted = [...reviewList];
+  switch (mode) {
+    case 'popular': {
+      // helpful 데이터가 하나라도 있으면 helpful 기준, 없으면 rating + 텍스트 길이 기준
+      const hasHelpful = sorted.some(r => getHelpfulCount(r) > 0);
+      if (hasHelpful) {
+        return sorted.sort((a, b) => getHelpfulCount(b) - getHelpfulCount(a));
+      }
+      return sorted.sort((a, b) => {
+        const ratingDiff = (b.rating || 0) - (a.rating || 0);
+        if (ratingDiff !== 0) return ratingDiff;
+        return (b.reviewText?.length || 0) - (a.reviewText?.length || 0);
+      });
+    }
+    case 'rated':
+      return sorted.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    case 'recent':
+    default:
+      return sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  }
 };
 
 // YouTube URL에서 비디오 ID를 추출하는 함수
@@ -181,7 +233,7 @@ const renderImage = (imageUrl, alt, className = "object-cover", width = 0, heigh
   return <Image {...imgProps} fill sizes="100vw" />;
 };
 
-export default function DramaDetail({ drama, relatedNews, metaTags }) {
+export default function DramaDetail({ drama, relatedNews, metaTags, recentComments, rankingNews }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -195,7 +247,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
   const [likesCount, setLikesCount] = useState(0);
   const [dislikesCount, setDislikesCount] = useState(0);
   const [watchProviders, setWatchProviders] = useState([]);
-  const [cast, setCast] = useState([]);
+  const [cast, setCast] = useState(drama?.cast || []);
   const [youtubeId, setYoutubeId] = useState('');
   const [selectedVideoId, setSelectedVideoId] = useState('');
   const [trailerTitle, setTrailerTitle] = useState('');
@@ -217,11 +269,23 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
   const [touchStartX, setTouchStartX] = useState(0);
   const [touchEndX, setTouchEndX] = useState(0);
   
-  // 리뷰 관련 상태 추가
-  const [reviews, setReviews] = useState([]);
+  // 리뷰 관련 상태 추가 (중복 제거)
+  const [reviews, setReviews] = useState(() => {
+    const raw = drama?.reviews || [];
+    const map = new Map();
+    raw.forEach(r => {
+      const key = r.reviewId || r._id?.toString() || `${r.username}-${r.rating}`;
+      if (!map.has(key)) map.set(key, r);
+    });
+    return Array.from(map.values());
+  });
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [reviewsError, setReviewsError] = useState(null);
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const [isLinkCopied, setIsLinkCopied] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [visibleReviewCount, setVisibleReviewCount] = useState(3);
+  const [reviewSortMode, setReviewSortMode] = useState('recent'); // recent | popular | rated
   const [selectedReview, setSelectedReview] = useState(null);
   
   // session 정보 가져오기
@@ -229,20 +293,41 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
   
   // 리뷰 컨테이너 참조
   const reviewsContainerRef = useRef(null);
-  // 비디오 컨테이너 참조 추가
-  const videosContainerRef = useRef(null);
+  // 비디오 컨테이너 참조 + 드래그 스크롤
+  const videosContainerRef = useRef(null);       // 모바일
+  const videosContainerRefPC = useRef(null);     // PC
+  const videoDragState = useRef({ isDown: false, startX: 0, scrollLeft: 0, moved: false });
+  // Cast 컨테이너 드래그 스크롤
+  const castScrollRef = useRef(null);
+  const castDragState = useRef({ isDown: false, startX: 0, scrollLeft: 0, moved: false });
   
   // 리뷰 터치 이벤트를 위한 상태 추가
   const [reviewTouchStartX, setReviewTouchStartX] = useState(0);
   const [reviewTouchEndX, setReviewTouchEndX] = useState(0);
+
+  // PC sidebar sticky
+  const sidebarStickyRef = useRef(null);
+  const [sidebarStickyTop, setSidebarStickyTop] = useState(92);
   
-  // 데이터 불러오기
+  // 데이터 불러오기 - slug 사용 (URL params와 동일, _id 대신 slug로 조회)
   const { data: dramaData, error: dramaError } = useSWR(
-    currentDrama ? `/api/dramas/${currentDrama._id}` : null,
+    currentDrama && router.query.id ? `/api/dramas/${router.query.id}` : null,
     fetcher
   );
 
   // filteredWatchProviders useMemo 제거
+
+  // SSR 데이터에서 youtubeId 초기화 (SWR 로딩 전에도 트레일러 재생 가능)
+  useEffect(() => {
+    if (!drama) return;
+    if (drama.videos && Array.isArray(drama.videos) && drama.videos.length > 0) {
+      const mainVideoId = getYoutubeIdFromUrl(drama.videos[0].url);
+      if (mainVideoId) setYoutubeId(mainVideoId);
+    } else if (drama.trailerUrl) {
+      const trailerVideoId = getYoutubeIdFromUrl(drama.trailerUrl);
+      if (trailerVideoId) setYoutubeId(trailerVideoId);
+    }
+  }, [drama]);
 
   // 스크롤 위치 복원 로직 - drama 페이지에서 뒤로가기 시
   useEffect(() => {
@@ -295,9 +380,10 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
         const result = await response.json();
 
         if (response.ok && result.success) {
-          setReviews(result.data || []);
-        } else {
-          setReviewsError(result.message || '리뷰를 불러오지 못했습니다.');
+          // 로컬 API가 빈 배열 반환 시 기존 SSR 리뷰 데이터 유지
+          if (result.data && result.data.length > 0) {
+            setReviews(result.data);
+          }
         }
       } catch (error) {
         console.error('리뷰 API 호출 오류:', error);
@@ -524,12 +610,16 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
         });
       }
 
-      // 이미지 URL 수정
-      // 썸네일 이미지 확인 및 처리
-      updatedData.coverImage = ensureLocalImage(updatedData.coverImage);
+      // 이미지 URL 수정 - SWR 데이터가 placeholder로 변환되면 기존 SSR 이미지 유지
+      const newCoverImage = ensureLocalImage(updatedData.coverImage);
+      updatedData.coverImage = (newCoverImage === '/images/placeholder-tvfilm.jpg' && currentDrama?.coverImage)
+        ? currentDrama.coverImage
+        : newCoverImage;
 
-      // 배너 이미지 확인 및 처리
-      updatedData.bannerImage = ensureLocalImage(updatedData.bannerImage);
+      const newBannerImage = ensureLocalImage(updatedData.bannerImage);
+      updatedData.bannerImage = (newBannerImage === '/images/placeholder-tvfilm.jpg' && currentDrama?.bannerImage)
+        ? currentDrama.bannerImage
+        : newBannerImage;
 
       // watchProviders 배열의 모든 항목에 대해 로고 URL을 내부 이미지로 변경
       if (updatedData.watchProviders && Array.isArray(updatedData.watchProviders)) {
@@ -603,11 +693,30 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
         updatedData.ratingDistribution = [0,0,0,0,0,0,0,0,0,0];
       }
       
-      // setDramaData(updatedData); // dramaData는 useSWR에서 제공하는 값이므로 제거
-      setCurrentDrama(updatedData);
-      setCast(updatedData.cast);
-      setLikesCount(updatedData.likes || 0);
-      setDislikesCount(updatedData.dislikes || 0);
+      // SWR 데이터와 SSR 데이터 머지: SWR에서 빈 값이면 SSR 값 유지
+      // (로컬 MongoDB에 불완전한 데이터가 있을 수 있으므로)
+      const mergedData = { ...currentDrama };
+      Object.entries(updatedData).forEach(([key, val]) => {
+        const ssrVal = currentDrama?.[key];
+        // SWR 값이 유효하면 덮어쓰기
+        const isEmptyVal = val === '' || val === null || val === undefined || (Array.isArray(val) && val.length === 0);
+        const ssrHasVal = ssrVal !== '' && ssrVal !== null && ssrVal !== undefined && !(Array.isArray(ssrVal) && ssrVal.length === 0);
+        if (!isEmptyVal || !ssrHasVal) {
+          mergedData[key] = val;
+        }
+      });
+      // reviewRating/reviewCount는 SWR 재계산값이 0이어도 유효하므로, SSR 값이 더 정확하면 유지
+      if (updatedData.reviewRating === 0 && currentDrama?.reviewRating > 0) {
+        mergedData.reviewRating = currentDrama.reviewRating;
+      }
+      if (updatedData.reviewCount === 0 && currentDrama?.reviewCount > 0) {
+        mergedData.reviewCount = currentDrama.reviewCount;
+      }
+
+      setCurrentDrama(mergedData);
+      setCast(mergedData.cast);
+      setLikesCount(mergedData.likes || 0);
+      setDislikesCount(mergedData.dislikes || 0);
       
       // 사용자 상호작용 확인
       const checkUserInteractions = async () => {
@@ -633,7 +742,8 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
     }
     
     if (dramaError) {
-      setError(dramaError);
+      // SWR 404는 무시 - SSR 데이터가 이미 있으므로 치명적 오류로 처리하지 않음
+      console.warn('SWR fetch error (non-fatal):', dramaError?.message);
       setLoading(false);
     }
   }, [dramaData, session, dramaError]);
@@ -749,7 +859,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
       // 파싱 실패 시 원본 문자열 반환
       return dateString;
     }
-    return `${date.toLocaleDateString()}`;
+    return `${date.toLocaleDateString('en-US')}`;
   };
 
   const handleLike = async () => {
@@ -828,17 +938,28 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
     }
   };
 
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: currentDrama?.title,
-        text: currentDrama?.summary,
-        url: window.location.href,
-      });
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      alert('Link copied to clipboard.');
-    }
+  const handleShare = () => setShowShareMenu(true);
+
+  const getDramaShareUrl = () => `https://www.kstarpick.com/drama/${currentDrama?.slug || currentDrama?._id}`;
+
+  const handleShareFacebook = () => {
+    const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(getDramaShareUrl())}`;
+    window.open(facebookUrl, '_blank', 'width=600,height=400');
+    setShowShareMenu(false);
+  };
+
+  const handleShareTwitter = () => {
+    const title = currentDrama?.title || '';
+    const twitterUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(getDramaShareUrl())}&text=${encodeURIComponent(title)}`;
+    window.open(twitterUrl, '_blank', 'width=600,height=400');
+    setShowShareMenu(false);
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(getDramaShareUrl());
+    setIsLinkCopied(true);
+    setTimeout(() => setIsLinkCopied(false), 2000);
+    setShowShareMenu(false);
   };
 
   // 배우 클릭 핸들러 - 배우 이름으로 검색 (CastSection 컴포넌트에서 사용)
@@ -941,6 +1062,77 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
     }
   }, [reviews]);
 
+  // PC sidebar sticky positioning
+  useEffect(() => {
+    const el = sidebarStickyRef.current;
+    if (!el) return;
+    const HEADER_H = 92;
+    const calcTop = () => {
+      const sH = el.offsetHeight;
+      const vH = window.innerHeight;
+      if (sH <= vH - HEADER_H) {
+        setSidebarStickyTop(HEADER_H);
+      } else {
+        setSidebarStickyTop(vH - sH - 40);
+      }
+    };
+    const timer = setTimeout(calcTop, 300);
+    const observer = new ResizeObserver(calcTop);
+    observer.observe(el);
+    window.addEventListener('resize', calcTop);
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+      window.removeEventListener('resize', calcTop);
+    };
+  }, []);
+
+  // Navigate helper for sidebar components
+  const navigateToPage = useCallback((path) => {
+    router.push(path);
+  }, [router]);
+
+  // 스타일시트에 스크롤바를 숨기는 클래스 추가
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      .hide-scrollbar:after,
+      .hide-scrollbar:before,
+      .tab-container:after,
+      .tab-container:before,
+      .tab-scroll:after,
+      .tab-scroll:before {
+        content: none !important;
+        display: none !important;
+        background: none !important;
+        background-image: none !important;
+        opacity: 0 !important;
+        box-shadow: none !important;
+        pointer-events: none !important;
+      }
+      @media (max-width: 768px) {
+        .hide-scrollbar:after,
+        .hide-scrollbar:before,
+        .tab-container:after,
+        .tab-container:before {
+          display: none !important;
+          opacity: 0 !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   // 오류가 있거나 로딩 중인 경우 표시할 UI
   if (error) {
     return (
@@ -974,50 +1166,6 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
     );
   }
 
-  useEffect(() => {
-    // 스타일시트에 스크롤바를 숨기는 클래스 추가
-    const style = document.createElement('style');
-    style.textContent = `
-      .hide-scrollbar::-webkit-scrollbar {
-        display: none;
-      }
-      .hide-scrollbar {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-      }
-      /* 탭 영역 양쪽 음영 처리 제거 */
-      .hide-scrollbar:after,
-      .hide-scrollbar:before,
-      .tab-container:after,
-      .tab-container:before,
-      .tab-scroll:after,
-      .tab-scroll:before {
-        content: none !important;
-        display: none !important;
-        background: none !important;
-        background-image: none !important;
-        opacity: 0 !important;
-        box-shadow: none !important;
-        pointer-events: none !important;
-      }
-      /* 모바일에서 특히 중요 */
-      @media (max-width: 768px) {
-        .hide-scrollbar:after,
-        .hide-scrollbar:before,
-        .tab-container:after,
-        .tab-container:before {
-          display: none !important;
-          opacity: 0 !important;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-    
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
-
   return (
     <MainLayout>
       <Seo
@@ -1027,8 +1175,834 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
       />
       
       <div className="min-h-screen bg-white text-gray-800">
-        {/* Hero Section - Modern Design with Glassmorphism (데스크탑 전용) */}
-        <div className="relative flex-col h-auto w-full hidden sm:flex">
+        {/* ============ PC HERO (>= lg) ============ */}
+        <div className="hidden lg:block relative w-full" style={{ height: '713px' }}>
+          {/* Background layers */}
+          <div className="absolute inset-0 bg-[#101828]" />
+          <div className="absolute inset-0 overflow-hidden">
+            {currentDrama.bannerImage || currentDrama.coverImage ? (
+              <img
+                src={ensureLocalImage(currentDrama.bannerImage || currentDrama.coverImage)}
+                alt=""
+                className="w-full h-full object-cover"
+                style={{ filter: 'blur(12px)', transform: 'scale(1.1)' }}
+                onError={(e) => { e.target.onerror = null; e.target.src = '/images/placeholder-tvfilm.jpg'; }}
+              />
+            ) : null}
+          </div>
+          {/* Gradient overlays */}
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.5) 39%, rgba(0,0,0,0) 100%)' }} />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 14%)' }} />
+
+          {/* Right: Trailer thumbnail with play button (Figma: x=904, y=95) */}
+          <div
+            className="absolute z-10 group cursor-pointer"
+            style={{ top: '95px', right: '60px', width: '956px', height: '524px' }}
+            onClick={() => {
+              if (currentDrama.videos && currentDrama.videos.length > 0) {
+                const videoId = getYoutubeIdFromUrl(currentDrama.videos[0].url);
+                if (videoId) {
+                  setSelectedVideoId(videoId);
+                  setTrailerTitle(currentDrama.videos[0].title || 'Official Trailer');
+                  setShowTrailer(true);
+                }
+              } else if (youtubeId) {
+                setSelectedVideoId(youtubeId);
+                setTrailerTitle('Official Trailer');
+                setShowTrailer(true);
+              }
+            }}
+          >
+            {/* YouTube trailer thumbnail (fallback to cover image) */}
+            <img
+              src={
+                youtubeId
+                  ? `https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg`
+                  : ensureLocalImage(currentDrama.coverImage || currentDrama.bannerImage)
+              }
+              alt={currentDrama.title}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = ensureLocalImage(currentDrama.coverImage || currentDrama.bannerImage) || '/images/placeholder-tvfilm.jpg';
+              }}
+            />
+            <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(8,11,18,1) 0%, rgba(8,11,18,0) 60%)' }} />
+
+            {/* Play button overlay (Figma: 130px circle, centered on poster) */}
+            {(currentDrama.videos?.length > 0 || youtubeId) && (
+              <div className="absolute inset-0 flex items-center justify-center" style={{ paddingLeft: '15%' }}>
+                <div
+                  className="flex items-center justify-center rounded-full transition-transform duration-300 group-hover:scale-110"
+                  style={{
+                    width: '130px',
+                    height: '130px',
+                    backgroundColor: 'rgba(196, 196, 196, 0.6)',
+                    border: '3px solid #C2C2C2',
+                  }}
+                >
+                  {/* Play triangle icon */}
+                  <svg width="58" height="58" viewBox="0 0 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M20 12L48 29L20 46V12Z" fill="white" stroke="white" strokeWidth="6" strokeLinejoin="round" strokeLinecap="round" />
+                  </svg>
+                </div>
+              </div>
+            )}
+
+            {/* Duration badge (bottom-right of poster) */}
+            {currentDrama.videos?.length > 0 && currentDrama.videos[0]?.duration && (
+              <div className="absolute" style={{ right: '20px', bottom: '20px' }}>
+                <div
+                  className="flex items-center justify-center"
+                  style={{
+                    minWidth: '75px',
+                    padding: '6px 0',
+                    backgroundColor: 'rgba(0, 0, 0, 0.48)',
+                    borderRadius: '30px',
+                  }}
+                >
+                  <span style={{ fontFamily: 'Inter', fontWeight: 500, fontSize: '16px', lineHeight: '1.25', color: '#FFFFFF', letterSpacing: '0.125em' }}>
+                    {currentDrama.videos[0].duration}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Left: Content area */}
+          <div className="absolute left-0 top-[119px] pl-[100px] z-20" style={{ width: '864px', height: '500px' }}>
+            <div style={{ width: '576px' }}>
+              {/* Title */}
+              <h1 className="text-white font-bold leading-[1.25]" style={{ fontFamily: 'Pretendard JP, Pretendard, sans-serif', fontSize: '48px' }}>
+                {currentDrama.title}
+              </h1>
+
+              {/* Original title */}
+              {currentDrama.originalTitle && currentDrama.originalTitle !== currentDrama.title && (
+                <p className="mt-1" style={{ fontFamily: 'Inter', fontSize: '24px', color: '#D1D5DC' }}>
+                  {currentDrama.originalTitle}
+                </p>
+              )}
+
+              {/* Meta info row */}
+              <div className="flex items-center gap-3 mt-6 flex-wrap" style={{ fontFamily: 'Inter', fontSize: '16px', color: '#D1D5DC', letterSpacing: '-0.02em' }}>
+                <span className="font-bold" style={{ fontFamily: 'Arial', fontSize: '19.5px', color: '#FDC700' }}>
+                  ★{currentDrama.reviewRating && currentDrama.reviewRating > 0 ? parseFloat(currentDrama.reviewRating).toFixed(1) : '-'}
+                </span>
+                {(() => {
+                  // releaseDate가 "Nov 7, 2025 - Dec 20, 2025" 형식이므로 첫 번째 날짜만 파싱
+                  const dateStr = currentDrama.releaseDate;
+                  if (!dateStr) return null;
+                  const firstDate = dateStr.split(' - ')[0]?.trim();
+                  const parsed = new Date(firstDate);
+                  const year = !isNaN(parsed.getTime()) ? parsed.getFullYear() : dateStr.match(/\d{4}/)?.[0];
+                  return year ? <><span>•</span><span>{year}</span></> : null;
+                })()}
+                {currentDrama.episodes && (<><span>•</span><span>{currentDrama.episodes} Episodes</span></>)}
+                {currentDrama.runtime && (<><span>•</span><span>{currentDrama.runtime}</span></>)}
+                {currentDrama.ageRating && (<><span>•</span><span>{currentDrama.ageRating.includes('+') ? currentDrama.ageRating.split('+')[0] + '+' : currentDrama.ageRating}</span></>)}
+              </div>
+
+              {/* Description */}
+              <p className="mt-6 line-clamp-3" style={{ fontFamily: 'Inter', fontSize: '18px', lineHeight: '1.625', color: '#E5E7EB', letterSpacing: '-0.024em' }}>
+                {currentDrama.description || currentDrama.summary || ''}
+              </p>
+
+              {/* Buttons */}
+              <div className="flex items-center gap-5 mt-10">
+                {/* Watch Trailer + Platform group */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      if (currentDrama.videos && currentDrama.videos.length > 0) {
+                        const videoId = getYoutubeIdFromUrl(currentDrama.videos[0].url);
+                        if (videoId) {
+                          setSelectedVideoId(videoId);
+                          setTrailerTitle(currentDrama.videos[0].title || 'Official Trailer');
+                          setShowTrailer(true);
+                        }
+                      } else if (youtubeId) {
+                        setSelectedVideoId(youtubeId);
+                        setTrailerTitle('Official Trailer');
+                        setShowTrailer(true);
+                      }
+                    }}
+                    className={`flex items-center gap-[6px] px-3 py-[11px] rounded font-bold ${
+                      (currentDrama.videos?.length > 0 || youtubeId)
+                        ? 'bg-white text-black cursor-pointer hover:bg-gray-100'
+                        : 'bg-white/30 text-white/60 cursor-not-allowed'
+                    }`}
+                    style={{ fontFamily: 'Inter', fontSize: '16px' }}
+                    disabled={!(currentDrama.videos?.length > 0 || youtubeId)}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                      <path d="M6 3L20 12L6 21V3Z" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Watch Trailer
+                  </button>
+
+                  {currentDrama.whereToWatch && currentDrama.whereToWatch.length > 0 && (() => {
+                    const platformName = currentDrama.whereToWatch[0]?.name || '';
+                    const nameL = platformName.toLowerCase();
+                    // Platform logo config: { src, style }
+                    const logoMap = {
+                      netflix:      { src: '/images/netflix-icon-crop-564dcf.png', style: { width: '17px', height: '24px', backgroundSize: '340%', backgroundPosition: 'center' } },
+                      tving:        { src: '/images/platforms/tving.png',          style: { width: '24px', height: '24px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      wavve:        { src: '/images/platforms/wavve.png',          style: { width: '24px', height: '24px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      watcha:       { src: '/images/platforms/watcha.png',         style: { width: '24px', height: '24px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      disney:       { src: '/images/platforms/disneyplus.png',     style: { width: '24px', height: '24px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      coupang:      { src: '/images/platforms/coupangplay.png',    style: { width: '24px', height: '24px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      viki:         { src: '/images/platforms/viki.png',           style: { width: '24px', height: '24px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      hulu:         { src: '/images/platforms/hulu.svg',           style: { width: '24px', height: '16px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      apple:        { src: '/images/platforms/appletv.svg',        style: { width: '24px', height: '24px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      prime:        { src: '/images/platforms/primevideo.svg',     style: { width: '24px', height: '24px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      amazon:       { src: '/images/platforms/primevideo.svg',     style: { width: '24px', height: '24px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                    };
+                    const key = Object.keys(logoMap).find(k => nameL.includes(k));
+                    const logo = logoMap[key];
+                    return (
+                      <button
+                        className="flex items-center justify-center gap-2 rounded text-white font-bold border border-[#737373] hover:border-white/60 transition-colors"
+                        style={{ width: '159px', height: '46px', backgroundColor: '#101010', fontFamily: 'Inter', fontSize: '16px' }}
+                        onClick={() => {
+                          const el = document.getElementById('watch');
+                          if (el) el.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                      >
+                        {logo ? (
+                          <div style={{
+                            flexShrink: 0,
+                            backgroundImage: `url(${logo.src})`,
+                            backgroundRepeat: 'no-repeat',
+                            ...logo.style,
+                          }} />
+                        ) : (
+                          <Tv className="w-5 h-5" />
+                        )}
+                        {platformName} series
+                      </button>
+                    );
+                  })()}
+                </div>
+
+                {/* Share button */}
+                <button
+                  onClick={handleShare}
+                  className="flex items-center justify-center rounded-full border-2 border-[#99A1AF] hover:border-white/80 transition-colors"
+                  style={{ width: '48px', height: '48px' }}
+                >
+                  <svg width="24" height="24" viewBox="12 12 24 24" fill="none">
+                    <path d="M32.25 13.5C31.0074 13.5 30 14.5074 30 15.75C30 16.9926 31.0074 18 32.25 18C33.4926 18 34.5 16.9926 34.5 15.75C34.5 14.5074 33.4926 13.5 32.25 13.5ZM28.5 15.75C28.5 13.6789 30.1789 12 32.25 12C34.3211 12 36 13.6789 36 15.75C36 17.8211 34.3211 19.5 32.25 19.5C31.1116 19.5 30.0917 18.9927 29.4039 18.1919L19.3275 22.8723C19.4396 23.2282 19.5 23.6071 19.5 24C19.5 24.3929 19.4396 24.7718 19.3275 25.1277L29.4039 29.8081C30.0917 29.0073 31.1116 28.5 32.25 28.5C34.3211 28.5 36 30.1789 36 32.25C36 34.3211 34.3211 36 32.25 36C30.1789 36 28.5 34.3211 28.5 32.25C28.5 31.8571 28.5604 31.4782 28.6725 31.1223L18.5961 26.4419C17.9083 27.2427 16.8884 27.75 15.75 27.75C13.6789 27.75 12 26.0711 12 24C12 21.9289 13.6789 20.25 15.75 20.25C16.8884 20.25 17.9083 20.7573 18.5961 21.5581L28.6725 16.8777C28.5604 16.5218 28.5 16.1429 28.5 15.75ZM15.75 21.75C14.5074 21.75 13.5 22.7574 13.5 24C13.5 25.2426 14.5074 26.25 15.75 26.25C16.9926 26.25 18 25.2426 18 24C18 22.7574 16.9926 21.75 15.75 21.75ZM32.25 30C31.0074 30 30 31.0074 30 32.25C30 33.4926 31.0074 34.5 32.25 34.5C33.4926 34.5 34.5 33.4926 34.5 32.25C34.5 31.0074 33.4926 30 32.25 30Z" fill="white"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ============ PC 2-COLUMN LAYOUT (>= lg) ============ */}
+        <div className="hidden lg:block bg-[#F8F9FA] pb-16">
+          <div className="max-w-[1772px] mx-auto px-10 pt-8">
+            <div className="flex flex-row gap-[60px]">
+              {/* Left: Main Content (1212px) */}
+              <div className="flex-1 min-w-0 max-w-content">
+
+                {/* Synopsis */}
+                <div className="bg-white border-[1.5px] border-[#E5E7EB] rounded-xl px-6 py-8 mb-6">
+                  <div className="flex items-center justify-between mb-7">
+                    <h2 className="font-black text-[26px]" style={{ fontFamily: 'Pretendard' }}>
+                      <span style={{ color: '#000000' }}>Synopsis</span>
+                    </h2>
+                  </div>
+                  <div className="px-4">
+                    {(() => {
+                      const text = currentDrama.description || currentDrama.summary || 'No synopsis available.';
+                      let paras;
+                      if (text.includes('\n\n')) {
+                        paras = text.split('\n\n').filter(Boolean);
+                      } else if (text.includes('\n')) {
+                        paras = text.split('\n').filter(Boolean);
+                      } else {
+                        // 자동 단락: 문장 3개씩 묶기
+                        const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+                        paras = [];
+                        for (let i = 0; i < sentences.length; i += 3) {
+                          paras.push(sentences.slice(i, i + 3).join(' ').trim());
+                        }
+                      }
+                      return paras.map((para, i) => (
+                        <p key={i} style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '16px', lineHeight: '1.75em', color: '#000000', marginBottom: i < paras.length - 1 ? '1.25em' : 0 }}>
+                          {para}
+                        </p>
+                      ));
+                    })()}
+                  </div>
+                </div>
+
+                {/* Episodes (Figma: 431:13224) */}
+                {currentDrama.episodes && (
+                  <div className="bg-white border-[1.5px] border-[#E5E7EB] rounded-xl mb-6" style={{ padding: '30px 24px' }}>
+                    {/* Header: "Episodes" + "12 Episodes" link */}
+                    <div className="flex items-center justify-between" style={{ marginBottom: '30px' }}>
+                      <h2 className="font-black text-[26px] text-black" style={{ fontFamily: 'Pretendard' }}>
+                        Episodes
+                      </h2>
+                      <span className="font-bold text-[14px] text-[#2B7FFF]" style={{ fontFamily: 'Inter', letterSpacing: '-0.01em' }}>
+                        {currentDrama.episodes} Episodes
+                      </span>
+                    </div>
+                    {/* Episode list */}
+                    <div className="flex flex-col gap-6">
+                      {Array.from({ length: Math.min(3, currentDrama.episodes || 0) }, (_, i) => {
+                        const episode = currentDrama.episodeList?.[i];
+                        return (
+                          <div key={i} className="flex items-center gap-4 rounded-lg" style={{ padding: '0 24px' }}>
+                            {/* Episode number */}
+                            <div className="flex-shrink-0 flex justify-center" style={{ width: '48px' }}>
+                              <span className="font-bold text-black" style={{ fontFamily: 'Inter', fontSize: '36px', lineHeight: '1.1' }}>
+                                {i + 1}
+                              </span>
+                            </div>
+                            {/* Thumbnail: 144x80, rounded 4px */}
+                            <div className="flex-shrink-0 rounded overflow-hidden bg-[#262626]" style={{ width: '144px', height: '80px' }}>
+                              {currentDrama.videos && currentDrama.videos[i] ? (
+                                <img
+                                  src={`https://img.youtube.com/vi/${getYoutubeIdFromUrl(currentDrama.videos[i]?.url)}/mqdefault.jpg`}
+                                  alt={`Episode ${i + 1}`}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => { e.target.onerror = null; e.target.src = '/images/placeholder-tvfilm.jpg'; }}
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <Film className="w-8 h-8 text-gray-500" />
+                                </div>
+                              )}
+                            </div>
+                            {/* Content + runtime */}
+                            <div className="flex-1 min-w-0 flex justify-between" style={{ height: '80px' }}>
+                              <div className="flex flex-col gap-2" style={{ flex: 1 }}>
+                                <h4 className="font-semibold text-[16px] text-black" style={{ fontFamily: 'Inter', lineHeight: '1.5' }}>
+                                  Episode {i + 1}{episode?.title ? `. ${episode.title}` : '.'}
+                                </h4>
+                                <p className="text-[14px] line-clamp-2" style={{ fontFamily: 'Inter', lineHeight: '1.625', color: '#545454' }}>
+                                  {episode?.summary || currentDrama.summary?.substring(0, 120) || ''}
+                                </p>
+                              </div>
+                              <div className="flex-shrink-0 flex items-start" style={{ width: '40px' }}>
+                                <span className="text-[14px]" style={{ fontFamily: 'Inter', color: '#6A7282' }}>
+                                  {currentDrama.runtime?.replace(/\s/g, '').replace('hr.', 'h ').replace('min.', 'm').replace('min', 'm') || ''}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* See More button */}
+                    {currentDrama.episodes > 3 && (
+                      <button className="w-full rounded-full border border-[#D5D8DF] text-[#2D3138] font-semibold text-[14px] text-center hover:bg-gray-50 transition-colors" style={{ height: '46px', marginTop: '30px', fontFamily: 'Inter' }}>
+                        See More
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Reviews (Figma: 431:13272) */}
+                <div className="bg-white border-[1.5px] border-[#E5E7EB] rounded-xl mb-6 flex flex-col" style={{ padding: '30px 24px', gap: '30px' }}>
+                  {/* Header */}
+                  <h2 className="font-black text-[26px] text-black" style={{ fontFamily: 'Pretendard' }}>
+                    Reviews
+                  </h2>
+
+                  {/* Rating area: score circle | divider | rating bars (Figma: padding 0 32px, gap 32px) */}
+                  <div className="flex items-center" style={{ gap: '32px', padding: '0 32px', borderRadius: '12px' }}>
+                    {/* Left: Score circle (80x80) + stars + review count = 194px */}
+                    <div className="flex items-center flex-shrink-0" style={{ width: '194px', height: '80px', gap: '16px' }}>
+                      <div
+                        className="flex items-center justify-center rounded-full flex-shrink-0"
+                        style={{
+                          width: '80px',
+                          height: '80px',
+                          background: '#FFFFFF',
+                          border: '6px solid transparent',
+                          backgroundImage: `conic-gradient(#F0B100 0deg, #F0B100 ${(parseFloat(currentDrama.reviewRating || 0) / 10) * 360}deg, #E5E7EB ${(parseFloat(currentDrama.reviewRating || 0) / 10) * 360}deg, #E5E7EB 360deg)`,
+                          backgroundOrigin: 'border-box',
+                          backgroundClip: 'border-box',
+                        }}
+                      >
+                        <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
+                          <span className="font-bold text-black" style={{ fontFamily: 'Inter', fontSize: '30px', lineHeight: '1.2' }}>
+                            {currentDrama.reviewRating ? parseFloat(currentDrama.reviewRating).toFixed(1) : '0.0'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col" style={{ gap: '4px' }}>
+                        <div className="flex" style={{ gap: '2px' }}>
+                          {[1, 2, 3, 4, 5].map(star => (
+                            <svg key={star} width="18" height="18" viewBox="0 0 18 18" fill="none">
+                              <path d="M9 1.5L11.3 6.2L16.5 6.9L12.7 10.6L13.6 15.8L9 13.3L4.4 15.8L5.3 10.6L1.5 6.9L6.7 6.2L9 1.5Z"
+                                fill={star <= Math.round(parseFloat(currentDrama.reviewRating || 0) / 2) ? '#F0B100' : 'none'}
+                                stroke="#F0B100" strokeWidth="1.5" />
+                            </svg>
+                          ))}
+                        </div>
+                        <span style={{ fontFamily: 'Inter', fontSize: '12px', color: '#99A1AF' }}>
+                          {currentDrama.reviewCount || 0} reviews
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Vertical divider (1px x 64px) */}
+                    <div className="flex-shrink-0" style={{ width: '1px', height: '64px', backgroundColor: 'rgba(64, 64, 64, 0.4)' }} />
+
+                    {/* Right: Rating bars 2x2 grid (Figma: gap 20px between rows group, 64px between columns) */}
+                    <div style={{ flex: '1 1 auto' }}>
+                      <div className="flex" style={{ gap: '64px' }}>
+                        {/* Column 1 */}
+                        <div className="flex flex-col" style={{ gap: '16px' }}>
+                          {[
+                            { label: 'Acting/Cast', val: castRating, labelW: '90px' },
+                            { label: 'Story', val: storyRating, labelW: '90px' },
+                          ].map(({ label, val, labelW }) => (
+                            <div key={label} className="flex items-center" style={{ gap: '12px' }}>
+                              <span style={{ fontFamily: 'Inter', fontSize: '14px', color: '#4A5565', width: labelW, flexShrink: 0 }}>{label}</span>
+                              <div className="rounded-full overflow-hidden" style={{ width: '140px', height: '8px', backgroundColor: '#E5E7EB', flexShrink: 0 }}>
+                                <div className="h-full rounded-full" style={{ width: `${(val || 0) * 10}%`, backgroundColor: '#2B7FFF' }} />
+                              </div>
+                              <span className="text-right" style={{ fontFamily: 'Inter', fontWeight: 500, fontSize: '14px', color: '#101828', width: '24px', flexShrink: 0 }}>{val || '-'}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {/* Column 2 */}
+                        <div className="flex flex-col" style={{ gap: '16px' }}>
+                          {[
+                            { label: 'Music', val: musicRating, labelW: '105px' },
+                            { label: 'Rewatch Value', val: rewatchRating, labelW: '105px' },
+                          ].map(({ label, val, labelW }) => (
+                            <div key={label} className="flex items-center" style={{ gap: '12px' }}>
+                              <span style={{ fontFamily: 'Inter', fontSize: '14px', color: '#4A5565', width: labelW, flexShrink: 0 }}>{label}</span>
+                              <div className="rounded-full overflow-hidden" style={{ width: '140px', height: '8px', backgroundColor: '#E5E7EB', flexShrink: 0 }}>
+                                <div className="h-full rounded-full" style={{ width: `${(val || 0) * 10}%`, backgroundColor: '#2B7FFF' }} />
+                              </div>
+                              <span className="text-right" style={{ fontFamily: 'Inter', fontWeight: 500, fontSize: '14px', color: '#101828', width: '24px', flexShrink: 0 }}>{val || '-'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Comments section (Figma: Frame 207, gap 16px) */}
+                  <div className="flex flex-col" style={{ gap: '16px' }}>
+                    {/* Comments header: top border, padding 0 16px */}
+                    <div className="flex items-center justify-between" style={{ padding: '0 16px', borderTop: '1px solid #F3F4F6', paddingTop: '16px' }}>
+                      <div className="flex items-center" style={{ gap: '24px' }}>
+                        <span className="flex items-center" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', color: '#1E2939', gap: '6px' }}>
+                          Comments
+                          <span className="text-[#2B7FFF]">{reviews.length || 0}</span>
+                        </span>
+                        <div className="flex items-center" style={{ gap: '8px' }}>
+                          {['recent', 'popular', 'rated'].map((mode, i) => (
+                            <React.Fragment key={mode}>
+                              {i > 0 && <span style={{ width: '0px', height: '10px', border: '0.6px solid #99A1AF' }} />}
+                              <span
+                                className="cursor-pointer transition-colors"
+                                style={{ fontFamily: 'Inter', fontWeight: reviewSortMode === mode ? 700 : 400, fontSize: '14px', color: reviewSortMode === mode ? '#1E2939' : '#99A1AF' }}
+                                onClick={() => { setReviewSortMode(mode); setVisibleReviewCount(3); }}
+                              >
+                                {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                              </span>
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      </div>
+                      <button className="flex items-center gap-2.5 py-0.5" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '14px', color: '#2B7FFF', letterSpacing: '-0.01em' }}>
+                        See more
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#2B7FFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </button>
+                    </div>
+
+                    {/* Comment cards (Figma: each card has white bg, ~25px radius, padding 4px 24px, gap 12px between avatar & text) */}
+                    {reviews.length > 0 ? sortReviews(reviews, reviewSortMode).slice(0, visibleReviewCount).map((review, index) => (
+                      <div key={review._id || index} className="cursor-pointer" style={{ borderRadius: '25px', backgroundColor: '#FFFFFF', padding: '4px 24px' }} onClick={() => openReviewModal(review)}>
+                        <div className="flex items-center" style={{ gap: '12px' }}>
+                          {/* Avatar */}
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+                            style={{ backgroundColor: ['#4F46E5', '#0891B2', '#D97706', '#DC2626', '#059669'][index % 5] }}>
+                            {(review.username || 'A').charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0 flex flex-col" style={{ gap: '3px' }}>
+                            {/* Username + badge + stars */}
+                            <div className="flex items-center" style={{ gap: '10px' }}>
+                              <span className="font-bold text-[15px]" style={{ color: '#1E2939' }}>{review.username || 'Anonymous'}</span>
+                              {review.featured && (
+                                <span className="text-[10px] font-bold text-white px-1.5 py-0.5 rounded" style={{ backgroundColor: '#2B7FFF' }}>VIP</span>
+                              )}
+                              <div className="flex" style={{ gap: '2px' }}>
+                                {[1, 2, 3, 4, 5].map(star => (
+                                  <svg key={star} width="14" height="14" viewBox="0 0 18 18" fill="none">
+                                    <path d="M9 1.5L11.3 6.2L16.5 6.9L12.7 10.6L13.6 15.8L9 13.3L4.4 15.8L5.3 10.6L1.5 6.9L6.7 6.2L9 1.5Z"
+                                      fill={star <= Math.round(parseFloat(review.rating || 0) / 2) ? '#F0B100' : 'none'}
+                                      stroke="#F0B100" strokeWidth="1.5" />
+                                  </svg>
+                                ))}
+                              </div>
+                            </div>
+                            {/* Comment text */}
+                            <p className="line-clamp-2" style={{ fontFamily: 'Inter', fontSize: '14px', color: '#545454', lineHeight: '1.625' }}>
+                              {review.reviewText?.replace(/^This review may contain spoilers\s+/i, '') || review.title || ''}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )) : (
+                      <p className="text-center py-4 text-[14px]" style={{ color: '#99A1AF' }}>No reviews yet. Be the first to review!</p>
+                    )}
+
+                    {/* See More / Fold button */}
+                    {reviews.length > 3 && (
+                      <button
+                        onClick={() => setVisibleReviewCount(prev => prev >= reviews.length ? 3 : prev + 3)}
+                        className="w-full rounded-full border border-[#D5D8DF] text-[#2D3138] font-semibold text-[14px] text-center hover:bg-gray-50 transition-colors"
+                        style={{ height: '46px', fontFamily: 'Inter' }}
+                      >
+                        {visibleReviewCount >= reviews.length ? 'Fold' : 'See More'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Write review input - 임시 비활성화
+                  <div style={{ backgroundColor: '#F9FAFB', borderBottom: '1px solid #E5E7EB', padding: '16px 16px 1px', height: '165px' }}>
+                    <div className="bg-white border border-[#D1D5DC] rounded-[10px]" style={{ height: '132px', padding: '13px 13px 1px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '14px' }}>
+                      <div className="flex flex-col" style={{ gap: '2px' }}>
+                        <div className="flex" style={{ gap: '6px' }}>
+                          {[1, 2, 3, 4, 5].map(star => (
+                            <svg key={star} width="20" height="20" viewBox="0 0 18 18" fill="none" className="cursor-pointer">
+                              <path d="M9 1.5L11.3 6.2L16.5 6.9L12.7 10.6L13.6 15.8L9 13.3L4.4 15.8L5.3 10.6L1.5 6.9L6.7 6.2L9 1.5Z"
+                                fill="none" stroke="#D1D5DC" strokeWidth="1.5" />
+                            </svg>
+                          ))}
+                        </div>
+                        <p className="text-sm text-gray-400">Write your comment here</p>
+                      </div>
+                      <div className="flex items-center justify-between" style={{ padding: '0 0 16px' }}>
+                        <span className="text-xs text-gray-400">0/300</span>
+                        <button className="px-4 py-1.5 rounded-md text-white text-sm font-semibold" style={{ backgroundColor: '#2B7FFF' }}>Post</button>
+                      </div>
+                    </div>
+                  </div>
+                  */}
+                </div>
+
+                {/* Videos: Trailer & Teasers */}
+                <div className="bg-white border-[1.5px] border-[#E5E7EB] rounded-xl mb-6" style={{ padding: '30px 24px 36px' }}>
+                  <div className="flex items-center justify-between mb-[30px]">
+                    <h2 className="font-black text-[26px]" style={{ fontFamily: 'Pretendard', color: '#000000' }}>
+                      Videos: Trailer & Teasers
+                    </h2>
+                    {currentDrama.videos && currentDrama.videos.length > 0 && (
+                      <button className="flex items-center gap-2.5 py-0.5" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '14px', color: '#2B7FFF', letterSpacing: '-0.01em' }}>
+                        See more
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#2B7FFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative rounded-xl" style={{ maxWidth: '1148px', height: '434px' }}>
+                    {currentDrama.videos && currentDrama.videos.length > 0 ? (
+                      <div
+                        ref={videosContainerRefPC}
+                        className="overflow-x-auto hide-scrollbar h-full"
+                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', display: 'flex', gap: '30px', paddingLeft: '16px', cursor: 'grab', userSelect: 'none' }}
+                        onMouseDown={(e) => {
+                          const d = videoDragState.current;
+                          d.isDown = true; d.startX = e.pageX - videosContainerRefPC.current.offsetLeft; d.scrollLeft = videosContainerRefPC.current.scrollLeft; d.moved = false;
+                          videosContainerRefPC.current.style.cursor = 'grabbing';
+                        }}
+                        onMouseLeave={() => { videoDragState.current.isDown = false; videosContainerRefPC.current.style.cursor = 'grab'; }}
+                        onMouseUp={() => { videoDragState.current.isDown = false; videosContainerRefPC.current.style.cursor = 'grab'; }}
+                        onMouseMove={(e) => {
+                          const d = videoDragState.current;
+                          if (!d.isDown) return;
+                          e.preventDefault();
+                          const x = e.pageX - videosContainerRefPC.current.offsetLeft;
+                          const walk = (x - d.startX) * 1.5;
+                          if (Math.abs(walk) > 5) d.moved = true;
+                          videosContainerRefPC.current.scrollLeft = d.scrollLeft - walk;
+                        }}
+                      >
+                        {currentDrama.videos.map((video, index) => {
+                          const videoId = getYoutubeIdFromUrl(video.url);
+                          return (
+                            <div key={index} className="flex-shrink-0 rounded-xl overflow-hidden group cursor-pointer" style={{ width: '762px', height: '434px' }}
+                              onClick={() => {
+                                if (videoDragState.current.moved) return;
+                                setSelectedVideoId(videoId); setTrailerTitle(video.title || 'Trailer'); setShowTrailer(true);
+                              }}
+                            >
+                              <div className="relative w-full h-full bg-gray-100 pointer-events-none">
+                                {videoId ? (
+                                  <Image src={`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`} alt={video.title} fill className="object-cover" unoptimized onError={(e) => { e.target.onerror = null; e.target.src = '/images/placeholder-tvfilm.jpg'; }} />
+                                ) : (
+                                  <div className="w-full h-full bg-gray-200 flex items-center justify-center"><Film className="w-12 h-12 text-gray-400" /></div>
+                                )}
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <div className="h-14 w-14 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center group-hover:bg-[#2B7FFF] transition-all">
+                                    <Play className="w-7 h-7 text-white ml-0.5" />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-500">No videos available</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Cast */}
+                <div className="bg-white border-[1.5px] border-[#E5E7EB] rounded-xl mb-6" style={{ padding: '30px 24px' }}>
+                  <div className="flex items-center justify-between mb-[30px]">
+                    <h2 className="font-black text-[26px]" style={{ fontFamily: 'Pretendard', color: '#000000' }}>
+                      Cast
+                    </h2>
+                    {cast && cast.length > 0 && (
+                      <button className="flex items-center gap-2.5 py-0.5" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '14px', color: '#2B7FFF', letterSpacing: '-0.01em' }}>
+                        See more
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#2B7FFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </button>
+                    )}
+                  </div>
+                  {cast && cast.length > 0 ? (
+                    <div className="flex items-center" style={{ gap: '16px' }}>
+                      <div className="overflow-hidden flex-1 min-w-0">
+                        <div
+                          ref={castScrollRef}
+                          className="overflow-x-auto hide-scrollbar cast-scroll-container"
+                          style={{ scrollbarWidth: 'none', display: 'flex', gap: '24px', cursor: 'grab', userSelect: 'none' }}
+                          onMouseDown={(e) => {
+                            const d = castDragState.current;
+                            d.isDown = true; d.startX = e.pageX - castScrollRef.current.offsetLeft; d.scrollLeft = castScrollRef.current.scrollLeft; d.moved = false;
+                            castScrollRef.current.style.cursor = 'grabbing';
+                          }}
+                          onMouseLeave={() => { castDragState.current.isDown = false; if (castScrollRef.current) castScrollRef.current.style.cursor = 'grab'; }}
+                          onMouseUp={() => { castDragState.current.isDown = false; if (castScrollRef.current) castScrollRef.current.style.cursor = 'grab'; }}
+                          onMouseMove={(e) => {
+                            const d = castDragState.current;
+                            if (!d.isDown) return;
+                            e.preventDefault();
+                            const x = e.pageX - castScrollRef.current.offsetLeft;
+                            const walk = (x - d.startX) * 1.5;
+                            if (Math.abs(walk) > 5) d.moved = true;
+                            castScrollRef.current.scrollLeft = d.scrollLeft - walk;
+                          }}
+                        >
+                          {cast.map((actor, index) => (
+                            <div key={index} className="flex-shrink-0 cursor-pointer group" style={{ width: '130px' }}
+                              onClick={() => handleActorClick(actor.name, null)}
+                            >
+                              <div className="overflow-hidden pointer-events-none" style={{ width: '130px', height: '182px', borderRadius: '20px', backgroundColor: '#E5E7EB' }}>
+                                {actor.image || actor.profileImage ? (
+                                  <Image
+                                    src={actor.image || actor.profileImage}
+                                    alt={actor.name || 'Actor'}
+                                    width={130}
+                                    height={182}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    unoptimized
+                                    onError={(e) => { e.target.onerror = null; e.target.src = '/images/placeholder-tvfilm.jpg'; }}
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-gray-200 to-gray-300">
+                                    <div className="w-12 h-12 rounded-full bg-gray-400 flex items-center justify-center">
+                                      <User className="w-6 h-6 text-white" />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              <div style={{ marginTop: '16px' }}>
+                                <p className="line-clamp-1 group-hover:text-[#2B7FFF] transition-colors" style={{ fontFamily: 'Inter', fontWeight: 500, fontSize: '22px', lineHeight: '1.45em', color: '#0A0A0A' }}>
+                                  {actor.name || 'Unknown'}
+                                </p>
+                                <p className="line-clamp-1" style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '16px', lineHeight: '1.875em', letterSpacing: '0.015em', color: '#6A7282' }}>
+                                  {actor.role || actor.character || ''}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      {/* 스크롤 화살표 - Figma: 48x48 clickable, 12x24 chevron, #99A1AF, stroke 4px */}
+                      <button
+                        className="flex-shrink-0 flex items-center justify-center cursor-pointer hover:opacity-70 transition-opacity"
+                        style={{ width: '48px', height: '48px' }}
+                        onClick={() => {
+                          if (castScrollRef.current) castScrollRef.current.scrollBy({ left: 300, behavior: 'smooth' });
+                        }}
+                      >
+                        <svg width="12" height="24" viewBox="0 0 12 24" fill="none">
+                          <path d="M2 2L10 12L2 22" stroke="#99A1AF" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-full text-center py-10">
+                      <Users size={40} className="mx-auto text-gray-300 mb-3" />
+                      <p className="text-gray-500 font-medium">No cast information available</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Related News */}
+                <div className="bg-white border-[1.5px] border-[#E5E7EB] rounded-xl mb-6" style={{ padding: '30px 24px' }}>
+                  <div className="flex items-center justify-between mb-[30px]">
+                    <h2 className="font-black text-[26px]" style={{ fontFamily: 'Pretendard', color: '#101828' }}>
+                      Related News
+                    </h2>
+                    {relatedNews && relatedNews.length > 6 && (
+                      <button className="flex items-center gap-2.5 py-0.5" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '14px', color: '#2B7FFF', letterSpacing: '-0.01em' }}>
+                        See more
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#2B7FFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </button>
+                    )}
+                  </div>
+                  {relatedNews && relatedNews.length > 0 ? (
+                    <div className="space-y-[30px]">
+                      {/* Row 1 */}
+                      <div className="grid grid-cols-3" style={{ gap: '24px', height: '387px' }}>
+                        {relatedNews.slice(0, 3).map((news, index) => (
+                          <Link key={index} href={`/news/${news.slug || news._id}`}>
+                            <div className="cursor-pointer group relative" style={{ height: '387px' }}>
+                              <div className="overflow-hidden" style={{ width: '100%', height: '209px', borderRadius: '14px' }}>
+                                <img
+                                  src={news.coverImage || news.thumbnail || '/images/news/default-news.jpg'}
+                                  alt={news.title}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  onError={(e) => { e.target.onerror = null; e.target.src = '/images/news/default-news.jpg'; }}
+                                />
+                              </div>
+                              <div style={{ position: 'absolute', top: '229px', width: '100%' }}>
+                                <h4 className="line-clamp-2 group-hover:text-[#2B7FFF] transition-colors" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.375em', letterSpacing: '-0.024em', color: '#101828' }}>
+                                  {news.title}
+                                </h4>
+                              </div>
+                              <div style={{ position: 'absolute', top: '291px', width: '100%' }}>
+                                <p className="line-clamp-3" style={{ fontFamily: 'Pretendard', fontWeight: 400, fontSize: '14px', lineHeight: '1.625em', letterSpacing: '-0.01em', color: '#6A7282' }}>
+                                  {news.description || news.summary || ''}
+                                </p>
+                              </div>
+                              <div style={{ position: 'absolute', top: '371px' }}>
+                                <span style={{ fontFamily: 'Pretendard', fontWeight: 400, fontSize: '12px', lineHeight: '1.33em', color: '#99A1AF' }}>
+                                  {news.publishedAt ? new Date(news.publishedAt).toLocaleDateString('en-CA') : news.createdAt ? new Date(news.createdAt).toLocaleDateString('en-CA') : ''}
+                                </span>
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                      {/* Row 2 */}
+                      {relatedNews.length > 3 && (
+                        <div className="grid grid-cols-3" style={{ gap: '24px', height: '387px' }}>
+                          {relatedNews.slice(3, 6).map((news, index) => (
+                            <Link key={index} href={`/news/${news.slug || news._id}`}>
+                              <div className="cursor-pointer group relative" style={{ height: '387px' }}>
+                                <div className="overflow-hidden" style={{ width: '100%', height: '209px', borderRadius: '14px' }}>
+                                  <img
+                                    src={news.coverImage || news.thumbnail || '/images/news/default-news.jpg'}
+                                    alt={news.title}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    onError={(e) => { e.target.onerror = null; e.target.src = '/images/news/default-news.jpg'; }}
+                                  />
+                                </div>
+                                <div style={{ position: 'absolute', top: '229px', width: '100%' }}>
+                                  <h4 className="line-clamp-2 group-hover:text-[#2B7FFF] transition-colors" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.375em', letterSpacing: '-0.024em', color: '#101828' }}>
+                                    {news.title}
+                                  </h4>
+                                </div>
+                                <div style={{ position: 'absolute', top: '291px', width: '100%' }}>
+                                  <p className="line-clamp-3" style={{ fontFamily: 'Pretendard', fontWeight: 400, fontSize: '14px', lineHeight: '1.625em', letterSpacing: '-0.01em', color: '#6A7282' }}>
+                                    {news.description || news.summary || ''}
+                                  </p>
+                                </div>
+                                <div style={{ position: 'absolute', top: '371px' }}>
+                                  <span style={{ fontFamily: 'Pretendard', fontWeight: 400, fontSize: '12px', lineHeight: '1.33em', color: '#99A1AF' }}>
+                                    {news.publishedAt ? new Date(news.publishedAt).toLocaleDateString('en-CA') : news.createdAt ? new Date(news.createdAt).toLocaleDateString('en-CA') : ''}
+                                  </span>
+                                </div>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">No related news available</div>
+                  )}
+                </div>
+
+                {/* More Drama News */}
+                <div className="bg-white border-[1.5px] border-[#E5E7EB] rounded-xl mb-6 px-6 py-8">
+                  <MoreNews category="drama" storageKey="drama-detail" />
+                </div>
+              </div>
+
+              {/* Right: Sidebar (500px) */}
+              <div className="w-[500px] flex-shrink-0">
+                <div ref={sidebarStickyRef} className="sticky" style={{ top: sidebarStickyTop + 'px' }}>
+                  <div className="space-y-8">
+                    {/* Comment Ticker */}
+                    <CommentTicker comments={recentComments || []} onNavigate={navigateToPage} />
+
+                    {/* Trending NOW */}
+                    <TrendingNow items={rankingNews || []} onNavigate={navigateToPage} />
+
+                    {/* Editor's PICK */}
+                    {rankingNews && rankingNews.length > 0 && (
+                      <div>
+                        <h3 className="font-bold text-[23px] leading-[1.5] text-[#101828] mb-4 pl-1">Editor&apos;s <span className="text-ksp-accent">PICK</span></h3>
+                        <div className="bg-white border border-[#F3F4F6] shadow-card rounded-2xl p-4 space-y-6">
+                          {rankingNews.slice(0, 6).map((item) => (
+                            <div
+                              key={item._id}
+                              className="flex gap-4 cursor-pointer group"
+                              onClick={() => navigateToPage(`/news/${item.slug || item._id}`)}
+                            >
+                              <div className="flex-shrink-0 w-[140px] h-[90px] rounded overflow-hidden">
+                                <img
+                                  src={item.coverImage || item.thumbnailUrl || '/images/news/default-news.jpg'}
+                                  alt={item.title}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => { e.target.src = '/images/news/default-news.jpg'; }}
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-block px-1.5 py-0.5 bg-ksp-accent text-white text-[10px] font-bold uppercase tracking-wider rounded">
+                                    {item.category === 'kpop' ? 'K-POP' : item.category === 'drama' ? 'DRAMA' : item.category === 'movie' ? 'FILM' : item.category === 'celeb' ? 'CELEB' : 'NEWS'}
+                                  </span>
+                                  <span className="text-xs font-medium text-ksp-meta">
+                                    {getTimeAgo(item.createdAt || item.publishedAt)}
+                                  </span>
+                                </div>
+                                <h4 className="font-bold text-[15px] leading-[1.375] text-[#121212] line-clamp-2 group-hover:text-ksp-accent transition-colors">
+                                  {item.title}
+                                </h4>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ============ MOBILE/TABLET HERO (< lg) ============ */}
+        <div className="relative flex-col h-auto w-full hidden sm:flex lg:hidden">
           {/* Background Image with Enhanced Overlay */}
           <div className="relative w-full h-[280px] sm:h-[350px] md:h-[450px] overflow-hidden">
               <div className="relative w-full h-full">
@@ -1097,7 +2071,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     
                     {currentDrama.ageRating && (
                       <div className="flex items-center bg-black/40 backdrop-blur-sm px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-full">
-                        <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-full text-white font-bold text-xs sm:text-sm mr-2 shadow-lg" style={{ backgroundColor: '#233cfa' }}>
+                        <div className="flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-full text-white font-bold text-xs sm:text-sm mr-2 shadow-lg" style={{ backgroundColor: '#2B7FFF' }}>
                           {typeof currentDrama.ageRating === 'string' && currentDrama.ageRating.includes('+')
                             ? currentDrama.ageRating.split('+')[0]
                             : currentDrama.ageRating === 'Not Rated' || currentDrama.ageRating === 'Not Yet Rated'
@@ -1135,9 +2109,9 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     <button
                       onClick={() => setShowTrailer(true)}
                       className="text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-full flex items-center font-medium text-sm sm:text-base shadow-lg hover:shadow-xl transition-all group transform hover:translate-y-[-2px]"
-                      style={{ backgroundColor: '#233cfa' }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1d31cb'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#233cfa'}
+                      style={{ backgroundColor: '#2B7FFF' }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1a6de0'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2B7FFF'}
                     >
                       <Play className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-2.5 group-hover:animate-pulse" />
                       Watch Trailer
@@ -1207,14 +2181,14 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     className="absolute inset-0 flex items-center justify-center group"
                   >
                     <div className="w-12 h-12 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center transform opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300 shadow-2xl">
-                      <Play className="w-6 h-6 text-[#233cfa] ml-1" />
+                      <Play className="w-6 h-6 text-[#2B7FFF] ml-1" />
                     </div>
                   </button>
 
                   {/* 영상 제목 - 하단 */}
                   <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
                     <div className="flex items-center">
-                      <div className="w-6 h-6 rounded-full bg-[#233cfa] flex items-center justify-center mr-2">
+                      <div className="w-6 h-6 rounded-full bg-[#2B7FFF] flex items-center justify-center mr-2">
                         <Play className="w-3 h-3 text-white ml-0.5" />
                       </div>
                       <h4 className="text-white text-sm font-semibold line-clamp-1">
@@ -1247,7 +2221,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center px-3 py-2 rounded-2xl shadow-lg" style={{ backgroundColor: '#233cfa' }}>
+                  <div className="flex items-center px-3 py-2 rounded-2xl shadow-lg" style={{ backgroundColor: '#2B7FFF' }}>
                     <div className="h-7 w-7 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-bold text-sm mr-2 shadow-md">
                       {currentDrama.reviewRating != null && currentDrama.reviewRating !== undefined && parseFloat(currentDrama.reviewRating) > 0
                         ? parseFloat(currentDrama.reviewRating) === 10
@@ -1383,7 +2357,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
                       <div
                         className="h-full rounded-full"
-                        style={{ width: `${(currentDrama?.reviewStats?.castRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
+                        style={{ width: `${(currentDrama?.reviewStats?.castRating || 8.0) * 10}%`, backgroundColor: '#2B7FFF' }}
                       ></div>
                     </div>
                     <span className="text-xs font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.castRating || 8.0}</span>
@@ -1396,7 +2370,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
                       <div
                         className="h-full rounded-full"
-                        style={{ width: `${(currentDrama?.reviewStats?.storyRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
+                        style={{ width: `${(currentDrama?.reviewStats?.storyRating || 8.0) * 10}%`, backgroundColor: '#2B7FFF' }}
                       ></div>
                     </div>
                     <span className="text-xs font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.storyRating || 8.0}</span>
@@ -1409,7 +2383,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
                       <div
                         className="h-full rounded-full"
-                        style={{ width: `${(currentDrama?.reviewStats?.musicRating || 7.5) * 10}%`, backgroundColor: '#233cfa' }}
+                        style={{ width: `${(currentDrama?.reviewStats?.musicRating || 7.5) * 10}%`, backgroundColor: '#2B7FFF' }}
                       ></div>
                     </div>
                     <span className="text-xs font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.musicRating || 7.5}</span>
@@ -1422,7 +2396,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
                       <div
                         className="h-full rounded-full"
-                        style={{ width: `${(currentDrama?.reviewStats?.rewatchRating || 7.0) * 10}%`, backgroundColor: '#233cfa' }}
+                        style={{ width: `${(currentDrama?.reviewStats?.rewatchRating || 7.0) * 10}%`, backgroundColor: '#2B7FFF' }}
                       ></div>
                     </div>
                     <span className="text-xs font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.rewatchRating || 7.0}</span>
@@ -1513,7 +2487,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                 {/* 이전 리뷰 버튼과 다음 리뷰 버튼 제거 - 상위로 이동시킴 */}
                 
                 <div className="flex items-start sm:items-center mb-3 sm:mb-4 gap-2.5 sm:gap-3">
-                  <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full flex items-center justify-center text-white font-bold text-base sm:text-lg" style={{ background: 'linear-gradient(to bottom right, #233cfa, #009efc)' }}>
+                  <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full flex items-center justify-center text-white font-bold text-base sm:text-lg" style={{ background: 'linear-gradient(to bottom right, #2B7FFF, #009efc)' }}>
                     {selectedReview.rating}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -1549,28 +2523,28 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                   <div className="flex items-center justify-between space-x-4">
                     <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">Acting/Cast</span>
                     <div className="flex-grow mx-2 h-1 bg-gray-200 rounded-full hidden sm:block"></div>
-                    <span className="text-xs sm:text-sm font-medium whitespace-nowrap" style={{ color: '#233cfa' }}>
+                    <span className="text-xs sm:text-sm font-medium whitespace-nowrap" style={{ color: '#2B7FFF' }}>
                       {selectedReview.castRating ? selectedReview.castRating : (selectedReview.rating * 0.9).toFixed(1)}/10
                     </span>
                   </div>
                   <div className="flex items-center justify-between space-x-4">
                     <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">Story</span>
                     <div className="flex-grow mx-2 h-1 bg-gray-200 rounded-full hidden sm:block"></div>
-                    <span className="text-xs sm:text-sm font-medium whitespace-nowrap" style={{ color: '#233cfa' }}>
+                    <span className="text-xs sm:text-sm font-medium whitespace-nowrap" style={{ color: '#2B7FFF' }}>
                       {selectedReview.storyRating ? selectedReview.storyRating : (selectedReview.rating * 0.95).toFixed(1)}/10
                     </span>
                   </div>
                   <div className="flex items-center justify-between space-x-4">
                     <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">Music</span>
                     <div className="flex-grow mx-2 h-1 bg-gray-200 rounded-full hidden sm:block"></div>
-                    <span className="text-xs sm:text-sm font-medium whitespace-nowrap" style={{ color: '#233cfa' }}>
+                    <span className="text-xs sm:text-sm font-medium whitespace-nowrap" style={{ color: '#2B7FFF' }}>
                       {selectedReview.musicRating ? selectedReview.musicRating : (selectedReview.rating * 0.9).toFixed(1)}/10
                     </span>
                   </div>
                   <div className="flex items-center justify-between space-x-4">
                     <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">Rewatch Value</span>
                     <div className="flex-grow mx-2 h-1 bg-gray-200 rounded-full hidden sm:block"></div>
-                    <span className="text-xs sm:text-sm font-medium whitespace-nowrap" style={{ color: '#233cfa' }}>
+                    <span className="text-xs sm:text-sm font-medium whitespace-nowrap" style={{ color: '#2B7FFF' }}>
                       {selectedReview.rewatchValue ? selectedReview.rewatchValue : (selectedReview.rating * 0.85).toFixed(1)}/10
                     </span>
                   </div>
@@ -1588,7 +2562,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                 {selectedReview.tags && selectedReview.tags.length > 0 && (
                   <div className="mt-4 flex flex-wrap gap-2">
                     {selectedReview.tags.map((tag, index) => (
-                      <span key={index} className="px-2.5 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)', color: '#233cfa' }}>
+                      <span key={index} className="px-2.5 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)', color: '#2B7FFF' }}>
                         {tag}
                       </span>
                     ))}
@@ -1618,8 +2592,8 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
           </div>
         )}
         
-        {/* Tab Navigation - Modernized */}
-        <div className="sticky top-0 z-10 bg-white border-b border-gray-100">
+        {/* Tab Navigation - Modernized (mobile/tablet only) */}
+        <div className="sticky top-0 z-10 bg-white border-b border-gray-100 lg:hidden">
           <div className="container mx-auto px-4 lg:px-8">
             <div 
               className="flex overflow-x-auto" 
@@ -1642,14 +2616,14 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     ? 'font-medium'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
-                style={activeSection === 'watch' ? { color: '#233cfa' } : {}}
+                style={activeSection === 'watch' ? { color: '#2B7FFF' } : {}}
               >
-                <div className={`flex items-center justify-center ${activeSection === 'watch' ? '' : 'text-gray-400 group-hover:text-gray-600'}`} style={activeSection === 'watch' ? { color: '#233cfa' } : {}}>
+                <div className={`flex items-center justify-center ${activeSection === 'watch' ? '' : 'text-gray-400 group-hover:text-gray-600'}`} style={activeSection === 'watch' ? { color: '#2B7FFF' } : {}}>
                   <Eye className="w-4 h-4 mr-2" />
                   <span>Where to Watch</span>
                 </div>
                 {activeSection === 'watch' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#233cfa' }}></div>
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#2B7FFF' }}></div>
                 )}
               </a>
               <a
@@ -1660,14 +2634,14 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     ? 'font-medium'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
-                style={activeSection === 'synopsis' ? { color: '#233cfa' } : {}}
+                style={activeSection === 'synopsis' ? { color: '#2B7FFF' } : {}}
               >
-                <div className={`flex items-center justify-center ${activeSection === 'synopsis' ? '' : 'text-gray-400 group-hover:text-gray-600'}`} style={activeSection === 'synopsis' ? { color: '#233cfa' } : {}}>
+                <div className={`flex items-center justify-center ${activeSection === 'synopsis' ? '' : 'text-gray-400 group-hover:text-gray-600'}`} style={activeSection === 'synopsis' ? { color: '#2B7FFF' } : {}}>
                   <Info className="w-4 h-4 mr-2" />
                   <span>Synopsis</span>
                 </div>
                 {activeSection === 'synopsis' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#233cfa' }}></div>
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#2B7FFF' }}></div>
                 )}
               </a>
               <a
@@ -1678,14 +2652,14 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     ? 'font-medium'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
-                style={activeSection === 'trailers' ? { color: '#233cfa' } : {}}
+                style={activeSection === 'trailers' ? { color: '#2B7FFF' } : {}}
               >
-                <div className={`flex items-center justify-center ${activeSection === 'trailers' ? '' : 'text-gray-400 group-hover:text-gray-600'}`} style={activeSection === 'trailers' ? { color: '#233cfa' } : {}}>
+                <div className={`flex items-center justify-center ${activeSection === 'trailers' ? '' : 'text-gray-400 group-hover:text-gray-600'}`} style={activeSection === 'trailers' ? { color: '#2B7FFF' } : {}}>
                   <Play className="w-4 h-4 mr-2" />
                   <span>Trailers</span>
                 </div>
                 {activeSection === 'trailers' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#233cfa' }}></div>
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#2B7FFF' }}></div>
                 )}
               </a>
               <a
@@ -1696,14 +2670,14 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     ? 'font-medium'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
-                style={activeSection === 'cast' ? { color: '#233cfa' } : {}}
+                style={activeSection === 'cast' ? { color: '#2B7FFF' } : {}}
               >
-                <div className={`flex items-center justify-center ${activeSection === 'cast' ? '' : 'text-gray-400 group-hover:text-gray-600'}`} style={activeSection === 'cast' ? { color: '#233cfa' } : {}}>
+                <div className={`flex items-center justify-center ${activeSection === 'cast' ? '' : 'text-gray-400 group-hover:text-gray-600'}`} style={activeSection === 'cast' ? { color: '#2B7FFF' } : {}}>
                   <User className="w-4 h-4 mr-2" />
                   <span>Cast</span>
                 </div>
                 {activeSection === 'cast' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#233cfa' }}></div>
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#2B7FFF' }}></div>
                 )}
               </a>
               <a
@@ -1714,14 +2688,14 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     ? 'font-medium'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
-                style={activeSection === 'reviews' ? { color: '#233cfa' } : {}}
+                style={activeSection === 'reviews' ? { color: '#2B7FFF' } : {}}
               >
-                <div className={`flex items-center justify-center ${activeSection === 'reviews' ? '' : 'text-gray-400 group-hover:text-gray-600'}`} style={activeSection === 'reviews' ? { color: '#233cfa' } : {}}>
+                <div className={`flex items-center justify-center ${activeSection === 'reviews' ? '' : 'text-gray-400 group-hover:text-gray-600'}`} style={activeSection === 'reviews' ? { color: '#2B7FFF' } : {}}>
                   <MessageCircle className="w-4 h-4 mr-2" />
                   <span>Reviews</span>
                 </div>
                 {activeSection === 'reviews' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#233cfa' }}></div>
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#2B7FFF' }}></div>
                 )}
               </a>
               <a
@@ -1732,22 +2706,22 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     ? 'font-medium'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
-                style={activeSection === 'similar' ? { color: '#233cfa' } : {}}
+                style={activeSection === 'similar' ? { color: '#2B7FFF' } : {}}
               >
-                <div className={`flex items-center justify-center ${activeSection === 'similar' ? '' : 'text-gray-400 group-hover:text-gray-600'}`} style={activeSection === 'similar' ? { color: '#233cfa' } : {}}>
+                <div className={`flex items-center justify-center ${activeSection === 'similar' ? '' : 'text-gray-400 group-hover:text-gray-600'}`} style={activeSection === 'similar' ? { color: '#2B7FFF' } : {}}>
                   <ListFilter className="w-4 h-4 mr-2" />
                   <span>Similar</span>
                 </div>
                 {activeSection === 'similar' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#233cfa' }}></div>
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 rounded-t-full" style={{ backgroundColor: '#2B7FFF' }}></div>
                 )}
               </a>
             </div>
           </div>
         </div>
         
-        {/* Main Content */}
-        <div className="bg-white pt-10">
+        {/* Main Content (mobile/tablet only) */}
+        <div className="bg-white pt-10 lg:hidden">
           <div className="container mx-auto px-4 lg:px-8 py-10">
             <div className="flex flex-col lg:flex-row gap-12">
               {/* Left Column - with flex ordering for mobile */}
@@ -1859,7 +2833,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                         {/* 메인 평점 표시 */}
                         <div className="flex items-center">
                           <div className="bg-white p-4 sm:p-5 rounded-full shadow-lg relative" style={{ border: '1px solid rgba(35, 60, 250, 0.2)' }}>
-                            <div className="text-3xl sm:text-4xl md:text-5xl font-bold" style={{ background: 'linear-gradient(to right, #233cfa, #009efc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                            <div className="text-3xl sm:text-4xl md:text-5xl font-bold" style={{ background: 'linear-gradient(to right, #2B7FFF, #009efc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
                               {dramaData?.data?.reviewRating ? parseFloat(dramaData.data.reviewRating).toFixed(1) : '0.0'}
                             </div>
                             <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-400 rounded-full text-xs text-white flex items-center justify-center shadow-sm font-bold">
@@ -1891,7 +2865,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                           <div className="flex justify-between items-center">
                             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Rating Distribution</h4>
                             {dramaData?.data?.reviewCount === 0 && (
-                              <span className="text-xs px-2 py-1 rounded-full" style={{ color: '#233cfa', backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>No ratings yet</span>
+                              <span className="text-xs px-2 py-1 rounded-full" style={{ color: '#2B7FFF', backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>No ratings yet</span>
                             )}
                           </div>
                           
@@ -1912,13 +2886,13 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                                       className="h-full rounded-full transition-all duration-500 ease-out shadow-sm"
                                       style={{
                                         width: percentage > 0 ? `${percentage}%` : '5%',
-                                        backgroundColor: percentage > 0 ? '#233cfa' : (dramaData?.data?.reviewCount === 0 ? 'rgba(35, 60, 250, 0.2)' : '#f3f4f6')
+                                        backgroundColor: percentage > 0 ? '#2B7FFF' : (dramaData?.data?.reviewCount === 0 ? 'rgba(35, 60, 250, 0.2)' : '#f3f4f6')
                                       }}
                                       onMouseEnter={(e) => {
-                                        if (percentage > 0) e.currentTarget.style.backgroundColor = '#1d31cb';
+                                        if (percentage > 0) e.currentTarget.style.backgroundColor = '#1a6de0';
                                       }}
                                       onMouseLeave={(e) => {
-                                        if (percentage > 0) e.currentTarget.style.backgroundColor = '#233cfa';
+                                        if (percentage > 0) e.currentTarget.style.backgroundColor = '#2B7FFF';
                                       }}
                                     ></div>
                                   </div>
@@ -1943,9 +2917,9 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                                   <div className="flex-grow mx-2 bg-gray-200 rounded-full h-2 overflow-hidden">
                                     <div
                                       className="h-full rounded-full transition-all duration-500 ease-out shadow-sm"
-                                      style={{ width: `${percentage}%`, backgroundColor: '#233cfa' }}
-                                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1d31cb'}
-                                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#233cfa'}
+                                      style={{ width: `${percentage}%`, backgroundColor: '#2B7FFF' }}
+                                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1a6de0'}
+                                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2B7FFF'}
                                     ></div>
                                   </div>
                                   <span className="w-8 text-right text-xs font-medium text-gray-500">{percentage}%</span>
@@ -1961,7 +2935,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     <div className="p-4 sm:p-6">
                       <div className="flex items-center justify-between mb-2 sm:mb-4">
                         <h3 className="font-bold text-sm sm:text-lg text-gray-800 flex items-center">
-                          <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" style={{ color: '#233cfa' }} />
+                          <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" style={{ color: '#2B7FFF' }} />
                           Featured Reviews
                         </h3>
                       </div>
@@ -1969,7 +2943,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                       {/* 가로 스크롤 리뷰 컨테이너 */}
                       {loadingReviews ? (
                         <div className="flex justify-center items-center h-40">
-                          <div className="animate-spin rounded-full h-10 w-10 border-4 border-t-transparent" style={{ borderColor: '#233cfa', borderTopColor: 'transparent' }}></div>
+                          <div className="animate-spin rounded-full h-10 w-10 border-4 border-t-transparent" style={{ borderColor: '#2B7FFF', borderTopColor: 'transparent' }}></div>
                         </div>
                       ) : reviewsError ? (
                         <div className="bg-red-50 p-4 rounded-lg text-red-600 text-center">
@@ -1999,28 +2973,28 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                                     onClick={() => openReviewModal(review)}
                                     style={{
                                       scrollSnapAlign: 'start',
-                                      borderColor: review.featured ? '#233cfa' : '#e5e7eb'
+                                      borderColor: review.featured ? '#2B7FFF' : '#e5e7eb'
                                     }}
-                                    onMouseEnter={(e) => e.currentTarget.style.borderColor = '#233cfa'}
-                                    onMouseLeave={(e) => e.currentTarget.style.borderColor = review.featured ? '#233cfa' : '#e5e7eb'}
+                                    onMouseEnter={(e) => e.currentTarget.style.borderColor = '#2B7FFF'}
+                                    onMouseLeave={(e) => e.currentTarget.style.borderColor = review.featured ? '#2B7FFF' : '#e5e7eb'}
                                   >
                                     {/* Decorative accent */}
                                     <div className="absolute top-0 right-0 w-16 h-16 rounded-tr-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'linear-gradient(to bottom left, rgba(35, 60, 250, 0.1), transparent)' }}></div>
 
                                     {/* 대표 리뷰 배지 표시 */}
                                     {review.featured && (
-                                      <div className="absolute -top-2 -right-2 text-white text-xs px-2 py-0.5 rounded-full shadow-sm z-10" style={{ backgroundColor: '#233cfa' }}>
+                                      <div className="absolute -top-2 -right-2 text-white text-xs px-2 py-0.5 rounded-full shadow-sm z-10" style={{ backgroundColor: '#2B7FFF' }}>
                                         Featured
                                       </div>
                                     )}
                                     
                                     <div className="flex justify-between items-start mb-1.5 sm:mb-2 relative">
                                       <div className="flex items-center">
-                                        <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm shadow-sm group-hover:shadow-md transition-all duration-300" style={{ background: 'linear-gradient(to bottom right, #233cfa, #009efc)' }}>
+                                        <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm shadow-sm group-hover:shadow-md transition-all duration-300" style={{ background: 'linear-gradient(to bottom right, #2B7FFF, #009efc)' }}>
                                           {review.rating}
                                         </div>
                                         <div className="ml-2">
-                                          <div className="text-xs sm:text-sm font-semibold text-gray-800 transition-colors duration-300 line-clamp-1" onMouseEnter={(e) => e.currentTarget.style.color = '#233cfa'} onMouseLeave={(e) => e.currentTarget.style.color = '#1f2937'}>{review.username || 'Anonymous'}</div>
+                                          <div className="text-xs sm:text-sm font-semibold text-gray-800 transition-colors duration-300 line-clamp-1" onMouseEnter={(e) => e.currentTarget.style.color = '#2B7FFF'} onMouseLeave={(e) => e.currentTarget.style.color = '#1f2937'}>{review.username || 'Anonymous'}</div>
                                           <div className="flex mt-0.5">
                                             {[1, 2, 3, 4, 5].map(star => (
                                               <Star
@@ -2043,7 +3017,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                                       </span>
                                     </div>
                                     
-                                    <h4 className="font-bold text-xs sm:text-sm text-gray-900 mb-1.5 sm:mb-2.5 line-clamp-1 transition-colors duration-300" onMouseEnter={(e) => e.currentTarget.style.color = '#233cfa'} onMouseLeave={(e) => e.currentTarget.style.color = '#111827'}>{review.title}</h4>
+                                    <h4 className="font-bold text-xs sm:text-sm text-gray-900 mb-1.5 sm:mb-2.5 line-clamp-1 transition-colors duration-300" onMouseEnter={(e) => e.currentTarget.style.color = '#2B7FFF'} onMouseLeave={(e) => e.currentTarget.style.color = '#111827'}>{review.title}</h4>
                                     <p className="text-xs sm:text-sm text-gray-600 line-clamp-3 group-hover:text-gray-700 transition-colors duration-300">
                                       {review.reviewText?.replace(/\s{2,}/g, ' ').replace(/^This review may contain spoilers\s+/i, '')}
                                     </p>
@@ -2055,7 +3029,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                                             className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full transition-colors duration-300"
                                             onMouseEnter={(e) => {
                                               e.currentTarget.style.backgroundColor = 'rgba(35, 60, 250, 0.1)';
-                                              e.currentTarget.style.color = '#233cfa';
+                                              e.currentTarget.style.color = '#2B7FFF';
                                             }}
                                             onMouseLeave={(e) => {
                                               e.currentTarget.style.backgroundColor = '#f3f4f6';
@@ -2067,7 +3041,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                                           </span>
                                         )}
                                       </div>
-                                      <span className="text-[10px] sm:text-xs font-medium flex items-center group-hover:opacity-100 transition-opacity duration-300" style={{ color: '#233cfa' }} onMouseEnter={(e) => e.currentTarget.style.color = '#1d31cb'} onMouseLeave={(e) => e.currentTarget.style.color = '#233cfa'}>
+                                      <span className="text-[10px] sm:text-xs font-medium flex items-center group-hover:opacity-100 transition-opacity duration-300" style={{ color: '#2B7FFF' }} onMouseEnter={(e) => e.currentTarget.style.color = '#1a6de0'} onMouseLeave={(e) => e.currentTarget.style.color = '#2B7FFF'}>
                                         Read more
                                         <ChevronRight className="w-2.5 h-2.5 sm:w-3 sm:h-3 ml-0.5" />
                                       </span>
@@ -2085,8 +3059,8 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                                 onClick={() => scrollReviews('right')}
                                 className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white shadow-lg border border-gray-200 flex items-center justify-center text-gray-600 transition-all group"
                                 onMouseEnter={(e) => {
-                                  e.currentTarget.style.color = '#233cfa';
-                                  e.currentTarget.style.borderColor = '#233cfa';
+                                  e.currentTarget.style.color = '#2B7FFF';
+                                  e.currentTarget.style.borderColor = '#2B7FFF';
                                 }}
                                 onMouseLeave={(e) => {
                                   e.currentTarget.style.color = '#4b5563';
@@ -2104,8 +3078,8 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                                 onClick={() => scrollReviews('left')}
                                 className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white shadow-lg border border-gray-200 flex items-center justify-center text-gray-600 transition-all group"
                                 onMouseEnter={(e) => {
-                                  e.currentTarget.style.color = '#233cfa';
-                                  e.currentTarget.style.borderColor = '#233cfa';
+                                  e.currentTarget.style.color = '#2B7FFF';
+                                  e.currentTarget.style.borderColor = '#2B7FFF';
                                 }}
                                 onMouseLeave={(e) => {
                                   e.currentTarget.style.color = '#4b5563';
@@ -2179,7 +3153,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                                     }}
                                     className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/0 transition-all"
                                   >
-                                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-white/20 backdrop-blur-md group-hover:backdrop-blur-none border border-white/30 flex items-center justify-center transform group-hover:scale-110 transition-all duration-300" style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#233cfa'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'}>
+                                    <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-white/20 backdrop-blur-md group-hover:backdrop-blur-none border border-white/30 flex items-center justify-center transform group-hover:scale-110 transition-all duration-300" style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2B7FFF'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'}>
                                       <Play className="w-6 h-6 sm:w-8 sm:h-8 text-white ml-0.5" />
                                     </div>
                                   </button>
@@ -2208,8 +3182,8 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                               onClick={() => scrollVideos('right')}
                               className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white shadow-lg border border-gray-200 flex items-center justify-center text-gray-600 transition-all group"
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.color = '#233cfa';
-                                e.currentTarget.style.borderColor = '#233cfa';
+                                e.currentTarget.style.color = '#2B7FFF';
+                                e.currentTarget.style.borderColor = '#2B7FFF';
                               }}
                               onMouseLeave={(e) => {
                                 e.currentTarget.style.color = '#4b5563';
@@ -2228,8 +3202,8 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                               onClick={() => scrollVideos('left')}
                               className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white shadow-lg border border-gray-200 flex items-center justify-center text-gray-600 transition-all group"
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.color = '#233cfa';
-                                e.currentTarget.style.borderColor = '#233cfa';
+                                e.currentTarget.style.color = '#2B7FFF';
+                                e.currentTarget.style.borderColor = '#2B7FFF';
                               }}
                               onMouseLeave={(e) => {
                                 e.currentTarget.style.color = '#4b5563';
@@ -2278,7 +3252,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                       
                       {/* Rating */}
                       <div className="flex items-center mb-3 bg-gray-50 rounded-lg px-3 py-2">
-                        <div className="h-8 w-8 rounded-full flex items-center justify-center text-white font-bold text-sm mr-3 shadow-md" style={{ backgroundColor: '#233cfa' }}>
+                        <div className="h-8 w-8 rounded-full flex items-center justify-center text-white font-bold text-sm mr-3 shadow-md" style={{ backgroundColor: '#2B7FFF' }}>
                           {currentDrama && currentDrama.reviewRating && currentDrama.reviewRating > 0
                     ? parseFloat(currentDrama.reviewRating) === 10
                       ? "10"
@@ -2438,7 +3412,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                               <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
                                 <div
                                   className="h-full rounded-full"
-                                  style={{ width: `${(currentDrama?.reviewStats?.castRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
+                                  style={{ width: `${(currentDrama?.reviewStats?.castRating || 8.0) * 10}%`, backgroundColor: '#2B7FFF' }}
                                 ></div>
                               </div>
                               <span className="text-sm font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.castRating || 8.0}</span>
@@ -2451,7 +3425,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                               <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
                                 <div
                                   className="h-full rounded-full"
-                                  style={{ width: `${(currentDrama?.reviewStats?.storyRating || 8.0) * 10}%`, backgroundColor: '#233cfa' }}
+                                  style={{ width: `${(currentDrama?.reviewStats?.storyRating || 8.0) * 10}%`, backgroundColor: '#2B7FFF' }}
                                 ></div>
                               </div>
                               <span className="text-sm font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.storyRating || 8.0}</span>
@@ -2464,7 +3438,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                               <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
                                 <div
                                   className="h-full rounded-full"
-                                  style={{ width: `${(currentDrama?.reviewStats?.musicRating || 7.5) * 10}%`, backgroundColor: '#233cfa' }}
+                                  style={{ width: `${(currentDrama?.reviewStats?.musicRating || 7.5) * 10}%`, backgroundColor: '#2B7FFF' }}
                                 ></div>
                               </div>
                               <span className="text-sm font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.musicRating || 7.5}</span>
@@ -2477,7 +3451,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                               <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
                                 <div
                                   className="h-full rounded-full"
-                                  style={{ width: `${(currentDrama?.reviewStats?.rewatchRating || 7.0) * 10}%`, backgroundColor: '#233cfa' }}
+                                  style={{ width: `${(currentDrama?.reviewStats?.rewatchRating || 7.0) * 10}%`, backgroundColor: '#2B7FFF' }}
                                 ></div>
                               </div>
                               <span className="text-sm font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.rewatchRating || 7.0}</span>
@@ -2504,7 +3478,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                     />
                   </div>
                   <div>
-                    <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#233CFA' }}>Related Content</span>
+                    <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#2B7FFF' }}>Related Content</span>
                     <h2 className="text-2xl md:text-3xl font-bold text-gray-800">Related News</h2>
                   </div>
                 </div>
@@ -2559,12 +3533,12 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
                               {/* 시간 배지 */}
                               <div className="flex items-center text-gray-500 text-xs">
                                 <Clock size={12} className="mr-1 text-gray-500" />
-                                <span>{new Date(news.publishedAt || news.createdAt).toLocaleDateString()}</span>
+                                <span>{new Date(news.publishedAt || news.createdAt).toLocaleDateString('en-US')}</span>
                               </div>
 
                               {/* Read more 버튼 */}
-                              <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#233CFA' }}>
-                                Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" style={{ color: '#233CFA' }} />
+                              <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#2B7FFF' }}>
+                                Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" style={{ color: '#2B7FFF' }} />
                               </span>
                             </div>
                           </div>
@@ -2585,6 +3559,46 @@ export default function DramaDetail({ drama, relatedNews, metaTags }) {
           </div>
         </div>
       </div>
+      {/* 공유 모달 */}
+      {showShareMenu && (
+        <>
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 transition-opacity" onClick={() => setShowShareMenu(false)} />
+          <div className="fixed bottom-0 left-0 right-0 md:bottom-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:max-w-md md:w-full bg-white rounded-t-3xl md:rounded-2xl z-50 shadow-2xl">
+            <div className="p-6">
+              <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-6 md:hidden"></div>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-gray-900">Share</h3>
+                <button onClick={() => setShowShareMenu(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                  <X size={24} color="#374151" />
+                </button>
+              </div>
+              <div className="flex justify-center gap-6 mb-4">
+                <button onClick={handleShareFacebook} className="w-14 h-14 flex items-center justify-center hover:scale-110 transition-transform">
+                  <img src="/images/icons8-facebook-logo-50.png" alt="Facebook" className="w-12 h-12" />
+                </button>
+                <button onClick={handleShareTwitter} className="w-14 h-14 flex items-center justify-center hover:scale-110 transition-transform">
+                  <img src="/images/icons8-x-50.png" alt="X" className="w-12 h-12" />
+                </button>
+              </div>
+              <div className="mt-6 p-4 bg-gray-100 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-600 truncate flex-1">{getDramaShareUrl()}</p>
+                  <button onClick={handleCopyLink} className="ml-2 px-4 py-2 bg-gray-800 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors">
+                    Copy URL
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 링크 복사 토스트 */}
+      {isLinkCopied && (
+        <div className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-8 py-4 rounded-lg shadow-lg z-50 whitespace-nowrap text-base">
+          Link copied to clipboard!
+        </div>
+      )}
     </MainLayout>
   );
 }
@@ -2639,7 +3653,11 @@ export async function getServerSideProps({ params, req, query, resolvedUrl }) {
       contentType: 'drama', // 드라마 타입 명시
       // 필수 필드에 기본값 설정
       summary: drama.summary || '요약 정보가 없습니다.',
-      cast: Array.isArray(drama.cast) ? drama.cast : [],
+      cast: Array.isArray(drama.cast)
+        ? drama.cast
+        : (drama.cast?.mainRoles || drama.cast?.supportRoles)
+          ? [...(drama.cast.mainRoles || []), ...(drama.cast.supportRoles || [])].map(a => ({ ...a, image: a.image || a.profileImage || '/images/placeholder-tvfilm.jpg' }))
+          : [],
       tags: Array.isArray(drama.tags) ? drama.tags : [],
       genres: Array.isArray(drama.genres) ? drama.genres : [],
       // 필드가 없을 경우를 대비한 기본값
@@ -2648,39 +3666,87 @@ export async function getServerSideProps({ params, req, query, resolvedUrl }) {
       watchProviders: drama.watchProviders || []
     };
     
-    // 관련 뉴스 가져오기
+    // 관련 뉴스 + 사이드바 데이터 가져오기
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
     let relatedNews = [];
+    let recentComments = [];
+    let rankingNews = [];
+
+    const fixImageUrl = (url) => {
+      if (!url) return null;
+      if (url.startsWith('/api/proxy')) return `${baseUrl}${url}`;
+      // 로컬 개발 시 kstarpick.com 프록시 → 프로덕션 서버 직접 접근
+      if (process.env.NODE_ENV === 'development' && url.includes('kstarpick.com/api/proxy')) {
+        return url.replace('https://kstarpick.com', 'http://43.202.38.79:13001');
+      }
+      return url;
+    };
+
+    // 각 API를 개별 try/catch로 감싸서 하나가 실패해도 나머지 데이터는 유지
+    const [newsRes, commentsRes, rankingRes] = await Promise.allSettled([
+      fetch(`${baseUrl}/api/news/drama?limit=50`),
+      fetch(`${baseUrl}/api/comments/recent?limit=10`),
+      fetch(`${baseUrl}/api/news?limit=10&sort=viewCount&category=drama`),
+    ]);
+
+    // 관련 뉴스
     try {
-      const newsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/news/drama?limit=50`);
-      const newsData = await newsRes.json();
-      relatedNews = newsData.success ? newsData.data.filter(item => {
-        const dramaTitle = drama?.title?.toLowerCase() || '';
-        const titleMatch = item?.title?.toLowerCase().includes(dramaTitle);
-        const summaryMatch = item?.summary?.toLowerCase().includes(dramaTitle);
-        const contentMatch = item?.content?.toLowerCase().includes(dramaTitle);
-        const tagMatch = Array.isArray(item?.tags) && item.tags.some(tag => tag?.toLowerCase().includes(dramaTitle));
-        // 출연진 이름 매칭
-        const castMatch = Array.isArray(drama.cast) && drama.cast.some(actor => {
-          if (!actor?.name) return false;
-          const name = actor.name.toLowerCase();
-          return (
-            item?.title?.toLowerCase().includes(name) ||
-            item?.summary?.toLowerCase().includes(name) ||
-            item?.content?.toLowerCase().includes(name) ||
-            (Array.isArray(item?.tags) && item.tags.some(tag => tag?.toLowerCase().includes(name)))
-          );
-        });
-        return titleMatch || summaryMatch || contentMatch || tagMatch || castMatch;
-      }).slice(0, 5) : [];
-    } catch (newsError) {
-      console.error('관련 뉴스 로딩 오류:', newsError);
-      // 뉴스 오류가 있어도 드라마 페이지는 표시
-    }
-    
+      if (newsRes.status === 'fulfilled' && newsRes.value.ok) {
+        const newsData = await newsRes.value.json();
+        const stripHtml = (html) => {
+          if (!html) return '';
+          return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
+        };
+        relatedNews = newsData.success ? newsData.data.filter(item => {
+          const dramaTitle = drama?.title?.toLowerCase() || '';
+          const titleMatch = item?.title?.toLowerCase().includes(dramaTitle);
+          const summaryMatch = item?.summary?.toLowerCase().includes(dramaTitle);
+          const contentMatch = item?.content?.toLowerCase().includes(dramaTitle);
+          const tagMatch = Array.isArray(item?.tags) && item.tags.some(tag => tag?.toLowerCase().includes(dramaTitle));
+          const castMatch = Array.isArray(drama.cast) && drama.cast.some(actor => {
+            if (!actor?.name) return false;
+            const name = actor.name.toLowerCase();
+            return (
+              item?.title?.toLowerCase().includes(name) ||
+              item?.summary?.toLowerCase().includes(name) ||
+              item?.content?.toLowerCase().includes(name) ||
+              (Array.isArray(item?.tags) && item.tags.some(tag => tag?.toLowerCase().includes(name)))
+            );
+          });
+          return titleMatch || summaryMatch || contentMatch || tagMatch || castMatch;
+        }).slice(0, 6).map(item => ({
+          ...item,
+          coverImage: fixImageUrl(item.coverImage),
+          description: stripHtml(item.content).slice(0, 200),
+          content: null,
+        })) : [];
+      }
+    } catch (e) { console.error('관련 뉴스 로딩 오류:', e.message); }
+
+    // 최근 댓글
+    try {
+      if (commentsRes.status === 'fulfilled' && commentsRes.value.ok) {
+        const commentsData = await commentsRes.value.json();
+        recentComments = commentsData.success ? (commentsData.data || []).slice(0, 10) : [];
+      }
+    } catch (e) { console.error('최근 댓글 로딩 오류:', e.message); }
+
+    // 랭킹 뉴스
+    try {
+      if (rankingRes.status === 'fulfilled' && rankingRes.value.ok) {
+        const rankingData = await rankingRes.value.json();
+        rankingNews = rankingData.success
+          ? (rankingData.data?.news || []).slice(0, 10).map(n => ({ ...n, coverImage: fixImageUrl(n.coverImage), thumbnailUrl: fixImageUrl(n.thumbnailUrl) }))
+          : [];
+      }
+    } catch (e) { console.error('랭킹 뉴스 로딩 오류:', e.message); }
+
     return {
       props: {
         drama: processedDrama,
         relatedNews,
+        recentComments,
+        rankingNews,
         metaTags: generateMetaTags(processedDrama)
       }
     };

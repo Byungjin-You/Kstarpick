@@ -170,10 +170,8 @@ const ReviewForm = ({ tvfilmId, onSuccess, existingReview = null }) => {
       <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">리뷰 작성하기</h3>
         <p className="text-gray-600 dark:text-gray-300 mb-4">로그인하고 이 작품에 대한 리뷰를 남겨보세요.</p>
-        <Link href="/login">
-          <a className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors">
+        <Link href="/login" className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors">
             로그인하기
-          </a>
         </Link>
       </div>
     );

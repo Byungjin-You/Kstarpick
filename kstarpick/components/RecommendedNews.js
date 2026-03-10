@@ -124,7 +124,7 @@ const RecommendedNews = ({ allNews = [] }) => {
       <div className="hidden md:grid md:grid-cols-3 gap-6">
         {recommendedNews.map((news, idx) => (
           <div key={news._id || news.id || `desktop-${idx}`} className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">
-            <Link href={`/news/${news._id || news.id}`} passHref>
+            <Link href={`/news/${news._id || news.id}`}>
               <div className="block cursor-pointer">
                 <div className="h-56 overflow-hidden relative rounded-md">
                   {news.coverImage ? (
@@ -183,7 +183,7 @@ const RecommendedNews = ({ allNews = [] }) => {
       {/* Mobile Compact Layout - use Next.js Link component */}
       <div className="md:hidden space-y-2">
         {recommendedNews.map((news, idx) => (
-          <Link href={`/news/${news._id || news.id}`} key={news._id || news.id || `mobile-${idx}`} passHref>
+          <Link href={`/news/${news._id || news.id}`} key={news._id || news.id || `mobile-${idx}`}>
             <div className="block bg-white overflow-hidden py-3 cursor-pointer">
               <div className="flex gap-1">
                 {/* Thumbnail */}

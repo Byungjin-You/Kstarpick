@@ -15,6 +15,9 @@ import { connectToDatabase } from "../../utils/mongodb";
 import { ObjectId } from 'mongodb';
 import { useSession } from 'next-auth/react';
 import DirectRiddleContent from '../../components/DirectRiddleContent';
+import CommentTicker from '../../components/home/CommentTicker';
+import TrendingNow from '../../components/home/TrendingNow';
+import MoreNews from '../../components/MoreNews';
 
 // Riddle 임베드 지원을 위한 뉴스 페이지
 
@@ -1082,7 +1085,10 @@ const getColorFromNickname = (nickname) => {
 };
 
 // 댓글 날짜 포맷팅 함수
-const formatCommentDate = (date) => {
+const formatCommentDate = (dateInput) => {
+  if (!dateInput) return '';
+  const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (isNaN(date.getTime())) return '';
   const now = new Date();
   const diffInSeconds = Math.floor((now - date) / 1000);
   
@@ -1158,7 +1164,7 @@ const getAvatarByUser = (userId, userName) => {
   return selectedAvatar;
 };
 
-export default function NewsDetail({ newsArticle, relatedArticles }) {
+export default function NewsDetail({ newsArticle, relatedArticles, recentComments = [], rankingNews = [] }) {
   const router = useRouter();
   // All hooks must be called unconditionally at the top level
   const [liked, setLiked] = useState(false);
@@ -1193,7 +1199,36 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
   const [isMoreNewsSectionHiding, setIsMoreNewsSectionHiding] = useState(false);
 
   const previousPathRef = useRef(null);
-  
+
+  // PC sidebar sticky
+  const pcSidebarRef = useRef(null);
+  const [pcSidebarTop, setPcSidebarTop] = useState(92);
+
+  const navigateToPage = (path) => {
+    router.push(path);
+  };
+
+  // PC sidebar sticky calculation
+  useEffect(() => {
+    const el = pcSidebarRef.current;
+    if (!el) return;
+    const HEADER_H = 92;
+    const calcTop = () => {
+      const sH = el.offsetHeight;
+      const vH = window.innerHeight;
+      if (sH <= vH - HEADER_H) {
+        setPcSidebarTop(HEADER_H);
+      } else {
+        setPcSidebarTop(vH - sH - 40);
+      }
+    };
+    const timer = setTimeout(calcTop, 300);
+    const observer = new ResizeObserver(calcTop);
+    observer.observe(el);
+    window.addEventListener('resize', calcTop);
+    return () => { clearTimeout(timer); observer.disconnect(); window.removeEventListener('resize', calcTop); };
+  }, []);
+
   // 컴포넌트 마운트 상태 설정
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1467,7 +1502,9 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
     try {
       if (!newsArticle?._id) return;
       
-      const response = await fetch(`/api/news/comment?id=${newsArticle._id}`);
+      const response = await fetch(`/api/news/comment?id=${newsArticle._id}`, {
+        headers: { 'x-visitor-id': getVisitorId() }
+      });
       
       const data = await response.json();
       
@@ -1484,8 +1521,9 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
             avatar: avatarUrl,
             text: comment.content,
             timestamp: comment.createdAt,
-            likes: 0,
-            liked: false,
+            likes: comment.likes || 0,
+            dislikes: comment.dislikes || 0,
+            userReaction: comment.userReaction || null,
             isGuest: comment.isGuest || comment.author?.isGuest || false
           };
         });
@@ -1511,6 +1549,41 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
     setLocalComments(commentsWithAvatars);
   };
   
+  // 방문자 ID 생성/조회 (댓글 좋아요/싫어요 추적용)
+  const getVisitorId = () => {
+    if (typeof window === 'undefined') return 'anonymous';
+    let vid = localStorage.getItem('ksp_visitor_id');
+    if (!vid) {
+      vid = 'v_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+      localStorage.setItem('ksp_visitor_id', vid);
+    }
+    return vid;
+  };
+
+  // 댓글 좋아요/싫어요 처리
+  const handleCommentReaction = async (commentId, type) => {
+    try {
+      const res = await fetch('/api/news/comment-reaction', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-visitor-id': getVisitorId()
+        },
+        body: JSON.stringify({ commentId, type })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLocalComments(prev => prev.map(c =>
+          c.id === commentId
+            ? { ...c, likes: data.likes, dislikes: data.dislikes, userReaction: data.userReaction }
+            : c
+        ));
+      }
+    } catch (error) {
+      console.error('Error reacting to comment:', error);
+    }
+  };
+
   // 댓글 입력 처리
   const handleCommentChange = (e) => {
     setNewComment(e.target.value);
@@ -1890,6 +1963,8 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
         ) : (
           // Actual content
           <>
+            {/* Mobile Layout */}
+            <div className="lg:hidden">
             {/* Hero Header Section - 높이 동적 변경 */}
             <div 
               className="relative w-full overflow-hidden"
@@ -2359,7 +2434,7 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
 
                         return displayedNews.length > 0 ? (
                           displayedNews.map((news, idx) => (
-                          <Link href={`/news/${news.slug || news._id || news.id}`} key={news._id || news.id || `related-${idx}`} passHref>
+                          <Link href={`/news/${news.slug || news._id || news.id}`} key={news._id || news.id || `related-${idx}`}>
                             <div className="block bg-white overflow-hidden py-3 cursor-pointer">
                               <div className="flex gap-1">
                                 {/* Thumbnail */}
@@ -2385,7 +2460,7 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                                   </div>
                                   <div className="flex items-center text-gray-500 text-xs mt-2">
                                     <Clock size={12} className="mr-1" />
-                                    {new Date(news.createdAt).toLocaleDateString()}
+                                    {new Date(news.createdAt).toLocaleDateString('en-CA')}
                                   </div>
                                 </div>
                               </div>
@@ -2461,7 +2536,7 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                               {/* 시간 배지 */}
                               <div className="flex items-center text-gray-500 text-xs">
                                 <Clock size={12} className="mr-1 text-gray-500" />
-                                <span>{new Date(news.createdAt || news.date).toLocaleDateString()}</span>
+                                <span>{new Date(news.createdAt || news.date).toLocaleDateString('en-CA')}</span>
                               </div>
 
                               {/* Read more 버튼 */}
@@ -2481,6 +2556,413 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
                 </div>
               </div>
             </div>
+            </div> {/* end lg:hidden (Mobile Layout) */}
+
+            {/* PC Layout */}
+            <div className="hidden lg:block bg-[#F8F9FA] pb-16">
+              <div className="mx-auto" style={{ maxWidth: '1786px', padding: '121px 74px 0' }}>
+                <div className="flex flex-row gap-[60px]">
+                  {/* Left: Main Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-col gap-[25px]">
+
+                      {/* Card 1: Article Body */}
+                      <div className="bg-white border-[1.5px] border-[#E5E7EB] rounded-[12px] flex flex-col" style={{ padding: '30px 25px 40px', gap: '30px' }}>
+
+                        {/* Header: Category + Title + Date/Share */}
+                        <div className="flex flex-col" style={{ gap: '6px' }}>
+                          <div className="flex flex-col" style={{ gap: '8px' }}>
+                            <span style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.68em', letterSpacing: '-0.014em', color: '#2B7FFF' }}>
+                              {(newsArticle.category || 'NEWS').toUpperCase()}
+                            </span>
+                            <h1 style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '30px', lineHeight: '1.4em', letterSpacing: '-0.0086em', color: '#111111', margin: 0 }}>
+                              {newsArticle.title}
+                            </h1>
+                          </div>
+                          <div className="flex justify-between items-end">
+                            <span style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '13px', lineHeight: '1.23em', letterSpacing: '-0.031em', color: '#99A1AF' }}>
+                              {newsArticle.createdAt ? (() => {
+                                const d = new Date(newsArticle.createdAt);
+                                return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                              })() : ''}
+                            </span>
+                            <div className="flex" style={{ gap: '12px' }}>
+                              <button onClick={handleShareFacebook} className="hover:opacity-70 transition-opacity" title="Share to Facebook">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="#99A1AF"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                              </button>
+                              <button onClick={handleShareTwitter} className="hover:opacity-70 transition-opacity" title="Share to X">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="#99A1AF"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                              </button>
+                              <button onClick={() => { if (typeof navigator !== 'undefined' && navigator.clipboard) { navigator.clipboard.writeText(`https://www.kstarpick.com/news/${newsArticle.slug || newsArticle._id}`); } }} className="hover:opacity-70 transition-opacity" title="Copy link">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#99A1AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Article Body Content */}
+                        <div className="flex flex-col" style={{ gap: '24px' }}>
+                          <div className="prose prose-lg max-w-none" style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '18px', lineHeight: '1.534em', letterSpacing: '-0.024em', color: '#333333' }}>
+                            <DirectRiddleContent content={newsArticle.content} />
+                          </div>
+                        </div>
+
+                        {/* Related Tags */}
+                        {newsArticle.tags && newsArticle.tags.length > 0 && (
+                          <div className="flex flex-col" style={{ gap: '10px' }}>
+                            <span style={{ fontFamily: 'Inter', fontWeight: 600, fontSize: '20px', lineHeight: '1.625em', letterSpacing: '-0.022em', color: '#101828' }}>Related Tags</span>
+                            <div className="flex flex-wrap" style={{ gap: '6px' }}>
+                              {newsArticle.tags.map((tag, idx) => (
+                                <Link key={idx} href={`/search?q=${encodeURIComponent(tag)}`}>
+                                  <span className="inline-flex items-center cursor-pointer hover:opacity-80 transition-opacity" style={{ background: 'rgba(153, 161, 175, 0.15)', borderRadius: '60px', padding: '8px 12px', fontFamily: 'Inter', fontWeight: 600, fontSize: '14px', lineHeight: '1.07em', letterSpacing: '0.008em', color: '#99A1AF' }}>
+                                    #{tag}
+                                  </span>
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Like it / Not for me */}
+                        <div className="flex justify-center" style={{ padding: '20px 0', gap: '30px' }}>
+                          {[
+                            { key: 'like', label: 'Like it!', activeColor: '#2B7FFF', activeBg: 'rgba(43, 127, 255, 0.4)' },
+                            { key: 'sad', label: 'Not for me', activeColor: '#2B7FFF', activeBg: 'rgba(43, 127, 255, 0.4)' }
+                          ].map(({ key, label, activeColor }) => {
+                            const isSelected = userReaction === key;
+                            const borderColor = isSelected ? activeColor : '#A7A7A7';
+                            const textColor = isSelected ? activeColor : '#7D7F85';
+                            return (
+                              <button
+                                key={key}
+                                onClick={async () => {
+                                  const isCancel = userReaction === key;
+                                  const newUserReaction = isCancel ? null : key;
+                                  const previousReaction = userReaction || null;
+
+                                  const newReactions = { ...reactions };
+                                  if (previousReaction) {
+                                    newReactions[previousReaction] = Math.max(0, newReactions[previousReaction] - 1);
+                                  }
+                                  if (!isCancel) {
+                                    newReactions[key] = (newReactions[key] || 0) + 1;
+                                  }
+                                  setReactions(newReactions);
+                                  setUserReaction(newUserReaction);
+
+                                  if (typeof window !== 'undefined' && newsArticle?._id) {
+                                    const userReactionsFromCookie = Cookies.get('newsReactions');
+                                    const userReactionsMap = userReactionsFromCookie ? JSON.parse(userReactionsFromCookie) : {};
+                                    if (newUserReaction) {
+                                      userReactionsMap[newsArticle._id] = newUserReaction;
+                                    } else {
+                                      delete userReactionsMap[newsArticle._id];
+                                    }
+                                    Cookies.set('newsReactions', JSON.stringify(userReactionsMap), { expires: 365 });
+                                  }
+
+                                  try {
+                                    const res = await fetch('/api/news/reactions', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        newsId: newsArticle._id,
+                                        reactionType: isCancel ? null : key,
+                                        previousReaction
+                                      })
+                                    });
+                                    const data = await res.json();
+                                    if (data.reactions) setReactions(data.reactions);
+                                  } catch (err) {
+                                    console.error('Reaction API error:', err);
+                                  }
+                                }}
+                                className="relative overflow-hidden bg-white transition-all duration-200 hover:scale-[1.02]"
+                                style={{ width: '232px', height: '85px', borderRadius: '10px', border: `1.5px solid ${borderColor}` }}
+                              >
+                                {/* Thumbs icon (clipped, positioned like Figma) */}
+                                <img
+                                  src={key === 'like' ? '/images/like-hand.png' : '/images/notforme-hand.png'}
+                                  alt=""
+                                  className="absolute pointer-events-none"
+                                  style={{
+                                    [key === 'like' ? 'left' : 'right']: '-20px',
+                                    top: key === 'like' ? '7px' : '-17px',
+                                    width: key === 'like' ? '80px' : '74px',
+                                    height: key === 'like' ? '95px' : '91px',
+                                  }}
+                                />
+                                {/* Text content */}
+                                <div className="absolute flex items-center" style={{ left: key === 'like' ? '74px' : '58px', top: '50%', transform: 'translateY(-50%)', gap: '9px' }}>
+                                  <span style={{ fontFamily: 'Inter', fontWeight: 900, fontSize: '18px', lineHeight: '1em', color: textColor }}>
+                                    {reactions[key] || 0}
+                                  </span>
+                                  <span style={{ fontFamily: 'Inter', fontWeight: 600, fontSize: '16px', lineHeight: '1em', color: textColor }}>
+                                    {label}
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                      </div>
+
+                      {/* Card 2: Comments */}
+                      <div className="bg-white border-[1.5px] border-[#E5E7EB] rounded-[12px] flex flex-col" style={{ padding: '30px 25px 40px', gap: '30px' }}>
+                        <div className="flex flex-col" style={{ gap: '10px' }}>
+                          {/* Header */}
+                          <div className="flex flex-col" style={{ gap: '6px' }}>
+                            <div className="flex items-center" style={{ gap: '6px' }}>
+                              <span style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.5em', letterSpacing: '-0.024em', color: '#1E2939' }}>
+                                Comments {localComments.length > 0 && localComments.length}
+                              </span>
+                              <img src="/images/icons8-messaging-48.png" alt="" className="w-6 h-6" />
+                            </div>
+                          </div>
+
+                          {/* Comment input */}
+                          <div className="rounded-[12px] overflow-hidden">
+                            <div style={{ padding: '16px 16px 1px' }}>
+                              <form onSubmit={handleCommentSubmit}>
+                                <div className="bg-white rounded-[10px] border border-[#D1D5DC] flex flex-col" style={{ padding: '13px', height: '132px', gap: '14px' }}>
+                                  <textarea
+                                    className="w-full flex-1 bg-transparent focus:outline-none resize-none"
+                                    placeholder="Write your comment here"
+                                    value={newComment}
+                                    onChange={handleCommentChange}
+                                    maxLength={300}
+                                    style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '14px', lineHeight: '1.43em', letterSpacing: '-0.011em', color: '#111111' }}
+                                  />
+                                  <div className="flex justify-end items-center">
+                                    <div className="flex items-center" style={{ gap: '8px' }}>
+                                      <span style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '12px', lineHeight: '1.33em', color: '#99A1AF' }}>
+                                        {newComment.length}/300
+                                      </span>
+                                      <button
+                                        type="submit"
+                                        disabled={!newComment.trim() || submittingComment}
+                                        className="transition-all"
+                                        style={{
+                                          fontFamily: 'Inter', fontWeight: 700, fontSize: '12px', lineHeight: '1.33em', color: '#FFFFFF',
+                                          background: !newComment.trim() || submittingComment ? '#D1D5DC' : '#2B7FFF',
+                                          borderRadius: '4px',
+                                          padding: '6px 9px',
+                                          cursor: !newComment.trim() || submittingComment ? 'not-allowed' : 'pointer'
+                                        }}
+                                      >
+                                        {submittingComment ? '...' : 'Post'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </form>
+                            </div>
+                          </div>
+
+                          {/* Sort tabs */}
+                          <div style={{ padding: '16px 0 17px', borderBottom: '1px solid #F3F4F6' }}>
+                            <div className="flex items-center" style={{ gap: '8px' }}>
+                              <button style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '14px', lineHeight: '1.36em', letterSpacing: '-0.021em', color: '#111111' }}>Latest</button>
+                              <div style={{ width: '3px', height: '3px', borderRadius: '1.5px', background: '#99A1AF' }} />
+                              <button style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '14px', lineHeight: '1.36em', letterSpacing: '-0.021em', color: '#99A1AF' }}>Popular</button>
+                            </div>
+                          </div>
+
+                          {/* Comments list */}
+                          <div className="flex flex-col rounded-[12px] overflow-hidden">
+                            {localComments.length > 0 ? (
+                              <>
+                                <div style={{ background: 'rgba(242, 244, 254, 0.5)' }}>
+                                  {localComments.slice(0, 4).map((comment, index) => {
+                                    const colors = getColorFromNickname(comment.author);
+                                    return (
+                                      <div key={comment.id || index} className="flex flex-col" style={{ padding: '16px 25px', borderBottom: '1px solid #F3F4F6', gap: '8px' }}>
+                                        {/* Row 1: Avatar + Name/Badge + ··· */}
+                                        <div className="flex justify-between items-center">
+                                          <div className="flex items-center" style={{ gap: '8px' }}>
+                                            <div className="flex-shrink-0 rounded-full overflow-hidden" style={{ width: '40px', height: '40px', background: `linear-gradient(135deg, ${colors.main} 0%, ${colors.secondary} 100%)` }}>
+                                              <img src={comment.avatar} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+                                            </div>
+                                            <div className="flex flex-col" style={{ gap: '2px' }}>
+                                              <div className="flex items-center" style={{ gap: '4px' }}>
+                                                <span style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '14px', lineHeight: '1.36em', letterSpacing: '-0.021em', color: '#151517' }}>{comment.author}</span>
+                                              </div>
+                                              <span style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '14px', lineHeight: '1.14em', letterSpacing: '-0.029em', color: '#99A1AF' }}>{formatCommentDate(comment.timestamp)}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        {/* Row 2: Comment text */}
+                                        <p style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '15px', lineHeight: '1.33em', letterSpacing: '-0.02em', color: '#151517', margin: 0 }}>{comment.text}</p>
+                                        {/* Row 3: Like/Dislike */}
+                                        <div className="flex justify-end items-center">
+                                          <div className="flex items-center" style={{ gap: '12px' }}>
+                                            <button className="flex items-center" style={{ gap: '4px' }} onClick={() => handleCommentReaction(comment.id, 'like')}>
+                                              <img src="/images/comment-like.svg" alt="like" style={{ width: '12px', height: '12px', opacity: comment.userReaction === 'like' ? 1 : 0.5 }} />
+                                              <span style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '16px', lineHeight: '1.5em', letterSpacing: '-0.02em', color: comment.userReaction === 'like' ? '#2B7FFF' : '#99A1AF' }}>{comment.likes || 0}</span>
+                                            </button>
+                                            <button className="flex items-center" style={{ gap: '4px' }} onClick={() => handleCommentReaction(comment.id, 'dislike')}>
+                                              <img src="/images/comment-dislike.svg" alt="dislike" style={{ width: '12px', height: '12px', opacity: comment.userReaction === 'dislike' ? 1 : 0.5 }} />
+                                              <span style={{ fontFamily: 'Inter', fontWeight: comment.userReaction === 'dislike' ? 700 : 500, fontSize: '16px', lineHeight: '1.5em', letterSpacing: '-0.02em', color: comment.userReaction === 'dislike' ? '#2B7FFF' : '#99A1AF' }}>{comment.dislikes || 0}</span>
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                {localComments.length > 4 && (
+                                  <div style={{ background: 'rgba(255, 255, 255, 0.5)' }}>
+                                    {localComments.slice(4, 8).map((comment, index) => {
+                                      const colors = getColorFromNickname(comment.author);
+                                      return (
+                                        <div key={comment.id || `extra-${index}`} className="flex flex-col" style={{ padding: '16px 25px', borderBottom: '1px solid #F3F4F6', gap: '8px' }}>
+                                          <div className="flex justify-between items-center">
+                                            <div className="flex items-center" style={{ gap: '8px' }}>
+                                              <div className="flex-shrink-0 rounded-full overflow-hidden" style={{ width: '40px', height: '40px', background: `linear-gradient(135deg, ${colors.main} 0%, ${colors.secondary} 100%)` }}>
+                                                <img src={comment.avatar} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+                                              </div>
+                                              <div className="flex flex-col" style={{ gap: '2px' }}>
+                                                <div className="flex items-center" style={{ gap: '4px' }}>
+                                                  <span style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '14px', lineHeight: '1.36em', letterSpacing: '-0.021em', color: '#151517' }}>{comment.author}</span>
+                                                </div>
+                                                <span style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '14px', lineHeight: '1.14em', letterSpacing: '-0.029em', color: '#99A1AF' }}>{formatCommentDate(comment.timestamp)}</span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <p style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '15px', lineHeight: '1.33em', letterSpacing: '-0.02em', color: '#151517', margin: 0 }}>{comment.text}</p>
+                                          <div className="flex justify-end items-center">
+                                            <div className="flex items-center" style={{ gap: '12px' }}>
+                                              <button className="flex items-center" style={{ gap: '4px' }} onClick={() => handleCommentReaction(comment.id, 'like')}>
+                                                <img src="/images/comment-like.svg" alt="like" style={{ width: '12px', height: '12px', opacity: comment.userReaction === 'like' ? 1 : 0.5 }} />
+                                                <span style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '16px', lineHeight: '1.5em', letterSpacing: '-0.02em', color: comment.userReaction === 'like' ? '#2B7FFF' : '#99A1AF' }}>{comment.likes || 0}</span>
+                                              </button>
+                                              <button className="flex items-center" style={{ gap: '4px' }} onClick={() => handleCommentReaction(comment.id, 'dislike')}>
+                                                <img src="/images/comment-dislike.svg" alt="dislike" style={{ width: '12px', height: '12px', opacity: comment.userReaction === 'dislike' ? 1 : 0.5 }} />
+                                                <span style={{ fontFamily: 'Inter', fontWeight: comment.userReaction === 'dislike' ? 700 : 500, fontSize: '16px', lineHeight: '1.5em', letterSpacing: '-0.02em', color: comment.userReaction === 'dislike' ? '#2B7FFF' : '#99A1AF' }}>{comment.dislikes || 0}</span>
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="text-center py-8" style={{ background: 'rgba(242, 244, 254, 0.5)' }}>
+                                <p style={{ fontFamily: 'Inter', fontSize: '14px', color: '#99A1AF' }}>No comments yet. Be the first to comment!</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card 3: Latest News */}
+                      <div className="bg-white border-[1.5px] border-[#E5E7EB] rounded-[12px] flex flex-col" style={{ padding: '30px 24px', gap: '30px' }}>
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center" style={{ gap: '10px' }}>
+                            <span style={{ fontFamily: 'Pretendard', fontWeight: 900, fontSize: '26px', lineHeight: '1.23em', color: '#101828' }}>Latest News</span>
+                          </div>
+                          <Link href="/news" className="flex items-center" style={{ gap: '4px' }}>
+                            <span style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '14px', lineHeight: '1.43em', letterSpacing: '-0.011em', color: '#2B7FFF' }}>See more</span>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2B7FFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                          </Link>
+                        </div>
+                        {relatedArticles && relatedArticles.length > 0 ? (
+                          <div className="grid grid-cols-3" style={{ gap: '24px', height: '387px' }}>
+                            {relatedArticles.filter(n => n._id !== newsArticle._id).slice(0, 3).map((news, index) => (
+                              <Link key={index} href={`/news/${news.slug || news._id}`}>
+                                <div className="cursor-pointer group relative" style={{ height: '387px' }}>
+                                  <div className="overflow-hidden" style={{ width: '100%', height: '209px', borderRadius: '14px' }}>
+                                    <img
+                                      src={news.coverImage || news.thumbnail || '/images/news/default-news.jpg'}
+                                      alt={news.title}
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                      onError={(e) => { e.target.onerror = null; e.target.src = '/images/news/default-news.jpg'; }}
+                                    />
+                                  </div>
+                                  <div style={{ position: 'absolute', top: '229px', width: '100%' }}>
+                                    <h4 className="line-clamp-2 group-hover:text-[#2B7FFF] transition-colors" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.375em', letterSpacing: '-0.024em', color: '#101828' }}>
+                                      {news.title}
+                                    </h4>
+                                  </div>
+                                  <div style={{ position: 'absolute', top: '291px', width: '100%' }}>
+                                    <p className="line-clamp-3" style={{ fontFamily: 'Pretendard', fontWeight: 400, fontSize: '14px', lineHeight: '1.625em', letterSpacing: '-0.01em', color: '#6A7282' }}>
+                                      {news.description || news.summary || ''}
+                                    </p>
+                                  </div>
+                                  <div style={{ position: 'absolute', top: '371px' }}>
+                                    <span style={{ fontFamily: 'Pretendard', fontWeight: 400, fontSize: '12px', lineHeight: '1.33em', color: '#99A1AF' }}>
+                                      {news.publishedAt ? new Date(news.publishedAt).toLocaleDateString('en-CA') : news.createdAt ? new Date(news.createdAt).toLocaleDateString('en-CA') : ''}
+                                    </span>
+                                  </div>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">No related news available</div>
+                        )}
+                      </div>
+
+                      {/* Card 4: More News */}
+                      <div className="bg-white border-[1.5px] border-[#E5E7EB] rounded-[12px]" style={{ padding: '30px 24px' }}>
+                        <MoreNews category={newsArticle.category || 'celeb'} storageKey="news-detail" />
+                      </div>
+
+                    </div>
+                  </div>
+
+                  {/* Right: Sidebar (500px) */}
+                  <div className="w-[500px] flex-shrink-0">
+                    <div ref={pcSidebarRef} className="sticky" style={{ top: pcSidebarTop + 'px' }}>
+                      <div className="w-full space-y-8">
+                        <CommentTicker comments={recentComments || []} onNavigate={navigateToPage} />
+                        <TrendingNow items={rankingNews || []} onNavigate={navigateToPage} />
+                        {rankingNews && rankingNews.length > 0 && (
+                          <div>
+                            <h3 className="font-bold text-[23px] leading-[1.5] text-[#101828] mb-4 pl-1">Editor&apos;s <span className="text-ksp-accent">PICK</span></h3>
+                            <div className="bg-white border border-[#F3F4F6] shadow-card rounded-2xl p-4 space-y-6">
+                              {rankingNews.slice(0, 5).map((item) => (
+                                <div
+                                  key={item._id}
+                                  className="flex gap-4 cursor-pointer group"
+                                  onClick={() => navigateToPage(`/news/${item.slug || item._id}`)}
+                                >
+                                  <div className="flex-shrink-0 w-[140px] h-[90px] rounded overflow-hidden">
+                                    <img
+                                      src={item.coverImage || item.thumbnailUrl || '/images/placeholder.jpg'}
+                                      alt={item.title}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => { e.target.src = '/images/placeholder.jpg'; }}
+                                    />
+                                  </div>
+                                  <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="inline-block px-1.5 py-0.5 bg-ksp-accent text-white text-[10px] font-bold uppercase tracking-wider rounded">
+                                        {item.category === 'kpop' ? 'K-POP' : item.category === 'drama' ? 'DRAMA' : item.category === 'movie' ? 'FILM' : item.category === 'celeb' ? 'CELEB' : 'NEWS'}
+                                      </span>
+                                      <span className="text-xs font-medium text-ksp-meta">
+                                        {formatCommentDate(item.createdAt || item.publishedAt)}
+                                      </span>
+                                    </div>
+                                    <h4 className="font-bold text-[15px] leading-[1.375] text-[#121212] line-clamp-2 group-hover:text-ksp-accent transition-colors">
+                                      {item.title}
+                                    </h4>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div> {/* end PC Layout */}
+
           </>
         )}
       </main>
@@ -2680,7 +3162,7 @@ export default function NewsDetail({ newsArticle, relatedArticles }) {
   );
 }
 
-export async function getServerSideProps({ params }) {
+export async function getServerSideProps({ params, req }) {
   const { id } = params;
 
   // USE_LOCAL_DATA=true일 때 DB 연결 없이 로컬 데이터 사용
@@ -2697,16 +3179,75 @@ export async function getServerSideProps({ params }) {
           const relatedArticles = allNews
             .filter(n => n._id !== newsArticle._id && n.category === newsArticle.category)
             .slice(0, 12);
+          // 사이드바 데이터 가져오기
+          const protocol = req.headers['x-forwarded-proto'] || 'http';
+          const baseUrl = `${protocol}://${req.headers.host}`;
+          let recentComments = [];
+          let rankingNews = [];
+          try {
+            const sidebarProdUrl = process.env.NEXT_PUBLIC_API_URL;
+            const [commentsRes, rankingRes] = await Promise.all([
+              fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
+              fetch(`${sidebarProdUrl || baseUrl}/api/news?limit=10&sort=viewCount`).catch(() => null),
+            ]);
+            if (commentsRes) { const cd = await commentsRes.json(); recentComments = cd.success ? (cd.data || cd.comments || []) : []; }
+            if (rankingRes) { const rd = await rankingRes.json(); rankingNews = rd.success ? (rd.data?.news || rd.data || []) : []; }
+          } catch (e) {}
           return {
             props: {
               newsArticle: { ...newsArticle, thumbnailUrl: newsArticle.thumbnailUrl || newsArticle.coverImage },
-              relatedArticles
+              relatedArticles,
+              recentComments,
+              rankingNews,
             }
           };
         }
       }
     } catch (e) {
       console.error('[News Detail] Local data error:', e);
+    }
+    // Local data에 없으면 프로덕션 API fallback
+    const prodUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (prodUrl) {
+      try {
+        const prodRes = await fetch(`${prodUrl}/api/news/${encodeURIComponent(id)}`);
+        if (prodRes.ok) {
+          const prodData = await prodRes.json();
+          const article = prodData.data || prodData;
+          if (article && article.title) {
+            let relatedArticles = [];
+            let recentComments = [];
+            let rankingNews = [];
+            try {
+              const protocol = req.headers['x-forwarded-proto'] || 'http';
+              const baseUrl = `${protocol}://${req.headers.host}`;
+              const [relRes, commentsRes, rankingRes] = await Promise.all([
+                fetch(`${prodUrl}/api/news?limit=12&category=${article.category || ''}`).catch(() => null),
+                fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
+                fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`).catch(() => null),
+              ]);
+              if (relRes && relRes.ok) {
+                const relData = await relRes.json();
+                relatedArticles = (relData.data?.news || relData.data || [])
+                  .filter(n => (n._id || n.id) !== (article._id || article.id))
+                  .slice(0, 12);
+              }
+              if (commentsRes) { const cd = await commentsRes.json(); recentComments = cd.success ? (cd.data || cd.comments || []) : []; }
+              if (rankingRes) { const rd = await rankingRes.json(); rankingNews = rd.success ? (rd.data?.news || rd.data || []) : []; }
+            } catch (e) {}
+            return {
+              props: {
+                newsArticle: { ...article, _id: (article._id || article.id || '').toString(), thumbnailUrl: article.thumbnailUrl || article.coverImage },
+                relatedArticles,
+                recentComments,
+                rankingNews,
+              }
+            };
+          }
+        }
+      } catch (e) {
+        console.error('[News Detail] Production fallback error:', e.message);
+      }
     }
     return { notFound: true };
   }
@@ -2734,11 +3275,54 @@ export async function getServerSideProps({ params }) {
       }
     }
     
-    // 뉴스를 찾지 못한 경우
+    // 뉴스를 찾지 못한 경우 프로덕션 API fallback
     if (!newsArticle) {
-      return {
-        notFound: true
-      };
+      const prodUrl = process.env.NEXT_PUBLIC_API_URL;
+      if (prodUrl) {
+        try {
+          const prodRes = await fetch(`${prodUrl}/api/news/${encodeURIComponent(id)}`);
+          if (prodRes.ok) {
+            const prodData = await prodRes.json();
+            const article = prodData.data || prodData;
+            if (article && article.title) {
+              const protocol = req.headers['x-forwarded-proto'] || 'http';
+              const baseUrl = `${protocol}://${req.headers.host}`;
+              let recentComments = [];
+              let rankingNews = [];
+              try {
+                const [commentsRes, rankingRes] = await Promise.all([
+                  fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
+                  fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`).catch(() => null),
+                ]);
+                if (commentsRes) { const cd = await commentsRes.json(); recentComments = cd.success ? (cd.data || cd.comments || []) : []; }
+                if (rankingRes) { const rd = await rankingRes.json(); rankingNews = rd.success ? (rd.data?.news || rd.data || []) : []; }
+              } catch (e) {}
+              // related articles from production
+              let relatedArticles = [];
+              try {
+                const relRes = await fetch(`${prodUrl}/api/news?limit=12&category=${article.category || ''}`);
+                if (relRes.ok) {
+                  const relData = await relRes.json();
+                  relatedArticles = (relData.data?.news || relData.data || [])
+                    .filter(n => (n._id || n.id) !== (article._id || article.id))
+                    .slice(0, 12);
+                }
+              } catch (e) {}
+              return {
+                props: {
+                  newsArticle: { ...article, _id: (article._id || article.id || '').toString(), thumbnailUrl: article.thumbnailUrl || article.coverImage },
+                  relatedArticles,
+                  recentComments,
+                  rankingNews,
+                }
+              };
+            }
+          }
+        } catch (e) {
+          console.error('[News Detail] Production fallback error:', e.message);
+        }
+      }
+      return { notFound: true };
     }
     
     // SEO 리다이렉트: ObjectId로 접근했지만 slug가 있는 경우
@@ -2878,10 +3462,36 @@ export async function getServerSideProps({ params }) {
       thumbnailUrl: article.thumbnailUrl || article.coverImage
     }));
     
+    // Sidebar data fetch
+    const protocol = req.headers['x-forwarded-proto'] || 'http';
+    const baseUrl = `${protocol}://${req.headers.host}`;
+    const prodUrl = process.env.NEXT_PUBLIC_API_URL || baseUrl;
+
+    let recentComments = [];
+    let rankingNews = [];
+    try {
+      const [commentsRes, rankingRes] = await Promise.all([
+        fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
+        fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`).catch(() => null),
+      ]);
+      if (commentsRes) {
+        const cd = await commentsRes.json();
+        recentComments = cd.success ? (cd.data || cd.comments || []) : [];
+      }
+      if (rankingRes) {
+        const rd = await rankingRes.json();
+        rankingNews = rd.success ? (rd.data?.news || rd.data || []) : [];
+      }
+    } catch (e) {
+      console.error('[News Detail] Sidebar data fetch error:', e.message);
+    }
+
     return {
       props: {
         newsArticle: processedNewsArticle,
-        relatedArticles: processedRelatedArticles
+        relatedArticles: processedRelatedArticles,
+        recentComments,
+        rankingNews,
       }
     };
   } catch (error) {

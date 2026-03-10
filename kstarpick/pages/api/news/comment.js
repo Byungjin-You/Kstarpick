@@ -65,20 +65,21 @@ async function getComments(req, res) {
       console.error('[Comment API] Error finding news article:', error);
     }
     
+    // 뉴스가 로컬 DB에 없어도 댓글 조회 허용
     if (!newsArticle) {
-      console.log(`[Comment API] News article not found for ID: ${id}`);
-      return res.status(404).json({ success: false, message: 'News article not found' });
+      newsId = ObjectId.isValid(id) ? new ObjectId(id) : id;
+      console.log(`[Comment API] News not found locally, using ID directly: ${newsId}`);
+    } else {
+      console.log(`[Comment API] Found news article: ${newsArticle.title}`);
     }
 
-    console.log(`[Comment API] Found news article: ${newsArticle.title}`);
-    
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    
+
     // Get comments using native MongoDB driver instead of Mongoose
     const comments = await db.collection('comments')
-      .find({ 
-        contentId: newsId instanceof ObjectId ? newsId : new ObjectId(newsId), 
-        contentType: 'news' 
+      .find({
+        contentId: newsId instanceof ObjectId ? newsId : new ObjectId(newsId),
+        contentType: 'news'
       })
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -105,28 +106,49 @@ async function getComments(req, res) {
       }).toArray();
     }
     
+    // Get visitor's existing reactions
+    const visitorId = req.headers['x-visitor-id'] || req.socket.remoteAddress || 'anonymous';
+    const commentIds = comments.map(c => c._id);
+    let visitorReactions = [];
+    if (commentIds.length > 0) {
+      visitorReactions = await db.collection('commentReactions').find({
+        commentId: { $in: commentIds },
+        visitorId
+      }).toArray();
+    }
+    const reactionMap = {};
+    visitorReactions.forEach(r => {
+      reactionMap[r.commentId.toString()] = r.type;
+    });
+
     // Map user information to comments
     const populatedComments = comments.map(comment => {
+      const commentIdStr = comment._id.toString();
+      const base = {
+        likes: Math.max(0, comment.likes || 0),
+        dislikes: Math.max(0, comment.dislikes || 0),
+        userReaction: reactionMap[commentIdStr] || null
+      };
+
       if (comment.author) {
-        // 로그인 사용자 댓글
         const user = users.find(u => u._id.toString() === comment.author.toString());
         return {
           ...comment,
+          ...base,
           author: user ? {
             _id: user._id,
             name: user.name,
-            image: user.image || null, // null로 설정하여 프론트엔드에서 랜덤 아바타 사용
+            image: user.image || null,
             isGuest: false
           } : { name: 'Unknown User', image: null, isGuest: false }
         };
       } else {
-        // 게스트 사용자 댓글
-        console.log('Guest comment found:', comment);
         return {
           ...comment,
+          ...base,
           author: {
             name: comment.guestName || 'Guest',
-            image: null, // null로 설정하여 프론트엔드에서 랜덤 아바타 사용
+            image: null,
             isGuest: true
           }
         };
@@ -207,14 +229,11 @@ async function addComment(req, res) {
     } catch (error) {
       console.error('[Comment API] Error finding news article:', error);
     }
-    
-    if (!newsArticle) {
-      console.log(`[Comment API] News article not found for ID: ${id}`);
-      return res.status(404).json({ success: false, message: 'News article not found' });
-    }
 
-    console.log(`[Comment API] Found news article: ${newsArticle.title}`);
-    
+    // 뉴스가 로컬 DB에 없어도 댓글 저장 허용 (프로덕션 fallback 데이터 대응)
+    const newsId = newsArticle ? newsArticle._id : (ObjectId.isValid(id) ? new ObjectId(id) : id);
+    console.log(`[Comment API] Using newsId: ${newsId} (article found: ${!!newsArticle})`);
+
     // Get session to check if user is logged in
     const session = await getSession({ req });
     let userId = null;
@@ -237,8 +256,6 @@ async function addComment(req, res) {
       console.log(`[Comment API] Adding as guest comment with name: ${finalGuestName}`);
     }
 
-    const newsId = newsArticle._id instanceof ObjectId ? newsArticle._id : new ObjectId(newsArticle._id);
-    
     // Create comment with MongoDB native driver
     const comment = {
       content: content.trim(),

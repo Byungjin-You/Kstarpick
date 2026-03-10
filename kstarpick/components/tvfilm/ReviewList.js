@@ -225,10 +225,8 @@ const ReviewList = ({ tvfilmId, initialReviews = [], initialStats = {} }) => {
             </button>
           )}
           {!session?.user && (
-            <Link href="/login">
-              <a className="mt-4 inline-block px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+            <Link href="/login" className="mt-4 inline-block px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
                 로그인하고 리뷰 작성하기
-              </a>
             </Link>
           )}
         </div>

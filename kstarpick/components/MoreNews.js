@@ -4,7 +4,7 @@ import CategoryTag from './home/CategoryTag';
 
 const NEWS_PER_LOAD = 12;
 
-const MoreNews = ({ initialNews = [], category = '' }) => {
+const MoreNews = ({ initialNews = [], category = '', storageKey = '' }) => {
   // initialNews로 즉시 초기화하여 빈 화면 flash 방지
   const [allNews, setAllNews] = useState(() => initialNews || []);
   const [page, setPage] = useState(() => {
@@ -18,7 +18,9 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
   const maxNewsCount = 300;
   const initialLoadTimerRef = useRef(null);
   const restoringScrollRef = useRef(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const initialDataAppliedRef = useRef(initialNews?.length > 0);
+  const initialNewsRef = useRef(initialNews); // 마운트 시 초기값 한 번만 캡처 (매 렌더마다 새 [] 참조 방지)
   const categoryRef = useRef(category); // 카테고리 값을 ref로 유지
 
   // 카테고리 ref 업데이트
@@ -40,11 +42,16 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
     return news.category === category;
   };
 
-  // 세션 스토리지 키 설정 - 카테고리 배열 지원
+  // 세션 스토리지 키 설정 - storageKey prop 우선, 없으면 카테고리 기반
+  const baseKey = storageKey
+    ? storageKey
+    : category
+      ? (isCategoryArray() ? category.join('_') : category)
+      : '';
   const STORAGE_KEYS = {
-    NEWS_DATA: category ? (isCategoryArray() ? `moreNews_${category.join('_')}Data` : `moreNews_${category}Data`) : 'moreNewsData',
-    NEWS_PAGE: category ? (isCategoryArray() ? `moreNews_${category.join('_')}Page` : `moreNews_${category}Page`) : 'moreNewsPage',
-    CACHE_TIME: category ? (isCategoryArray() ? `moreNews_${category.join('_')}CacheTime` : `moreNews_${category}CacheTime`) : 'moreNewsCacheTime'
+    NEWS_DATA: baseKey ? `moreNews_${baseKey}Data` : 'moreNewsData',
+    NEWS_PAGE: baseKey ? `moreNews_${baseKey}Page` : 'moreNewsPage',
+    CACHE_TIME: baseKey ? `moreNews_${baseKey}CacheTime` : 'moreNewsCacheTime'
   };
 
   // 캐시 유효 기간 (30분)
@@ -106,6 +113,7 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
     // 뒤로가기 감지되면 스크롤 복원 플래그 활성화
     if (isBackNavigation) {
       restoringScrollRef.current = true;
+      setIsRestoring(true);
       
       // 세션 스토리지에서 데이터 복원
       try {
@@ -137,6 +145,7 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
       // 데이터 복원 후 잠시 뒤 플래그 해제 (무한스크롤 로딩 재개)
       setTimeout(() => {
         restoringScrollRef.current = false;
+        setIsRestoring(false);
       }, 500);
 
       // 뒤로가기일 경우에는 여기서 함수 종료
@@ -161,12 +170,10 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
             }
           });
           
-          // 스크롤 초기화
-          window.scrollTo(0, 0);
-          
           // 초기 데이터 제한 (원래대로 12개씩만)
-          const limitedInitialNews = initialNews && initialNews.length > 0 
-            ? initialNews.slice(0, NEWS_PER_LOAD) 
+          const initNews = initialNewsRef.current;
+          const limitedInitialNews = initNews && initNews.length > 0
+            ? initNews.slice(0, NEWS_PER_LOAD)
             : [];
           
           
@@ -201,12 +208,13 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
     if (!initialDataAppliedRef.current) {
       
       // 카테고리가 지정된 경우 initialNews에서 해당 카테고리만 필터링
+      const initNewsDefault = initialNewsRef.current;
       let limitedNews;
-      if (category && initialNews.length > 0) {
-        const filteredNews = initialNews.filter(news => isNewsInCategory(news));
+      if (category && initNewsDefault.length > 0) {
+        const filteredNews = initNewsDefault.filter(news => isNewsInCategory(news));
         limitedNews = (filteredNews || []).slice(0, NEWS_PER_LOAD);
       } else {
-        limitedNews = (initialNews || []).slice(0, NEWS_PER_LOAD);
+        limitedNews = (initNewsDefault || []).slice(0, NEWS_PER_LOAD);
       }
       setAllNews(limitedNews);
 
@@ -226,7 +234,7 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         clearTimeout(initialLoadTimerRef.current);
       }
     };
-  }, [initialNews, category]);
+  }, [category]);
   
   // 현재 경로와 뉴스 데이터 상태 저장 (세션 스토리지에 자동 저장)
   useEffect(() => {
@@ -249,7 +257,7 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
   // 스크롤 복원 후 추가 데이터 로드를 위한 useEffect 추가
   useEffect(() => {
     // 스크롤 복원 모드가 false로 변경되었을 때만 실행 (복원 완료 후)
-    if (typeof window !== 'undefined' && restoringScrollRef.current === false) {
+    if (typeof window !== 'undefined' && !isRestoring) {
       // 스크롤 위치 확인하여 필요시 추가 데이터 로드
       const checkScrollAfterRestore = () => {
         if (!hasMore || loading) return;
@@ -278,7 +286,7 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
         clearTimeout(checkTimer);
       };
     }
-  }, [restoringScrollRef.current, hasMore, loading]);
+  }, [isRestoring, hasMore, loading]);
 
   // 무한 스크롤을 위한 이벤트 설정
   useEffect(() => {
@@ -326,7 +334,7 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
       window.removeEventListener('scroll', handleScroll);
       clearTimeout(initialCheckTimer);
     };
-  }, [allNews, hasMore, loading, restoringScrollRef.current]);
+  }, [allNews, hasMore, loading, isRestoring]);
 
   // 추가 뉴스 로드
   const loadMoreNews = async () => {
@@ -585,8 +593,9 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
       setPage(prev => prev + 1);
       
       // 마지막 페이지 여부 확인
-      const pagination = data.data.pagination;
-      const totalPages = pagination?.pages || 0;
+      // 카테고리 API는 data.data가 배열이므로 pagination이 최상위에 있음
+      const pagination = Array.isArray(data.data) ? data.pagination : data.data?.pagination;
+      const totalPages = pagination?.totalPages || pagination?.pages || 0;
       const isLastPage = pagination && (page >= totalPages || receivedNews.length < NEWS_PER_LOAD);
       
       if (isLastPage) {
@@ -767,12 +776,12 @@ const MoreNews = ({ initialNews = [], category = '' }) => {
             {/* Image */}
             <div className="relative rounded-card overflow-hidden mb-4 bg-[#F3F4F6]">
               <img
-                src={news.coverImage || news.thumbnailUrl || '/images/placeholder.jpg'}
+                src={news.coverImage || news.thumbnailUrl || '/images/news/default-news.jpg'}
                 alt={news.title}
                 className="w-full h-[209px] object-cover group-hover:scale-105 transition-transform duration-300"
                 onError={(e) => {
                   e.target.onerror = null;
-                  e.target.src = '/images/placeholder.jpg';
+                  e.target.src = '/images/news/default-news.jpg';
                 }}
               />
               <CategoryTag category={news.category} variant="overlay" className="absolute top-3 left-3" />

@@ -262,7 +262,8 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
   };
 
   const goToNextPage = () => {
-    if ((currentCelebPage + 1) * celebsPerPage < sortedCelebrities.length && !isPageChanging) {
+    const maxPage = Math.ceil(sortedCelebrities.length / 3) - 1;
+    if (currentCelebPage < maxPage && !isPageChanging) {
       setIsPageChanging(true);
       setSlideDirection('right');
       setCurrentCelebPage(currentCelebPage + 1);
@@ -301,9 +302,10 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
     return (
       <Link
         href={`/celeb/${celeb.slug}`}
-        className="block group flex-shrink-0"
-        style={{ width: '275px', height: '360px' }}
+        className="block group flex-shrink-0 relative"
+        style={{ width: '310px', height: '360px' }}
       >
+        {/* Card body with overflow hidden for image/overlay */}
         <div className="relative w-full h-full rounded-xl overflow-hidden">
           {/* Background image (fills entire card) */}
           <img
@@ -348,25 +350,27 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
               </div>
             )}
           </div>
-
-          {/* Rank number at bottom-left */}
-          <span
-            className="absolute text-white select-none pointer-events-none"
-            style={{
-              bottom: '0px',
-              left: '34px',
-              fontSize: '70px',
-              fontWeight: 900,
-              fontFamily: 'Inter, sans-serif',
-              lineHeight: '0.69em',
-              letterSpacing: '0.005em',
-              WebkitTextStroke: '1px #1D1D1D',
-              textShadow: '0px 4px 10px rgba(0, 0, 0, 0.4)',
-            }}
-          >
-            {rank}
-          </span>
         </div>
+
+        {/* Rank number - outside overflow-hidden so it can overflow the card */}
+        <span
+          className="absolute text-white select-none pointer-events-none z-10"
+          style={{
+            bottom: '-4px',
+            left: '6px',
+            fontSize: '90px',
+            fontWeight: 900,
+            fontStyle: 'italic',
+            fontFamily: 'Inter, sans-serif',
+            lineHeight: '0.7em',
+            letterSpacing: '0.005em',
+            WebkitTextStroke: '4px #1D1D1D',
+            paintOrder: 'stroke fill',
+            textShadow: '0px 4px 10px rgba(0, 0, 0, 0.5)',
+          }}
+        >
+          {rank}
+        </span>
       </Link>
     );
   };
@@ -473,11 +477,14 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
               {/* Left: Main Content Area (1212px) */}
               <div className="flex-1 min-w-0 max-w-content">
 
-                {/* ===== Section 1: Celebrity Cards (Figma: frosted glass 4-card row) ===== */}
+                {/* ===== Section 1: Celebrity Cards (Figma: frosted glass carousel) ===== */}
                 <div className="bg-white border-[1.5px] border-ksp-border rounded-xl py-[30px] px-8 mb-8">
-                  {/* Header: title + See more */}
+                  {/* Header: title + See more (Figma: Pretendard 900 26px) */}
                   <div className="flex items-center justify-between mb-6">
-                    <div />
+                    <h2 className="text-[26px] font-black" style={{ fontFamily: 'Pretendard, sans-serif', lineHeight: '1.23em' }}>
+                      <span style={{ color: '#2B7FFF' }}>Celebrities</span>{' '}
+                      <span style={{ color: '#101828' }}>at a glance</span>
+                    </h2>
                     <button
                       onClick={() => navigateToPage('/celeb')}
                       className="flex items-center gap-[10px] text-[14px] font-bold hover:underline"
@@ -490,32 +497,33 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
 
                   {celebrities.length > 0 ? (
                     <div className="relative">
-                      {/* Card row */}
-                      <div
-                        key={`celeb-page-${currentCelebPage}`}
-                        className={`flex gap-4 justify-center transition-all duration-300
-                          ${isPageChanging ? 'opacity-70 ' + (slideDirection === 'right' ? 'translate-x-4' : '-translate-x-4') : 'opacity-100 translate-x-0'}`}
-                      >
-                        {paginatedCelebs.map((celeb, index) => (
-                          <CelebCardPC
-                            key={celeb._id}
-                            celeb={celeb}
-                            index={index}
-                            rank={currentCelebPage * celebsPerPage + index + 1}
-                          />
-                        ))}
+                      {/* Card row (Figma: 1148px, overflow hidden, gap 16px, cards 310x360) */}
+                      <div className="overflow-hidden" style={{ maxWidth: '1148px' }}>
+                        <div
+                          className="flex gap-4 transition-transform duration-300 ease-in-out"
+                          style={{ transform: `translateX(-${currentCelebPage * (310 + 16) * 3}px)` }}
+                        >
+                          {sortedCelebrities.map((celeb, index) => (
+                            <CelebCardPC
+                              key={celeb._id}
+                              celeb={celeb}
+                              index={index}
+                              rank={index + 1}
+                            />
+                          ))}
+                        </div>
                       </div>
 
-                      {/* Right arrow button (Figma: 44x44 circle, stroke #C0D9FF, glow) */}
-                      {currentCelebPage < totalPages - 1 && (
+                      {/* Right arrow button (Figma: overlapping 4th card, vertically centered) */}
+                      {currentCelebPage < Math.ceil(sortedCelebrities.length / 3) - 1 && (
                         <button
                           onClick={goToNextPage}
                           disabled={isPageChanging}
                           aria-label="Next page"
-                          className="absolute top-1/2 -translate-y-1/2 -right-5 z-10 w-[44px] h-[44px] rounded-full bg-white flex items-center justify-center transition-all duration-300"
-                          style={{ border: '1.5px solid #C0D9FF', boxShadow: '0px 0px 6px rgba(139, 185, 255, 0.43)' }}
+                          className="absolute z-20 w-[44px] h-[44px] rounded-full bg-white flex items-center justify-center transition-all duration-300 hover:bg-gray-50"
+                          style={{ top: '50%', transform: 'translateY(-50%)', right: '-22px', border: '1.5px solid #C0D9FF', boxShadow: '0px 0px 6px rgba(139, 185, 255, 0.43)' }}
                         >
-                          <ChevronRight size={18} className="text-[#2B7FFF]" />
+                          <ChevronRight size={18} strokeWidth={2} className="text-[#2B7FFF]" />
                         </button>
                       )}
                       {currentCelebPage > 0 && (
@@ -523,10 +531,10 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
                           onClick={goToPrevPage}
                           disabled={isPageChanging}
                           aria-label="Previous page"
-                          className="absolute top-1/2 -translate-y-1/2 -left-5 z-10 w-[44px] h-[44px] rounded-full bg-white flex items-center justify-center transition-all duration-300"
-                          style={{ border: '1.5px solid #C0D9FF', boxShadow: '0px 0px 6px rgba(139, 185, 255, 0.43)' }}
+                          className="absolute z-20 w-[44px] h-[44px] rounded-full bg-white flex items-center justify-center transition-all duration-300 hover:bg-gray-50"
+                          style={{ top: '50%', transform: 'translateY(-50%)', left: '0px', border: '1.5px solid #C0D9FF', boxShadow: '0px 0px 6px rgba(139, 185, 255, 0.43)' }}
                         >
-                          <ChevronLeft size={18} className="text-[#2B7FFF]" />
+                          <ChevronLeft size={18} strokeWidth={2} className="text-[#2B7FFF]" />
                         </button>
                       )}
                     </div>
@@ -537,7 +545,7 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
                     </div>
                   )}
 
-                  {/* See More button (Figma: full-width, 46px, border #D5D8DF) */}
+                  {/* See More button (Figma: full-width, 46px, border #D5D8DF, rounded 100px) */}
                   <button
                     onClick={() => navigateToPage('/celeb')}
                     className="w-full mt-6 flex items-center justify-center rounded-full transition-colors hover:bg-gray-50"
@@ -547,7 +555,17 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
                   </button>
                 </div>
 
-                {/* ===== Section 2: K-Celeb News (featured image + side news list) ===== */}
+                {/* ===== Section 2: Latest Celeb Updates (3-column grid) ===== */}
+                <SectionWrapper title="Latest Celeb Updates" emoji="🔥" seeMoreHref="/news" onNavigate={navigateToPage}>
+                  <ArticleCardGrid articles={celebNews?.slice(4, 7) || []} onNavigate={navigateToPage} />
+                  {celebNews?.length > 7 && (
+                    <div className="mt-8">
+                      <ArticleCardGrid articles={celebNews.slice(7, 10)} onNavigate={navigateToPage} />
+                    </div>
+                  )}
+                </SectionWrapper>
+
+                {/* ===== Section 3: K-Celeb News (featured image + side news list) ===== */}
                 <div className="bg-white border-[1.5px] border-ksp-border rounded-xl py-[30px] px-6 mb-8">
                   {/* Header */}
                   <div className="flex items-center justify-between mb-[30px]">
@@ -569,11 +587,11 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
 
                   {/* Content: Featured left + News list right */}
                   {celebNews && celebNews.length > 0 && (
-                    <div className="flex gap-0" style={{ height: '337px' }}>
-                      {/* Left: Featured article image (Figma: 570x320, rounded 14px) */}
+                    <div className="flex gap-0">
+                      {/* Left: Featured article image (height matches right: 96px×3 + 24px×2 = 336px) */}
                       <div
                         className="relative flex-shrink-0 rounded-[14px] overflow-hidden cursor-pointer group"
-                        style={{ width: '49%', height: '320px' }}
+                        style={{ width: '49%', height: '336px' }}
                         onClick={() => navigateToPage(`/news/${celebNews[0].slug || celebNews[0]._id}`)}
                       >
                         <img
@@ -583,14 +601,14 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
                           onError={(e) => { e.target.src = '/images/placeholder.jpg'; }}
                         />
                         {/* Bottom gradient overlay with title */}
-                        <div className="absolute bottom-0 left-0 right-0 px-6 pt-7 pb-0" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%)' }}>
-                          <p className="text-white font-bold text-[20px] leading-[1.6] line-clamp-2" style={{ letterSpacing: '0.0035em' }}>
+                        <div className="absolute bottom-0 left-0 right-0 flex flex-col justify-end p-6" style={{ height: '114px', background: 'linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%)' }}>
+                          <h3 className="font-bold text-xl leading-[1.6] text-white line-clamp-2" style={{ letterSpacing: '0.0035em' }}>
                             {celebNews[0].title}
-                          </p>
+                          </h3>
                         </div>
                       </div>
 
-                      {/* Right: News list (Figma: 3 items stacked, gap 24px) */}
+                      {/* Right: News list (3 items stacked, gap 24px) */}
                       <div className="flex-1 flex flex-col gap-6 pl-6 justify-start">
                         {celebNews.slice(1, 4).map((news) => (
                           <div
@@ -598,7 +616,7 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
                             className="flex items-center gap-4 cursor-pointer group"
                             onClick={() => navigateToPage(`/news/${news.slug || news._id}`)}
                           >
-                            {/* Thumbnail (Figma: 128x96, rounded 10px) */}
+                            {/* Thumbnail (128x96, rounded 10px) */}
                             <div className="flex-shrink-0 w-[128px] h-[96px] rounded-[10px] overflow-hidden bg-[#F3F4F6]">
                               <img
                                 src={news.coverImage || '/images/placeholder.jpg'}
@@ -627,31 +645,6 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
                     </div>
                   )}
                 </div>
-
-                {/* ===== Section 3: News Grid (Figma: 3-column × 5 rows) ===== */}
-                <SectionWrapper title="Latest Celeb Updates" emoji="🔥" seeMoreHref="/news" onNavigate={navigateToPage}>
-                  <ArticleCardGrid articles={celebNews?.slice(4, 7) || []} onNavigate={navigateToPage} />
-                  {celebNews?.length > 7 && (
-                    <div className="mt-8">
-                      <ArticleCardGrid articles={celebNews.slice(7, 10)} onNavigate={navigateToPage} />
-                    </div>
-                  )}
-                  {celebNews?.length > 10 && (
-                    <div className="mt-8">
-                      <ArticleCardGrid articles={celebNews.slice(10, 13)} onNavigate={navigateToPage} />
-                    </div>
-                  )}
-                  {celebNews?.length > 13 && (
-                    <div className="mt-8">
-                      <ArticleCardGrid articles={celebNews.slice(13, 16)} onNavigate={navigateToPage} />
-                    </div>
-                  )}
-                  {celebNews?.length > 16 && (
-                    <div className="mt-8">
-                      <ArticleCardGrid articles={celebNews.slice(16, 19)} onNavigate={navigateToPage} />
-                    </div>
-                  )}
-                </SectionWrapper>
 
                 {/* MoreNews - Infinite Scroll */}
                 <div className="bg-white border-[1.5px] border-ksp-border rounded-xl py-8 px-6">
@@ -771,6 +764,10 @@ export async function getServerSideProps(context) {
     const fixImageUrl = (url) => {
       if (!url) return url;
       if (url.startsWith('/api/proxy/hash-image')) return `${prodUrl}${url}`;
+      // 로컬 개발 시 kstarpick.com 프록시 → 프로덕션 서버 직접 접근
+      if (process.env.NODE_ENV === 'development' && url.includes('kstarpick.com/api/proxy')) {
+        return url.replace('https://kstarpick.com', 'http://43.202.38.79:13001');
+      }
       return url;
     };
 

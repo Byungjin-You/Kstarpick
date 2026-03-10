@@ -128,7 +128,7 @@ const CastSection = ({ cast = [], onActorClick }) => {
               style={{ scrollSnapAlign: 'center' }}
               onClick={() => handleActorClick(actor)}
             >
-              <div className="relative w-[90px] h-[120px] rounded-lg bg-gray-100 overflow-hidden border border-gray-100 transition-all group-hover:border-[#233cfa]">
+              <div className="relative w-[90px] h-[120px] rounded-lg bg-gray-100 overflow-hidden border border-gray-100 transition-all group-hover:border-[#2B7FFF]">
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300"></div>
                 {actor.image || actor.profileImage ? (
                   <Image 
@@ -161,7 +161,7 @@ const CastSection = ({ cast = [], onActorClick }) => {
                 </div>
               </div>
               <div className="mt-2">
-                <h3 className="text-sm text-gray-900 font-medium group-hover:text-[#233cfa] transition-colors line-clamp-1">
+                <h3 className="text-sm text-gray-900 font-medium group-hover:text-[#2B7FFF] transition-colors line-clamp-1">
                   {actor.name || 'Unknown Actor'}
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">
@@ -182,8 +182,8 @@ const CastSection = ({ cast = [], onActorClick }) => {
                 onClick={() => scrollCast('right')}
                 className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 transition-all group"
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = '#233cfa';
-                  e.currentTarget.style.borderColor = '#233cfa';
+                  e.currentTarget.style.color = '#2B7FFF';
+                  e.currentTarget.style.borderColor = '#2B7FFF';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.color = '#4b5563';
@@ -201,8 +201,8 @@ const CastSection = ({ cast = [], onActorClick }) => {
                 onClick={() => scrollCast('left')}
                 className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 transition-all group"
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = '#233cfa';
-                  e.currentTarget.style.borderColor = '#233cfa';
+                  e.currentTarget.style.color = '#2B7FFF';
+                  e.currentTarget.style.borderColor = '#2B7FFF';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.color = '#4b5563';

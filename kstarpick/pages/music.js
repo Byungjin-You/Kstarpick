@@ -1,692 +1,528 @@
-import Head from 'next/head';
-import { useRouter } from 'next/router';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
-import Seo from '../components/Seo';
-import Link from 'next/link';
-import { Music as MusicIcon, TrendingUp, Calendar, BarChart2, Disc, Play, Award, ArrowRight, ChevronRight, X, RefreshCcw, Star, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import useScrollRestore from '../hooks/useScrollRestore';
+import { useRouter } from 'next/router';
+import { X, Eye } from 'lucide-react';
 import MainLayout from '../components/MainLayout';
+import Seo from '../components/Seo';
+import useScrollRestore from '../hooks/useScrollRestore';
 import { decodeHtmlEntities } from '../utils/helpers';
-import MoreNews from '../components/MoreNews';
 import { generateWebsiteJsonLd } from '../utils/seoHelpers';
+import MoreNews from '../components/MoreNews';
 
-export default function Music({ musicNews = [], topSongs = [], newsPagination }) {
+// PC layout components
+import ArticleCardGrid from '../components/home/ArticleCardGrid';
+import WatchNewsSection from '../components/home/WatchNewsSection';
+import CommentTicker from '../components/home/CommentTicker';
+import TrendingNow from '../components/home/TrendingNow';
+
+// Section wrapper for consistent styling (matches other pages)
+const SectionWrapper = ({ title, emoji, seeMoreHref, onNavigate, children }) => (
+  <div className="bg-white border-0 lg:border-[1.5px] border-ksp-border rounded-none lg:rounded-xl py-5 lg:py-8 px-4 lg:px-6 mb-0 lg:mb-8">
+    <div className="flex items-center justify-between mb-5 lg:mb-7">
+      <div className="flex items-center gap-2">
+        <h2 className="text-[21px] lg:text-[26px] font-black">
+          <span style={{ color: '#2B7FFF' }}>{title.split(' ')[0]}</span>{' '}
+          <span style={{ color: '#101828' }}>{title.split(' ').slice(1).join(' ')}</span>
+        </h2>
+        {emoji && <span className="text-xl lg:text-2xl">{emoji}</span>}
+      </div>
+      {seeMoreHref && (
+        <button
+          onClick={() => onNavigate?.(seeMoreHref)}
+          className="flex items-center gap-[10px] text-[12px] lg:text-[14px] font-bold hover:underline"
+          style={{ color: '#2B7FFF', letterSpacing: '-0.0107em' }}
+        >
+          See more
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="#2B7FFF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+      )}
+    </div>
+    {children}
+  </div>
+);
+
+// Time ago helper
+const getTimeAgo = (dateStr) => {
+  if (!dateStr) return '';
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diffMs = now - date;
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m`;
+  if (diffHr < 24) return `${diffHr}h`;
+  if (diffDay < 7) return `${diffDay}d`;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+// Music card component for the "at a glance" section
+// Sizes: large (512×700, #1), medium (620×342, #2-3), small (380×220, #4-9)
+const MusicCard = ({ song, rank, size = 'small', onClick }) => {
+  const isLarge = size === 'large';
+  const isMedium = size === 'medium';
+
+  // Figma specs per size
+  const rankTop = isLarge ? '34px' : '24px';
+  const rankLeft = isLarge ? '24px' : isMedium ? '24px' : '16px';
+  const rankFontSize = isLarge ? '70px' : isMedium ? '70px' : '48px';
+  const titleFontSize = isLarge ? '18px' : isMedium ? '18px' : '15px';
+  const padding = isLarge ? '16px 24px 24px' : isMedium ? '12px 16px 16px' : '12px 16px 16px';
+  const gradientHeight = isLarge ? '114px' : isMedium ? '100px' : '70%';
+
+  return (
+    <div
+      className="relative cursor-pointer group overflow-hidden"
+      style={{ borderRadius: '12px', width: '100%', height: '100%' }}
+      onClick={() => onClick?.(song)}
+    >
+      {/* Image */}
+      <img
+        src={song.coverImage || '/images/placeholder.jpg'}
+        alt={decodeHtmlEntities(song.title || '')}
+        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        onError={(e) => { e.target.src = '/images/placeholder.jpg'; }}
+      />
+      {/* Dark overlay */}
+      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(0,0,0,0.08)' }} />
+      {/* Bottom gradient */}
+      <div className="absolute bottom-0 left-0 right-0" style={{ height: gradientHeight, background: 'linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%)' }} />
+      {/* Rank number */}
+      <span
+        className="absolute select-none pointer-events-none"
+        style={{
+          top: rankTop,
+          left: rankLeft,
+          fontFamily: 'Inter, sans-serif',
+          fontWeight: 900,
+          fontSize: rankFontSize,
+          lineHeight: '0.7em',
+          letterSpacing: '0.005em',
+          color: '#FFFFFF',
+          WebkitTextStroke: '1px #1D1D1D',
+          paintOrder: 'stroke fill',
+          textShadow: '0px 4px 10px rgba(0, 0, 0, 0.4)',
+        }}
+      >
+        {rank}
+      </span>
+      {/* Title + Views at bottom */}
+      <div className="absolute bottom-0 left-0 right-0" style={{ padding }}>
+        <h3
+          className="text-white font-bold line-clamp-2"
+          style={{
+            fontFamily: 'Inter, sans-serif',
+            fontSize: titleFontSize,
+            lineHeight: '1.55',
+            letterSpacing: '-0.0244em',
+          }}
+        >
+          {decodeHtmlEntities(song.title || '')}
+        </h3>
+        <div className="flex items-center gap-0.5 mt-1.5">
+          <Eye size={14} style={{ color: '#E3E6EB' }} />
+          <span style={{ fontFamily: 'Pretendard, sans-serif', fontWeight: 600, fontSize: '14px', color: '#E3E6EB' }}>
+            {song.totalViews ? Number(song.totalViews).toLocaleString() : '0'} views
+          </span>
+        </div>
+      </div>
+      {/* Play button overlay on hover */}
+      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        <div className="w-14 h-14 bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center">
+          <svg className="w-6 h-6 ml-0.5" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z" /></svg>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default function Music({ musicNews = [], topSongs = [], watchNews = [], recentComments = [], rankingNews = [] }) {
   const router = useRouter();
-  const [isMobile, setIsMobile] = useState(false);
   const [showYoutubeModal, setShowYoutubeModal] = useState(false);
   const [currentYoutubeUrl, setCurrentYoutubeUrl] = useState('');
   const [processedSongs, setProcessedSongs] = useState([]);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [visibleSongs, setVisibleSongs] = useState(10);
-  const [isLoadingMoreSongs, setIsLoadingMoreSongs] = useState(false);
-  const [allSongs, setAllSongs] = useState([]);
-  const [autoPlayVideoId, setAutoPlayVideoId] = useState(null);
-  const cardRefs = useRef({});
-  const [showAll, setShowAll] = useState(false);
-  const initialDisplayCount = 10;
 
-  // 스크롤 위치 복원
+  // Sidebar sticky
+  const sidebarStickyRef = useRef(null);
+  const [sidebarStickyTop, setSidebarStickyTop] = useState(92);
+
   useScrollRestore('musicScrollPosition', 'isBackToMusic');
 
-  // 화면 크기 감지를 위한 useEffect
   useEffect(() => {
-    function handleResize() {
-      setIsMobile(window.innerWidth <= 768);
-    }
-
-    // 초기 로드 시 모바일 체크
-    if (typeof window !== 'undefined') {
-      handleResize();
-      window.addEventListener('resize', handleResize);
-    }
-
-    return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('resize', handleResize);
-      }
+    const el = sidebarStickyRef.current;
+    if (!el) return;
+    const HEADER_H = 92;
+    const calcTop = () => {
+      const sH = el.offsetHeight;
+      const vH = window.innerHeight;
+      setSidebarStickyTop(sH <= vH - HEADER_H ? HEADER_H : vH - sH - 40);
     };
+    const timer = setTimeout(calcTop, 300);
+    const observer = new ResizeObserver(calcTop);
+    observer.observe(el);
+    window.addEventListener('resize', calcTop);
+    return () => { clearTimeout(timer); observer.disconnect(); window.removeEventListener('resize', calcTop); };
   }, []);
 
-  // 음악 데이터 처리
+  // Process song data
   useEffect(() => {
     if (topSongs && topSongs.length > 0) {
-      // position 값이 없거나 문자열인 경우 처리
       const processed = topSongs.map((song, index) => {
-        const ensureNumber = (value, defaultValue) => {
-          if (typeof value === 'number') return value;
-          if (value === undefined || value === null) return defaultValue;
-          const parsed = parseInt(value);
-          return isNaN(parsed) ? defaultValue : parsed;
-        };
-        
-        // 순위 처리 (1부터 시작) - 기본값은 인덱스 + 1로 설정
-        const position = ensureNumber(song.position, index + 1);
-        
-        // 이전 순위 처리 - 유효하지 않으면 현재 순위와 동일하게 설정
-        const previousPosition = ensureNumber(song.previousPosition, position);
-
-        // 일일 조회수와 전체 조회수 처리
-        const dailyViews = ensureNumber(song.dailyViews, 0);
-        const totalViews = ensureNumber(song.totalViews, 0);
-
+        const ensureNumber = (v, d) => typeof v === 'number' ? v : (v == null ? d : (isNaN(parseInt(v)) ? d : parseInt(v)));
         return {
           ...song,
-          position,
-          previousPosition,
-          dailyViews,
-          totalViews
+          position: ensureNumber(song.position, index + 1),
+          totalViews: ensureNumber(song.totalViews, 0),
         };
-      });
-
-      // 순위(position) 기준으로 정렬
-      const sorted = processed.sort((a, b) => a.position - b.position);
-      setProcessedSongs(sorted.slice(0, visibleSongs));
-      setAllSongs(sorted);
-    } else {
-      setProcessedSongs([]);
-      setAllSongs([]);
+      }).sort((a, b) => a.position - b.position);
+      setProcessedSongs(processed);
     }
-  }, [topSongs, visibleSongs]);
+  }, [topSongs]);
 
-  // Intersection Observer로 화면 중앙 카드 자동재생
-  useEffect(() => {
-    if (typeof window === 'undefined' || processedSongs.length === 0) return;
-
-    const observerOptions = {
-      root: null,
-      rootMargin: '-40% 0px -40% 0px', // 화면 중앙 20% 영역만 감지
-      threshold: 0.5
-    };
-
-    const observerCallback = (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
-          const songId = entry.target.dataset.songId;
-          setAutoPlayVideoId(songId);
-        }
-      });
-    };
-
-    const observer = new IntersectionObserver(observerCallback, observerOptions);
-
-    // 모든 카드 관찰
-    Object.values(cardRefs.current).forEach((card) => {
-      if (card) observer.observe(card);
-    });
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [processedSongs]);
-
-  // 더 많은 음악 로드 또는 접기
-  const loadMoreSongs = async () => {
-    // 이미 모든 노래를 보여주고 있다면 접기
-    if (showAll && visibleSongs >= allSongs.length) {
-      setVisibleSongs(initialDisplayCount);
-      setShowAll(false);
-      // 페이지 상단으로 스크롤
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-
-    setIsLoadingMoreSongs(true);
-    try {
-      // 이미 모든 노래를 불러온 경우, 더 많은 노래 불러오기
-      if (allSongs.length <= visibleSongs) {
-        const response = await fetch(`/api/music/popular?limit=${visibleSongs + 10}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && Array.isArray(data.data)) {
-            // 새로운 데이터 처리
-            const processed = data.data.map((song, index) => {
-              const ensureNumber = (value, defaultValue) => {
-                if (typeof value === 'number') return value;
-                if (value === undefined || value === null) return defaultValue;
-                const parsed = parseInt(value);
-                return isNaN(parsed) ? defaultValue : parsed;
-              };
-
-              return {
-                ...song,
-                position: ensureNumber(song.position, index + 1),
-                previousPosition: ensureNumber(song.previousPosition, ensureNumber(song.position, index + 1)),
-                dailyViews: ensureNumber(song.dailyViews, 0),
-                totalViews: ensureNumber(song.totalViews, 0)
-              };
-            });
-
-            setAllSongs(processed);
-          }
-        }
-      }
-
-      // 더 보여줄 노래 수 증가
-      setVisibleSongs(prev => prev + 10);
-
-      // 모든 노래를 불러왔는지 확인
-      if (visibleSongs + 10 >= allSongs.length) {
-        setShowAll(true);
-      }
-    } catch (error) {
-      console.error('더 많은 음악 로드 오류:', error);
-    } finally {
-      setIsLoadingMoreSongs(false);
-    }
+  const navigateToPage = (path, e) => {
+    if (e) e.preventDefault();
+    if (path === router.pathname || path === router.asPath) return;
+    router.push(path);
   };
 
-  // YouTube URL에서 비디오 ID 추출
-  const getYoutubeVideoId = (url) => {
-    if (!url) return null;
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
-  };
-
-  // 유튜브 모달 열기
   const openYoutubeModal = (url, e) => {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
     if (!url) return;
-    
-    // 이벤트 전파 중지
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // YouTube URL을 embed 형식으로 변환
-    let embedUrl = url;
-    const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
-    const match = url.match(youtubeRegex);
-    
+    const match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
     if (match && match[1]) {
-      embedUrl = `https://www.youtube.com/embed/${match[1]}?autoplay=1`;
-    }
-    
-    setCurrentYoutubeUrl(embedUrl);
-    setShowYoutubeModal(true);
-  };
-
-  // 유튜브 모달 닫기
-  const closeYoutubeModal = () => {
-    setShowYoutubeModal(false);
-    setCurrentYoutubeUrl('');
-  };
-
-  // 순위 데이터 업데이트
-  const updateRankings = async () => {
-    if (isUpdating) return;
-    
-    setIsUpdating(true);
-    try {
-      // 관리자 API 호출해 순위 업데이트
-      const response = await fetch('/api/music/fix-positions', {
-        method: 'POST'
-      });
-      
-      if (!response.ok) {
-        throw new Error('순위 업데이트 실패');
-      }
-      
-      const result = await response.json();
-      console.log('순위 업데이트 결과:', result);
-      
-      // 페이지 새로고침
-      router.reload();
-    } catch (error) {
-      console.error('순위 업데이트 오류:', error);
-      alert('순위 업데이트 중 오류가 발생했습니다. 관리자에게 문의하세요.');
-    } finally {
-      setIsUpdating(false);
+      setCurrentYoutubeUrl(`https://www.youtube.com/embed/${match[1]}?autoplay=1&playsinline=1&rel=0&modestbranding=1`);
+      setShowYoutubeModal(true);
     }
   };
 
-  // Mock chart data
-  const chartData = [
-    { position: 1, trend: 'up', artist: 'NewJeans', title: 'Super Shy', album: 'Get Up', lastWeek: 2 },
-    { position: 2, trend: 'down', artist: 'BTS', title: 'Dynamite', album: 'BE', lastWeek: 1 },
-    { position: 3, trend: 'same', artist: 'IVE', title: 'I AM', album: 'I\'ve IVE', lastWeek: 3 },
-    { position: 4, trend: 'up', artist: 'aespa', title: 'Spicy', album: 'MY WORLD', lastWeek: 6 },
-    { position: 5, trend: 'up', artist: 'SEVENTEEN', title: 'Super', album: 'FML', lastWeek: 7 }
-  ];
-  
+  const closeYoutubeModal = () => { setShowYoutubeModal(false); setCurrentYoutubeUrl(''); };
+
+  const handleSongClick = (song) => {
+    if (song.youtubeUrl) {
+      openYoutubeModal(song.youtubeUrl);
+    }
+  };
+
+  // Songs for the "at a glance" section
+  const glanceSongs = processedSongs.slice(0, 9);
+
   return (
     <MainLayout>
       <Seo
         title="K-Pop Music | Korean Music Charts & Latest Songs"
-        description="Discover the latest K-Pop music releases, trending songs, and music charts. Listen to hits from BTS, BLACKPINK, NewJeans, aespa, and more Korean artists."
+        description="Discover the latest K-Pop music releases, trending songs, and music charts."
         url="/music"
         type="website"
-        keywords="K-Pop music,Korean music,K-Pop charts,Korean songs,BTS music,BLACKPINK songs,NewJeans,aespa,Korean music videos,K-Pop hits"
+        keywords="K-Pop music,Korean music,K-Pop charts,BTS,BLACKPINK,NewJeans"
         jsonLd={generateWebsiteJsonLd()}
       />
-      <div className="bg-white min-h-screen">
 
-        <div className="container mx-auto px-4 pt-0 pb-12">
-          {/* 제목 영역 */}
-          <div className="mb-8 mt-8">
-            <h1 className="font-bold text-black" style={{ fontSize: '20px' }}>
-              <span style={{ color: '#233CFA' }}>Music News</span> at a Glance
-            </h1>
+      {/* ============ MOBILE LAYOUT (< lg) ============ */}
+      <div className="lg:hidden">
+        <main className="pt-0 pb-16 bg-white">
+          {/* Mobile Comment Ticker */}
+          <div className="px-4 py-3">
+            <CommentTicker comments={recentComments} onNavigate={navigateToPage} />
           </div>
-          
-          {/* Top K-POP Songs 섹션 */}
-          <section className="mb-12">
-            {/* Masonry Grid */}
-            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-              <div>
+          <div className="h-2 bg-[#F3F4F6]" />
 
-                {/* Masonry Layout - Pinterest 스타일 */}
-                <style dangerouslySetInnerHTML={{__html: `
-                  .masonry-grid {
-                    column-count: 2;
-                    column-gap: 12px;
-                  }
-                  @media (min-width: 640px) {
-                    .masonry-grid {
-                      column-count: 3;
-                      column-gap: 16px;
-                    }
-                  }
-                  @media (min-width: 1024px) {
-                    .masonry-grid {
-                      column-count: 4;
-                    }
-                  }
-                  @media (min-width: 1280px) {
-                    .masonry-grid {
-                      column-count: 5;
-                    }
-                  }
-                  @media (min-width: 1536px) {
-                    .masonry-grid {
-                      column-count: 6;
-                    }
-                  }
-                  .masonry-item {
-                    break-inside: avoid;
-                    page-break-inside: avoid;
-                    -webkit-column-break-inside: avoid;
-                  }
-                `}} />
-                <div className="masonry-grid">
+          {/* Mobile Trending */}
+          <div className="px-4 py-4">
+            <TrendingNow items={rankingNews} onNavigate={navigateToPage} showCard={false} />
+          </div>
+          <div className="h-2 bg-[#F3F4F6]" />
 
-                  {processedSongs.map((song, index) => {
-                    // 다양한 높이를 위한 랜덤 계산 (80% ~ 200% 범위)
-                    const heightVariation = 80 + (index * 23) % 120; // 80 ~ 200 사이의 값
-                    const videoId = getYoutubeVideoId(song.youtubeUrl);
-                    const isAutoPlaying = autoPlayVideoId === song._id;
-
-                    return (
-                      <div
-                        key={song._id}
-                        ref={(el) => (cardRefs.current[song._id] = el)}
-                        data-song-id={song._id}
-                        className="masonry-item group cursor-pointer mb-3 sm:mb-4"
-                        onClick={(e) => {
-                          if (song.youtubeUrl) {
-                            openYoutubeModal(song.youtubeUrl, e);
-                          } else if (song.slug || song._id) {
-                            e.preventDefault();
-                            router.push(`/music/song/${song.slug || song._id}`);
-                          }
-                        }}
-                      >
-                        {/* Card Container */}
-                        <div
-                          className="relative bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1"
-                        >
-
-                          {/* Album Cover Image - 다양한 높이 */}
-                          <div className="relative w-full bg-gray-100" style={{ paddingBottom: `${heightVariation}%` }}>
-                            {/* YouTube 자동재생 임베드 - 화면 중앙에 있을 때만 */}
-                            {isAutoPlaying && videoId ? (
-                              <iframe
-                                className="absolute inset-0 w-full h-full"
-                                src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&loop=1&playlist=${videoId}`}
-                                title={song.title}
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                                style={{ border: 'none' }}
-                              />
-                            ) : (
-                              <>
-                                {/* 일반 이미지 표시 */}
-                                {song.coverImage ? (
-                                  <img
-                                    src={song.coverImage}
-                                    alt={song.title}
-                                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                    onError={(e) => {
-                                      e.target.onerror = null;
-                                      e.target.src = '/images/placeholder.jpg';
-                                    }}
-                                  />
-                                ) : (
-                                  <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                                    <MusicIcon size={48} className="text-gray-400" />
-                                  </div>
-                                )}
-
-                                {/* Ranking - Top Left (드라마 스타일) */}
-                                <div className="absolute top-0 left-0 w-16 h-16 flex items-center justify-center">
-                                  <span className="text-white font-bold text-5xl drop-shadow-lg" style={{textShadow: '0 2px 4px rgba(0,0,0,0.5)'}}>
-                                    {song.position}
-                                  </span>
-                                </div>
-
-                                {/* Gradient Overlay */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end">
-                                  <div className="p-4 w-full">
-                                    <p className="text-white font-medium line-clamp-1">{decodeHtmlEntities(song.title)}</p>
-                                  </div>
-                                </div>
-
-                                {/* Play Button - Center Overlay */}
-                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                  <button
-                                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shadow-2xl transition-transform transform group-hover:scale-110"
-                                    style={{ background: 'linear-gradient(to bottom right, #233cfa, #009efc)' }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openYoutubeModal(song.youtubeUrl, e);
-                                    }}
-                                  >
-                                    <Play size={16} className="text-white ml-0.5 sm:ml-1" fill="white" />
-                                  </button>
-                                </div>
-                              </>
-                            )}
-                          </div>
-
-                          {/* Song Info */}
-                          <div className="p-3">
-                            <h3 className="text-sm font-bold text-gray-900 line-clamp-2 group-hover:text-[#233cfa] transition-colors">
-                              {decodeHtmlEntities(song.title)}
-                            </h3>
-                            <div className="flex items-center mt-2 gap-2">
-                              {/* YouTube Channel Profile Image */}
-                              <div className="flex-shrink-0">
-                                <div className="w-6 h-6 rounded-full overflow-hidden bg-white flex items-center justify-center">
-                                  {song.channelThumbnail ? (
-                                    <img
-                                      src={song.channelThumbnail}
-                                      alt={song.artist}
-                                      className="w-full h-full object-cover"
-                                      onError={(e) => {
-                                        e.target.style.display = 'none';
-                                        e.target.nextSibling.style.display = 'flex';
-                                      }}
-                                    />
-                                  ) : null}
-                                  <div
-                                    style={{ display: song.channelThumbnail ? 'none' : 'flex' }}
-                                    className="w-full h-full items-center justify-center"
-                                  >
-                                    <img
-                                      src="/images/icons8-youtube-logo-94.png"
-                                      alt="YouTube"
-                                      className="w-4 h-4 object-contain"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                              <p className="text-xs text-gray-500 line-clamp-1 flex-1">
-                                {decodeHtmlEntities(song.artist)}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {processedSongs.length === 0 && (
-                    <div className="col-span-full bg-white rounded-xl p-8 text-center border border-gray-100" style={{ boxShadow: 'none' }}>
-                      <MusicIcon size={40} className="mx-auto text-gray-300 mb-3" />
-                      <h3 className="text-lg font-semibold text-gray-800 mb-2">No Music Available</h3>
-                      <p className="text-gray-500">
-                        No music data available at the moment.
-                      </p>
-                    </div>
-                  )}
+          {/* Music News at a glance - mobile: vertical list */}
+          <div className="px-4 py-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[21px] font-black">
+                <span style={{ color: '#2B7FFF' }}>Music News</span>{' '}
+                <span style={{ color: '#101828' }}>at a glance</span>
+              </h2>
+            </div>
+            <div className="flex flex-col gap-3">
+              {glanceSongs.slice(0, 6).map((song, i) => (
+                <div key={song._id} className="relative rounded-xl overflow-hidden cursor-pointer" style={{ height: i === 0 ? '280px' : '180px' }} onClick={() => handleSongClick(song)}>
+                  <MusicCard song={song} rank={song.position} size={i === 0 ? 'large' : 'small'} onClick={handleSongClick} />
                 </div>
-              </div>
+              ))}
+            </div>
+          </div>
+          <div className="h-2 bg-[#F3F4F6]" />
 
-              {/* "더 보기" 버튼 추가 */}
-              <div className="text-center mt-8 mb-4 pb-4">
-              <button
-                onClick={loadMoreSongs}
-                disabled={isLoadingMoreSongs}
-                className="w-full max-w-md mx-auto py-3 bg-white text-black font-medium rounded-2xl border-2 border-gray-300 hover:border-gray-400 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoadingMoreSongs ? (
-                  <span className="flex items-center justify-center">
-                    <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin mr-2"></span>
-                    Loading...
-                  </span>
-                ) : showAll && visibleSongs >= allSongs.length ? (
-                  <span className="flex items-center justify-center">
-                    Fold
-                    <ChevronUp className="ml-2" size={20} />
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center">
-                    See more
-                    <ChevronDown className="ml-2" size={20} />
-                  </span>
-                )}
-              </button>
+          {/* Latest Kpop Updates */}
+          <div className="py-5 px-4">
+            <div className="flex items-center gap-2 mb-4">
+              <h2 className="text-[21px] font-black">
+                <span style={{ color: '#2B7FFF' }}>Latest</span>{' '}
+                <span style={{ color: '#101828' }}>Kpop Updates</span>
+              </h2>
+              <span className="text-xl">🔥</span>
             </div>
-            </div>
-          </section>
-          
-          {/* YouTube Modal */}
-          {showYoutubeModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4">
-              <div className="relative max-w-5xl w-full overflow-hidden rounded-lg">
-                <button 
-                  className="absolute top-3 right-3 p-1.5 bg-black bg-opacity-50 hover:bg-opacity-70 rounded-full text-white z-10 transition-all"
-                  onClick={closeYoutubeModal}
-                >
-                  <X size={24} className="text-white" />
-                </button>
-                <div className="aspect-video w-full">
-                  <iframe
-                    src={currentYoutubeUrl}
-                    className="w-full h-full"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    title="YouTube video player"
-                  ></iframe>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* 뉴스 섹션 - MoreNews 컴포넌트로 대체 */}
-          <div className="mt-16">
-            {/* MoreNews 컴포넌트 추가, category 속성에 'kpop' 지정 */}
+            <ArticleCardGrid articles={musicNews.slice(0, 6)} onNavigate={navigateToPage} />
+          </div>
+          <div className="h-2 bg-[#F3F4F6]" />
+
+          {/* MoreNews */}
+          <div className="px-4 py-5">
             <MoreNews initialNews={musicNews} category="kpop" />
           </div>
-          
-          {/* 애니메이션 스타일 추가 */}
-          <style jsx>{`
-            .animate-shimmer-sync {
-              background-size: 800px 100%;
-              animation: shimmer 2s infinite linear;
-              animation-delay: 0s !important;
-            }
-            @keyframes shimmer {
-              0% {
-                background-position: -400px 0;
-              }
-              100% {
-                background-position: 400px 0;
-              }
-            }
-            .animate-wave-sync {
-              animation: wave 2s infinite ease-in-out;
-              animation-delay: 0s !important;
-            }
-            @keyframes wave {
-              0% {
-                transform: translateX(-100%);
-              }
-              50% {
-                transform: translateX(100%);
-              }
-              100% {
-                transform: translateX(100%);
-              }
-            }
-            .mobile-last-item {
-              margin-bottom: 50px;
-              position: relative;
-            }
-            .mobile-last-item::after {
-              content: '';
-              position: absolute;
-              left: 0;
-              right: 0;
-              bottom: -30px;
-              height: 30px;
-              background: transparent;
-            }
-            .desktop-last-item {
-              margin-bottom: 80px;
-              position: relative;
-            }
-            .desktop-last-item::after {
-              content: '';
-              position: absolute;
-              left: 0;
-              right: 0;
-              bottom: -30px;
-              height: 30px;
-              background: transparent;
-            }
-          `}</style>
-        </div>
+        </main>
       </div>
+
+      {/* ============ PC LAYOUT (>= lg) ============ */}
+      <div className="hidden lg:block">
+        <main className="pt-0 pb-16 bg-[#F8F9FA]">
+          <div className="max-w-[1772px] mx-auto px-10 pt-8">
+            <div className="flex flex-row gap-[60px]">
+              {/* Left: Main Content Area */}
+              <div className="flex-1 min-w-0 max-w-content">
+
+                {/* ===== Music News at a glance ===== */}
+                <div className="bg-white border-[1.5px] border-ksp-border rounded-xl py-[30px] px-8 mb-8">
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-[26px] font-black" style={{ fontFamily: 'Pretendard, sans-serif' }}>
+                      <span style={{ color: '#101828' }}>Music News at a glance</span>
+                    </h2>
+                    <button
+                      onClick={() => navigateToPage('/music')}
+                      className="flex items-center gap-[10px] text-[14px] font-bold hover:underline"
+                      style={{ color: '#2B7FFF', letterSpacing: '-0.0107em' }}
+                    >
+                      See more
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="#2B7FFF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </button>
+                  </div>
+
+                  {/* Row 1: Large card (512px) + 2 stacked cards (636px, gap 16px) */}
+                  {glanceSongs.length > 0 && (
+                    <div className="flex overflow-hidden" style={{ height: '700px' }}>
+                      {/* Left: Big card #1 (Figma: 512×700) */}
+                      <div style={{ width: '512px', flexShrink: 0, height: '700px' }}>
+                        <MusicCard song={glanceSongs[0]} rank={glanceSongs[0]?.position} size="large" onClick={handleSongClick} />
+                      </div>
+                      {/* Right: 2 stacked cards (Figma: 636×700, each 342px, gap 16px) */}
+                      <div className="flex-1 flex flex-col" style={{ gap: '16px', paddingLeft: '16px' }}>
+                        {glanceSongs.slice(1, 3).map((song) => (
+                          <div key={song._id} style={{ height: '342px', flexShrink: 0 }}>
+                            <MusicCard song={song} rank={song.position} size="medium" onClick={handleSongClick} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Row 2: 3 equal cards */}
+                  {glanceSongs.length > 3 && (
+                    <div className="grid grid-cols-3 gap-4 mt-4">
+                      {glanceSongs.slice(3, 6).map((song) => (
+                        <div key={song._id} style={{ height: '260px' }}>
+                          <MusicCard song={song} rank={song.position} size="small" onClick={handleSongClick} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Row 3: 3 equal cards */}
+                  {glanceSongs.length > 6 && (
+                    <div className="grid grid-cols-3 gap-4 mt-4">
+                      {glanceSongs.slice(6, 9).map((song) => (
+                        <div key={song._id} style={{ height: '260px' }}>
+                          <MusicCard song={song} rank={song.position} size="small" onClick={handleSongClick} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* See More button */}
+                  <button
+                    onClick={() => navigateToPage('/music')}
+                    className="w-full mt-6 py-3 text-center font-semibold text-[15px] hover:bg-gray-50 transition-colors"
+                    style={{ border: '1.5px solid #D5D8DF', borderRadius: '100px', color: '#4B5563' }}
+                  >
+                    See More
+                  </button>
+                </div>
+
+                {/* Latest Kpop Updates */}
+                <SectionWrapper title="Latest Kpop Updates" emoji="🔥" seeMoreHref="/music" onNavigate={navigateToPage}>
+                  <ArticleCardGrid articles={musicNews?.slice(0, 3) || []} onNavigate={navigateToPage} />
+                  {musicNews?.length > 3 && (
+                    <div className="mt-8">
+                      <ArticleCardGrid articles={musicNews.slice(3, 6)} onNavigate={navigateToPage} />
+                    </div>
+                  )}
+                </SectionWrapper>
+
+                {/* Watch News */}
+                {watchNews && watchNews.length > 0 && (
+                  <SectionWrapper title="Watch News" emoji="👀" seeMoreHref="/news" onNavigate={navigateToPage}>
+                    <WatchNewsSection articles={watchNews} onNavigate={navigateToPage} onPlayVideo={openYoutubeModal} />
+                  </SectionWrapper>
+                )}
+
+                {/* MoreNews - Infinite Scroll */}
+                <div className="bg-white border-[1.5px] border-ksp-border rounded-xl py-8 px-6">
+                  <MoreNews initialNews={musicNews} category="kpop" />
+                </div>
+              </div>
+
+              {/* Right: Sidebar (500px) */}
+              <div className="w-[500px] flex-shrink-0">
+                <div ref={sidebarStickyRef} className="sticky" style={{ top: sidebarStickyTop + 'px' }}>
+                  <div className="space-y-8">
+                    <CommentTicker comments={recentComments} onNavigate={navigateToPage} />
+                    <TrendingNow items={rankingNews} onNavigate={navigateToPage} />
+                    {rankingNews && rankingNews.length > 0 && (
+                      <div>
+                        <h3 className="font-bold text-[23px] leading-[1.5] text-[#101828] mb-4 pl-1">Editor&apos;s <span className="text-ksp-accent">PICK</span></h3>
+                        <div className="bg-white border border-[#F3F4F6] shadow-card rounded-2xl p-4 space-y-6">
+                          {rankingNews.slice(0, 6).map((item) => (
+                            <div
+                              key={item._id}
+                              className="flex gap-4 cursor-pointer group"
+                              onClick={() => navigateToPage(`/news/${item.slug || item._id}`)}
+                            >
+                              <div className="flex-shrink-0 w-[140px] h-[90px] rounded overflow-hidden">
+                                <img
+                                  src={item.coverImage || item.thumbnailUrl || '/images/placeholder.jpg'}
+                                  alt={item.title}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => { e.target.src = '/images/placeholder.jpg'; }}
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-block px-1.5 py-0.5 bg-ksp-accent text-white text-[10px] font-bold uppercase tracking-wider rounded">
+                                    {item.category === 'kpop' ? 'K-POP' : item.category === 'drama' ? 'DRAMA' : item.category === 'movie' ? 'FILM' : item.category === 'celeb' ? 'CELEB' : 'NEWS'}
+                                  </span>
+                                  <span className="text-xs font-medium text-ksp-meta">
+                                    {getTimeAgo(item.createdAt || item.publishedAt)}
+                                  </span>
+                                </div>
+                                <h4 className="font-bold text-[15px] leading-[1.375] text-[#121212] line-clamp-2 group-hover:text-ksp-accent transition-colors">
+                                  {item.title}
+                                </h4>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      {/* YouTube Modal */}
+      {showYoutubeModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
+          onClick={closeYoutubeModal}
+        >
+          <div className="relative w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={closeYoutubeModal}
+              className="absolute -top-12 right-0 p-3 text-white bg-black/60 rounded-full hover:bg-black/80 transition-colors z-10"
+              aria-label="Close modal"
+            >
+              <X size={24} />
+            </button>
+            <div className="bg-black rounded-xl overflow-hidden shadow-2xl">
+              <div className="relative pb-[56.25%] h-0">
+                <iframe
+                  src={currentYoutubeUrl}
+                  className="absolute top-0 left-0 w-full h-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
+                  allowFullScreen
+                  title="YouTube video player"
+                ></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 }
 
 export async function getServerSideProps(context) {
   try {
-    // API 기본 URL 설정
     const protocol = context.req.headers['x-forwarded-proto'] || 'http';
     const baseUrl = `${protocol}://${context.req.headers.host}`;
-    
-    // 모든 드라마 관련 뉴스 가져오기 (필터링용)
-    const dramaNewsResponse = await fetch(`${baseUrl}/api/news/drama?limit=100`);
-    const dramaNewsData = await dramaNewsResponse.json();
-    
-    // 모든 드라마 관련 뉴스 ID 추출
-    const dramaNewsIds = new Set();
-    if (dramaNewsData && dramaNewsData.success && Array.isArray(dramaNewsData.data)) {
-      dramaNewsData.data.forEach(news => {
-        if (news._id) {
-          dramaNewsIds.add(news._id);
-        }
-      });
-    }
-    
-    console.log(`드라마 관련 뉴스 ID's: ${dramaNewsIds.size}개`);
-    
-    // 음악 관련 뉴스 가져오기 - 다시 100개로 증가
-    const newsResponse = await fetch(`${baseUrl}/api/news?category=kpop&limit=100`, {
-      headers: {
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
+    const prodUrl = process.env.NEXT_PUBLIC_API_URL || baseUrl;
+
+    const fixImageUrl = (url) => {
+      if (!url) return url;
+      if (url.startsWith('/api/proxy/hash-image')) return `${prodUrl}${url}`;
+      // 로컬 개발 시 kstarpick.com 프록시 → 프로덕션 서버 직접 접근
+      if (process.env.NODE_ENV === 'development' && url.includes('kstarpick.com/api/proxy')) {
+        return url.replace('https://kstarpick.com', 'http://43.202.38.79:13001');
       }
-    });
-    const newsData = await newsResponse.json();
-    
-    // 인기 음악 목록 가져오기 - 20개로 유지
-    const musicResponse = await fetch(`${baseUrl}/api/music/popular?limit=20`);
-    const musicData = await musicResponse.json();
-    
-    // 뉴스 데이터 처리
-    let musicNews = [];
-    
-    console.log('뉴스 API 응답:', JSON.stringify(newsData).slice(0, 200));
-    
-    // API 응답 형식에 따라 데이터 추출
-    if (Array.isArray(newsData)) {
-      musicNews = newsData;
-    } else if (newsData && newsData.success) {
-      if (Array.isArray(newsData.data)) {
-        musicNews = newsData.data;
-      } else if (newsData.data && newsData.data.news && Array.isArray(newsData.data.news)) {
-        musicNews = newsData.data.news;
-      }
-    } else if (newsData && newsData.news && Array.isArray(newsData.news)) {
-      musicNews = newsData.news;
-    }
-    
-    console.log(`음악 관련 뉴스 데이터: ${musicNews ? musicNews.length : 0}개 항목`);
-    
-    // 이미지 필드 확인 및 누락된 경우 기본 이미지 설정
-    musicNews = Array.isArray(musicNews) ? musicNews.map(news => {
-      if (!news.coverImage) {
-        news.coverImage = '/images/news/default-news.jpg';
-      }
-      return news;
-    }) : [];
-    
-    // 1. 드라마 관련 뉴스와 중복되는 뉴스 제외
-    const filteredMusicNews = musicNews.filter(news => {
-      const result = news._id && !dramaNewsIds.has(news._id);
-      return result;
-    });
-    
-    console.log(`중복 제거 후 음악 뉴스: ${filteredMusicNews.length}개 항목`);
-    
-    // 2. 단순히 createdAt 기준으로 최신순 정렬 (복잡한 다양성 로직 제거)
-    let finalMusicNews = filteredMusicNews.sort((a, b) => {
-      const dateA = new Date(a.createdAt || a.publishedAt || 0);
-      const dateB = new Date(b.createdAt || b.publishedAt || 0);
-      return dateB - dateA; // 최신순
-    });
-    
-    console.log(`최종 음악 뉴스 (최신순 정렬): ${finalMusicNews.length}개 항목`);
-    console.log(`첫 번째 뉴스: ${finalMusicNews.length > 0 ? finalMusicNews[0].title : 'None'}`);
-    console.log(`첫 번째 뉴스 날짜: ${finalMusicNews.length > 0 ? finalMusicNews[0].createdAt : 'None'}`);
-    
-    // 음악 데이터 처리
-    let topSongs = [];
-    if (musicData && musicData.success && Array.isArray(musicData.data)) {
-      topSongs = musicData.data;
-    }
-    
-    // 페이지네이션 정보 추가 (tvfilm 페이지와 동일하게)
-    const newsPagination = {
-      total: finalMusicNews.length,
-      page: 1,
-      limit: 12,
-      totalPages: Math.ceil(finalMusicNews.length / 12),
-      hasNextPage: finalMusicNews.length > 12,
-      hasPrevPage: false
+      return url;
     };
-    
+
+    const [newsRes, musicRes, watchRes, commentsRes, rankingRes] = await Promise.all([
+      fetch(`${prodUrl}/api/news?category=kpop&limit=100`),
+      fetch(`${prodUrl}/api/music/popular?limit=20`),
+      fetch(`${prodUrl}/api/news?limit=200`),
+      fetch(`${baseUrl}/api/comments/recent?limit=10`),
+      fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&category=kpop`),
+    ]);
+
+    const [newsData, musicData, allNewsData, commentsData, rankingData] = await Promise.all([
+      newsRes.json(), musicRes.json(), watchRes.json(), commentsRes.json(), rankingRes.json(),
+    ]);
+
+    // Process music news
+    let musicNews = [];
+    if (newsData?.success) {
+      musicNews = Array.isArray(newsData.data) ? newsData.data : (newsData.data?.news || []);
+    }
+    musicNews = musicNews.map(n => ({
+      ...n,
+      coverImage: fixImageUrl(n.coverImage) || '/images/news/default-news.jpg',
+      thumbnailUrl: fixImageUrl(n.thumbnailUrl) || null,
+    })).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+    // Top songs
+    const topSongs = musicData?.success && Array.isArray(musicData.data) ? musicData.data : [];
+
+    // Watch News (kpop category)
+    const allNews = allNewsData?.success ? (allNewsData.data?.news || []) : [];
+    const watchNews = allNews
+      .filter(n => n.title?.startsWith('Watch:') && n.category === 'kpop')
+      .slice(0, 6)
+      .map(n => ({
+        ...n,
+        coverImage: fixImageUrl(n.coverImage) || '/images/news/default-news.jpg',
+        thumbnailUrl: fixImageUrl(n.thumbnailUrl) || null,
+      }));
+
+    // Recent comments
+    const recentComments = commentsData?.success ? (commentsData.data?.slice(0, 10) || []) : [];
+
+    // Ranking news
+    let rankingNews = [];
+    if (rankingData?.success) {
+      rankingNews = (rankingData.data?.news || []).map(n => ({
+        ...n,
+        coverImage: fixImageUrl(n.coverImage) || '/images/news/default-news.jpg',
+        thumbnailUrl: fixImageUrl(n.thumbnailUrl) || null,
+      }));
+    }
+
     return {
-      props: {
-        musicNews: finalMusicNews,
-        topSongs,
-        newsPagination
-      }
+      props: { musicNews, topSongs, watchNews, recentComments, rankingNews }
     };
   } catch (error) {
-    console.error('Data fetching error:', error);
+    console.error('Music page data fetching error:', error);
     return {
-      props: {
-        musicNews: [],
-        topSongs: [],
-        newsPagination: null
-      }
+      props: { musicNews: [], topSongs: [], watchNews: [], recentComments: [], rankingNews: [] }
     };
   }
 }
-

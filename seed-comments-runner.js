@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Load env
-const envPath = path.resolve(process.cwd(), '.env.local');
+const envPath = path.resolve(__dirname, 'kstarpick', '.env.local');
 if (fs.existsSync(envPath)) {
   const lines = fs.readFileSync(envPath, 'utf8').split('\n');
   for (const line of lines) {

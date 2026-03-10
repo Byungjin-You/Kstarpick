@@ -352,7 +352,16 @@ function Home({ initialData }) {
       // 캐시가 10분 이내라면 사용
       if (timeDiff < 10 * 60 * 1000) {
         try {
-          const cachedNews = JSON.parse(cached);
+          let cachedNews = JSON.parse(cached);
+          // Fix relative image URLs in cached data (from before prodUrl fix)
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+          if (apiUrl) {
+            cachedNews = cachedNews.map(n => ({
+              ...n,
+              coverImage: n.coverImage?.startsWith('/api/proxy/') ? `${apiUrl}${n.coverImage}` : n.coverImage,
+              thumbnailUrl: n.thumbnailUrl?.startsWith('/api/proxy/') ? `${apiUrl}${n.thumbnailUrl}` : n.thumbnailUrl,
+            }));
+          }
           if (cachedNews.length > 0) {
             setFeaturedArticles(cachedNews);
             return; // 캐시 복원 성공 시 여기서 종료
@@ -698,14 +707,15 @@ export async function getServerSideProps() {
     const serverUrl = process.env.NODE_ENV === 'production'
       ? 'https://kstarpick.com'
       : 'http://localhost:3000';
+    const prodUrl = process.env.NEXT_PUBLIC_API_URL || serverUrl;
 
     console.log('🚀 Static Generation으로 홈페이지 데이터 로딩 시작');
-    
+
     // 7일 전 날짜 계산
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     sevenDaysAgo.setHours(0, 0, 0, 0);
-    
+
     // 병렬로 핵심 API 호출 (Watch News + Recent Comments 추가)
     const [
       mainNewsRes,
@@ -714,10 +724,10 @@ export async function getServerSideProps() {
       watchNewsRes,
       recentCommentsRes
     ] = await Promise.all([
-      fetch(`${serverUrl}/api/news?limit=20`),
-      fetch(`${serverUrl}/api/news?featured=true&limit=20&createdAfter=${sevenDaysAgo.toISOString()}`),
-      fetch(`${serverUrl}/api/music/popular?limit=5`),
-      fetch(`${serverUrl}/api/music/popular?limit=5`), // 임시로 중복 호출 (Watch News는 클라이언트에서)
+      fetch(`${prodUrl}/api/news?limit=20`),
+      fetch(`${prodUrl}/api/news?featured=true&limit=20&createdAfter=${sevenDaysAgo.toISOString()}`),
+      fetch(`${prodUrl}/api/music/popular?limit=5`),
+      fetch(`${prodUrl}/api/music/popular?limit=5`), // 임시로 중복 호출 (Watch News는 클라이언트에서)
       fetch(`${serverUrl}/api/comments/recent?limit=10`)
     ]);
 
@@ -739,10 +749,26 @@ export async function getServerSideProps() {
     // Watch News는 클라이언트에서 처리 (하이드레이션 에러 방지)
     const watchNews = { success: true, data: { news: [] } };
 
+    // Fix relative image URLs to absolute production URLs
+    const fixImageUrl = (url) => {
+      if (!url) return url;
+      if (url.startsWith('/api/proxy/hash-image')) return `${prodUrl}${url}`;
+      // 로컬 개발 시 kstarpick.com 프록시 → 프로덕션 서버 직접 접근
+      if (process.env.NODE_ENV === 'development' && url.includes('kstarpick.com/api/proxy')) {
+        return url.replace('https://kstarpick.com', 'http://43.202.38.79:13001');
+      }
+      return url;
+    };
+    const processNews = (articles) => (articles || []).map(n => ({
+      ...n,
+      coverImage: fixImageUrl(n.coverImage) || '/images/news/default-news.jpg',
+      thumbnailUrl: fixImageUrl(n.thumbnailUrl)
+    }));
+
     // 홈페이지 표시를 위한 충분한 데이터 구성
     const initialData = {
-      newsArticles: mainNews.success ? mainNews.data.news?.slice(0, 20) || [] : [],
-      featuredArticles: featuredNews.success ? featuredNews.data.news?.slice(0, 20) || [] : [],
+      newsArticles: processNews(mainNews.success ? mainNews.data.news?.slice(0, 20) : []),
+      featuredArticles: processNews(featuredNews.success ? featuredNews.data.news?.slice(0, 20) : []),
       watchNews: watchNews.success ? watchNews.data.news?.slice(0, 6) || [] : [], // Watch News 추가
       popularNews: {
         drama: [], // 클라이언트에서 로드

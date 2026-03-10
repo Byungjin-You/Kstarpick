@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Instagram, Twitter, Youtube, Music, Award, Calendar, Users, Star, Globe, ArrowLeft, Heart, Share2, ExternalLink, Play, TrendingUp, Flag, Clock, ThumbsUp, Hash, Eye, Facebook, Smartphone, Crown, Mic, Disc, Radio, ChevronRight } from 'lucide-react';
 import MainLayout from '../../components/MainLayout';
 import { formatCompactNumber } from '../../utils/formatHelpers';
+import CommentTicker from '../../components/home/CommentTicker';
+import TrendingNow from '../../components/home/TrendingNow';
+import MoreNews from '../../components/MoreNews';
 
 // 소셜 미디어 아이콘 및 색상 매핑
 const SocialIconMap = {
@@ -75,7 +78,23 @@ const formatTimeAgo = (dateString) => {
   return 'just now';
 };
 
-export default function CelebrityDetailPage({ celebrity = null }) {
+// Editor's PICK helper
+const getTimeAgo = (dateStr) => {
+  if (!dateStr) return '';
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diffMs = now - date;
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m`;
+  if (diffHr < 24) return `${diffHr}h`;
+  if (diffDay < 7) return `${diffDay}d`;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+export default function CelebrityDetailPage({ celebrity = null, recentComments, rankingNews }) {
   const router = useRouter();
   const { slug } = router.query;
   
@@ -94,6 +113,10 @@ export default function CelebrityDetailPage({ celebrity = null }) {
   const [relatedNews, setRelatedNews] = useState([]);
   const [isLoadingNews, setIsLoadingNews] = useState(true);
 
+  // Sidebar sticky (PC)
+  const sidebarStickyRef = useRef(null);
+  const [sidebarStickyTop, setSidebarStickyTop] = useState(92);
+
   // 뱃지 설명 모달 상태
   const [showBadgeInfoModal, setShowBadgeInfoModal] = useState(false);
   const [showTodayInfoModal, setShowTodayInfoModal] = useState(false);
@@ -106,6 +129,31 @@ export default function CelebrityDetailPage({ celebrity = null }) {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Sidebar sticky ResizeObserver (PC)
+  useEffect(() => {
+    const el = sidebarStickyRef.current;
+    if (!el) return;
+    const HEADER_H = 92;
+    const calcTop = () => {
+      const sH = el.offsetHeight;
+      const vH = window.innerHeight;
+      if (sH <= vH - HEADER_H) {
+        setSidebarStickyTop(HEADER_H);
+      } else {
+        setSidebarStickyTop(vH - sH - 40);
+      }
+    };
+    const timer = setTimeout(calcTop, 300);
+    const observer = new ResizeObserver(calcTop);
+    observer.observe(el);
+    window.addEventListener('resize', calcTop);
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+      window.removeEventListener('resize', calcTop);
+    };
   }, []);
 
   // 스크롤 위치 복원 로직 - celeb 페이지에서 뒤로가기 시
@@ -163,6 +211,17 @@ export default function CelebrityDetailPage({ celebrity = null }) {
     return date.toLocaleDateString('en-US', options);
   };
 
+  // Navigate helper
+  const navigateToPage = (path, e) => {
+    if (e) e.preventDefault();
+    if (router.pathname === path || router.asPath === path) return false;
+    try {
+      router.push(path, undefined, { shallow: false });
+    } catch (error) {
+      window.location.href = path;
+    }
+  };
+
   // 좋아요 토글 함수
   const toggleLike = () => {
     setIsLiked(!isLiked);
@@ -201,7 +260,7 @@ export default function CelebrityDetailPage({ celebrity = null }) {
           setIsLoadingNews(true);
           
           // 먼저 연예인 이름으로 검색하여 관련 뉴스 가져오기
-          const response = await fetch(`/api/news?q=${encodeURIComponent(celebrity.name)}&limit=6`);
+          const response = await fetch(`/api/news?q=${encodeURIComponent(celebrity.name)}&limit=12`);
           
           if (response.ok) {
             const data = await response.json();
@@ -211,7 +270,7 @@ export default function CelebrityDetailPage({ celebrity = null }) {
               setRelatedNews(data.data.news);
             } else {
               // 검색 결과가 없으면 최신 뉴스 가져오기
-              const latestNewsResponse = await fetch('/api/news?limit=6');
+              const latestNewsResponse = await fetch(`/api/news?limit=12`);
               
               if (latestNewsResponse.ok) {
                 const latestNewsData = await latestNewsResponse.json();
@@ -220,7 +279,7 @@ export default function CelebrityDetailPage({ celebrity = null }) {
                   setRelatedNews(latestNewsData.data.news);
                 } else {
                   // 최신 뉴스도 없으면 celeb 카테고리 뉴스 가져오기
-                  const celebNewsResponse = await fetch('/api/news/celeb?limit=6');
+                  const celebNewsResponse = await fetch(`/api/news/celeb?limit=12`);
                   
                   if (celebNewsResponse.ok) {
                     const celebNewsData = await celebNewsResponse.json();
@@ -651,6 +710,8 @@ export default function CelebrityDetailPage({ celebrity = null }) {
         }
       `}</style>
       
+      {/* Mobile layout */}
+      <div className="lg:hidden">
       <div className="relative">
         {/* 배경 이미지 & 오버레이 */}
         <div className="absolute inset-0 h-[100vh] overflow-hidden">
@@ -1647,53 +1708,646 @@ export default function CelebrityDetailPage({ celebrity = null }) {
           </section>
         </div>
       </div>
+      </div> {/* end lg:hidden */}
+
+      {/* PC Layout (lg+) */}
+      <div className="hidden lg:block">
+
+        {/* PC Main Content: 2-column */}
+        <div className="bg-[#F8F9FA]">
+          <div className="max-w-[1772px] mx-auto pt-8 pb-16">
+            <div className="flex flex-row gap-[60px]">
+
+              {/* Left: single large card (1212px) — matches Figma Frame 234 */}
+              <div className="w-[1212px] flex-shrink-0 bg-white rounded-xl overflow-hidden border-[1.5px] border-[#E5E7EB]">
+
+                {/* PC Hero — Figma Frame 232 */}
+                <div className="relative overflow-hidden" style={{ height: '650px' }}>
+                  {/* Full-width artist photo */}
+                  <img
+                    src={celebrity.profileImage || '/images/placeholder.jpg'}
+                    alt={celebrity.name}
+                    className="absolute left-0 w-full object-cover"
+                    style={{ top: '-97px', width: '1212px', height: '968px' }}
+                    onError={handleImageError}
+                  />
+                  {/* Layer 1: Blur — gradually increases from top to bottom */}
+                  <div
+                    className="absolute left-0 right-0 bottom-0 pointer-events-none"
+                    style={{
+                      top: '304px',
+                      backdropFilter: 'blur(16px)',
+                      WebkitBackdropFilter: 'blur(16px)',
+                      WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 30%, rgba(0,0,0,0.7) 50%, black 70%)',
+                      maskImage: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 30%, rgba(0,0,0,0.7) 50%, black 70%)',
+                    }}
+                  />
+                  {/* Layer 2: Gradient color overlay + content */}
+                  <div
+                    className="absolute left-0 right-0 bottom-0 flex flex-col justify-center"
+                    style={{
+                      top: '304px',
+                      padding: '100px 0px 30px 40px',
+                      background: 'linear-gradient(0deg, rgba(255,255,255,1) 0%, rgba(196,203,216,1) 15%, rgba(88,97,113,0.88) 40%, rgba(0,7,20,0.33) 70%, rgba(0,7,20,0) 100%)',
+                    }}
+                  >
+                    {/* Name */}
+                    <h1 className="font-bold text-[42px] leading-[1.286em] text-white" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                      {celebrity.name}
+                    </h1>
+                    {/* Agency */}
+                    {celebrity.agency && (
+                      <p className="text-[16px]" style={{ color: 'rgba(255,255,255,0.7)', fontFamily: 'Roboto, sans-serif' }}>
+                        {celebrity.agency}
+                      </p>
+                    )}
+                    {/* Bio + More link */}
+                    {celebrity.bio && (
+                      <div className="pt-4 pb-2" style={{ maxWidth: '640px' }}>
+                        <p className="text-[14px] text-white leading-[1.4em] line-clamp-3" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                          {celebrity.bio}
+                        </p>
+                        <button
+                          className="text-[14px] font-medium text-white uppercase tracking-wide mt-2 hover:opacity-80 transition-opacity"
+                          style={{ fontFamily: 'Roboto, sans-serif' }}
+                          onClick={() => {/* scroll to bio or expand */}}
+                        >
+                          MORE
+                        </button>
+                      </div>
+                    )}
+                    {/* Likes pill button — Figma 437:7609 */}
+                    <div className="flex items-center pt-4">
+                      <div
+                        className="flex items-center justify-center gap-1 rounded-full cursor-default"
+                        style={{
+                          padding: '10px 20px',
+                          background: 'rgba(255,255,255,0.9)',
+                        }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M9 15.75L7.9125 14.7638C3.9 11.1113 1.125 8.58375 1.125 5.5125C1.125 2.985 3.0975 1.0125 5.625 1.0125C7.0575 1.0125 8.4325 1.67625 9 2.73375C9.5675 1.67625 10.9425 1.0125 12.375 1.0125C14.9025 1.0125 16.875 2.985 16.875 5.5125C16.875 8.58375 14.1 11.1113 10.0875 14.7638L9 15.75Z" fill="#000000"/>
+                        </svg>
+                        <span className="font-semibold text-[14px] tracking-wide" style={{ color: '#111111', fontFamily: 'Inter, sans-serif', lineHeight: '1.07em' }}>
+                          {(() => {
+                            const totalFollowers = Object.values(celebrity.socialMediaFollowers || {}).reduce((sum, v) => sum + (v || 0), 0);
+                            if (totalFollowers >= 1000000) return `${(totalFollowers / 1000000).toFixed(0)}M Likes`;
+                            if (totalFollowers >= 1000) return `${(totalFollowers / 1000).toFixed(0)}K Likes`;
+                            return `${totalFollowers} Likes`;
+                          })()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Badges Section — Figma 437:7614 (YouTube view milestone cards) */}
+                {(() => {
+                  if (!celebrity.musicVideos || celebrity.musicVideos.length === 0) return null;
+                  const badgeThresholds = [
+                    { threshold: 1000000000, label: '1B' },
+                    { threshold: 500000000, label: '500M' },
+                    { threshold: 300000000, label: '300M' },
+                    { threshold: 200000000, label: '200M' },
+                    { threshold: 100000000, label: '100M' },
+                    { threshold: 50000000, label: '50M' },
+                    { threshold: 30000000, label: '30M' },
+                    { threshold: 10000000, label: '10M' },
+                    { threshold: 5000000, label: '5M' },
+                  ];
+                  badgeThresholds.forEach(b => { b.count = 0; });
+                  celebrity.musicVideos.forEach(video => {
+                    for (let i = 0; i < badgeThresholds.length; i++) {
+                      if (video.views >= badgeThresholds[i].threshold) {
+                        badgeThresholds[i].count++;
+                        break;
+                      }
+                    }
+                  });
+                  const earned = badgeThresholds.filter(b => b.count > 0).slice(0, 4);
+                  if (earned.length === 0) return null;
+                  const cardStyles = [
+                    { bg: 'linear-gradient(46deg, #064AEC 8%, #5491F5 51%, #064AEC 90%)', textGrad: 'linear-gradient(158deg, #fff, #A3D0FF)', iconEnd: '#A3D0FF' },
+                    { bg: 'linear-gradient(48deg, #3A43FF 4%, #8B61FF 54%, #5F07EC 100%)', textGrad: 'linear-gradient(158deg, #fff, #fff)', iconEnd: '#EFF7FF' },
+                    { bg: 'linear-gradient(47deg, #6A06EC 8%, #BA59FF 56%, #A706EC 100%)', textGrad: 'linear-gradient(158deg, #fff, #FFCBFB)', iconEnd: '#FFCBFB' },
+                    { bg: 'linear-gradient(46deg, #1A1D22 8%, #4C5156 51%, #1A1D22 90%)', textGrad: 'linear-gradient(158deg, #fff, #999)', iconEnd: '#999999' },
+                  ];
+                  return (
+                    <div className="px-10 py-[30px]">
+                      <div className="flex items-center gap-1 mb-[30px] relative">
+                        <h2 className="font-black text-[26px]" style={{ fontFamily: 'Pretendard, sans-serif', color: '#111111' }}>
+                          Badges
+                        </h2>
+                        <button
+                          className="cursor-pointer hover:opacity-70 transition-opacity"
+                          onClick={(e) => {
+                            const popup = e.currentTarget.nextElementSibling;
+                            popup.style.display = popup.style.display === 'none' ? 'block' : 'none';
+                          }}
+                        >
+                          <img src="/images/badge-header-icon.svg" alt="info" width={24} height={24} />
+                        </button>
+                        <div
+                          className="absolute left-0 z-50 bg-white rounded-xl shadow-lg border border-[#E5E7EB] p-5"
+                          style={{ display: 'none', top: '40px', width: '300px' }}
+                          onClick={(e) => { e.currentTarget.style.display = 'none'; }}
+                        >
+                          <p className="font-bold text-[16px] text-[#111111] mb-2">Music Video Badges</p>
+                          <p className="text-[14px] text-[#6B7280]">Check out badges based on music video view counts</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-row gap-4">
+                        {earned.map((badge, idx) => {
+                          const style = cardStyles[idx % cardStyles.length];
+                          return (
+                            <div
+                              key={badge.label}
+                              className="flex flex-row justify-between"
+                              style={{
+                                width: '200px',
+                                background: style.bg,
+                                borderRadius: '12px',
+                                boxShadow: 'inset -1.5px 1.5px 1.2px rgba(255,255,255,0.4), inset 0px -3px 2px rgba(0,0,0,0.37)',
+                                padding: '12px 16px 26px 26px',
+                              }}
+                            >
+                              <div className="flex flex-col gap-3 pt-2">
+                                <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M4.3335 13.0007V9.14399C4.3335 4.35566 7.72433 2.39483 11.8735 4.78899L15.221 6.71733L18.5685 8.64566C22.7177 11.0398 22.7177 14.9615 18.5685 17.3557L15.221 19.284L11.8735 21.2123C7.72433 23.6065 4.3335 21.6457 4.3335 16.8573V13.0007Z" fill={`url(#badge_icon_${idx})`}/>
+                                  <defs><linearGradient id={`badge_icon_${idx}`} x1="13" y1="3.77" x2="52.84" y2="33.13" gradientUnits="userSpaceOnUse"><stop stopColor="white"/><stop offset="1" stopColor={style.iconEnd}/></linearGradient></defs>
+                                </svg>
+                                <div className="flex flex-col gap-[6px]">
+                                  <span
+                                    className="font-bold text-[34px] leading-[0.82em]"
+                                    style={{
+                                      background: style.textGrad,
+                                      WebkitBackgroundClip: 'text',
+                                      WebkitTextFillColor: 'transparent',
+                                      fontFamily: 'Inter, sans-serif',
+                                      letterSpacing: '-0.01em',
+                                    }}
+                                  >
+                                    {badge.label}
+                                  </span>
+                                  <span
+                                    className="font-semibold text-[14px]"
+                                    style={{
+                                      background: style.textGrad,
+                                      WebkitBackgroundClip: 'text',
+                                      WebkitTextFillColor: 'transparent',
+                                      fontFamily: 'Inter, sans-serif',
+                                      letterSpacing: '-0.03em',
+                                    }}
+                                  >
+                                    MILLION VIEWS
+                                  </span>
+                                </div>
+                              </div>
+                              <div
+                                className="flex items-center justify-center self-start rounded-full"
+                                style={{
+                                  width: '26px',
+                                  height: '26px',
+                                  background: 'rgba(255,255,255,0.25)',
+                                }}
+                              >
+                                <span className="text-white font-bold text-[12px]" style={{ fontFamily: 'Inter, sans-serif' }}>
+                                  {badge.count}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Today Section — Figma 437:7666 (SNS follower stats) */}
+                {(() => {
+                  const platformConfigs = [
+                    { key: 'youtube', label: 'Youtube', icon: '/images/icons8-youtube-logo-94.png' },
+                    { key: 'instagram', label: 'Instagram', icon: '/images/icons8-instagram-logo-94.png' },
+                    { key: 'twitter', label: 'X', icon: '/images/icons8-x-50.png' },
+                    { key: 'spotify', label: 'Spotify', icon: '/images/icons8-spotify-logo-94.png' },
+                    { key: 'tiktok', label: 'TikTok', icon: '/images/icons8-tiktok-logo-94.png' },
+                  ];
+                  const activePlatforms = platformConfigs.filter(p => celebrity.socialMediaFollowers?.[p.key] > 0);
+                  if (activePlatforms.length === 0) return null;
+                  return (
+                    <div className="px-10 py-[30px]">
+                      <div className="flex items-center gap-1 mb-[30px] relative">
+                        <h2 className="font-black text-[26px]" style={{ fontFamily: 'Pretendard, sans-serif', color: '#111111' }}>
+                          Today
+                        </h2>
+                        <button
+                          className="cursor-pointer hover:opacity-70 transition-opacity"
+                          onClick={(e) => {
+                            const popup = e.currentTarget.nextElementSibling;
+                            popup.style.display = popup.style.display === 'none' ? 'block' : 'none';
+                          }}
+                        >
+                          <img src="/images/badge-header-icon.svg" alt="info" width={24} height={24} />
+                        </button>
+                        <div
+                          className="absolute left-0 z-50 bg-white rounded-xl shadow-lg border border-[#E5E7EB] p-5"
+                          style={{ display: 'none', top: '40px', width: '340px' }}
+                          onClick={(e) => { e.currentTarget.style.display = 'none'; }}
+                        >
+                          <p className="font-bold text-[16px] text-[#111111] mb-2">TODAY</p>
+                          <p className="text-[14px] text-[#6B7280]">
+                            Current platform subscribers and rankings compared to the previous day ({new Date().toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')})
+                          </p>
+                        </div>
+                      </div>
+                      <div
+                        className="flex flex-row gap-4 overflow-x-auto cursor-grab active:cursor-grabbing"
+                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                        ref={(el) => {
+                          if (!el) return;
+                          let isDown = false, startX, scrollLeft;
+                          el.style.cssText += '::-webkit-scrollbar{display:none}';
+                          el.onmousedown = (e) => { isDown = true; startX = e.pageX - el.offsetLeft; scrollLeft = el.scrollLeft; e.preventDefault(); };
+                          el.onmouseleave = () => { isDown = false; };
+                          el.onmouseup = () => { isDown = false; };
+                          el.onmousemove = (e) => { if (!isDown) return; const x = e.pageX - el.offsetLeft; el.scrollLeft = scrollLeft - (x - startX); };
+                        }}
+                      >
+                        {activePlatforms.map((platform) => (
+                          <a
+                            key={platform.key}
+                            href={celebrity.socialMedia?.[platform.key] || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="min-w-[280px] flex-1 p-[26px] transition-all hover:shadow-md select-none"
+                            style={{
+                              borderRadius: '12px',
+                              border: '1.5px solid #E5E7EB',
+                            }}
+                            onDragStart={(e) => e.preventDefault()}
+                          >
+                            <div className="flex flex-col gap-3">
+                              <div className="flex items-center gap-1">
+                                <img src={platform.icon} alt={platform.label} className="w-[30px] h-[30px]" />
+                                <span className="font-bold text-[18px]" style={{ color: '#111111', fontFamily: 'Inter, sans-serif', letterSpacing: '-0.02em' }}>
+                                  {platform.label}
+                                </span>
+                              </div>
+                              <div className="flex flex-col gap-2">
+                                <div className="font-bold text-[34px]" style={{ color: '#111111', fontFamily: 'Inter, sans-serif', letterSpacing: '-0.01em', lineHeight: '1.4em' }}>
+                                  {celebrity.socialMediaFollowers[platform.key].toLocaleString()}
+                                </div>
+                                <div className="font-semibold text-[18px]" style={{ color: '#99A1AF', fontFamily: 'Inter, sans-serif', letterSpacing: '-0.02em' }}>
+                                  {celebrity.socialMediaChanges?.[platform.key]
+                                    ? `${celebrity.socialMediaChanges[platform.key].count >= 0 ? '+' : ''}${celebrity.socialMediaChanges[platform.key].count.toLocaleString()} (${celebrity.socialMediaChanges[platform.key].percent.toFixed(2)}%)`
+                                    : '0 (0.00%)'}
+                                </div>
+                              </div>
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Music Videos Section — Figma 437:7709 */}
+                {hasMusicVideos && (
+                  <div className="px-10 py-[30px]">
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-[30px]">
+                      <h2 className="font-black text-[26px]" style={{ fontFamily: 'Pretendard, sans-serif', color: '#111111' }}>
+                        Music Videos
+                      </h2>
+                      <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(celebrity.name)}`} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-[10px] text-[14px] font-bold py-0.5" style={{ color: '#2B7FFF', fontFamily: 'Inter, sans-serif', letterSpacing: '-0.01em' }}>
+                        See more <ChevronRight size={16} />
+                      </a>
+                    </div>
+                    {/* Row 1: first 3 videos */}
+                    <div
+                      className="flex flex-row gap-4 overflow-x-auto cursor-grab active:cursor-grabbing"
+                      style={{ scrollbarWidth: 'none' }}
+                      ref={(el) => {
+                        if (!el) return;
+                        let isDown = false, startX, scrollLeft;
+                        el.onmousedown = (e) => { isDown = true; startX = e.pageX - el.offsetLeft; scrollLeft = el.scrollLeft; e.preventDefault(); };
+                        el.onmouseleave = () => { isDown = false; };
+                        el.onmouseup = () => { isDown = false; };
+                        el.onmousemove = (e) => { if (!isDown) return; el.scrollLeft = scrollLeft - (e.pageX - el.offsetLeft - startX); };
+                      }}
+                    >
+                      {celebrity.musicVideos.slice(0, 3).map((video, index) => (
+                        <a key={index} href={video.youtubeUrl} target="_blank" rel="noopener noreferrer"
+                          className="flex-shrink-0 group select-none" style={{ width: '365px' }}
+                          onDragStart={(e) => e.preventDefault()}
+                        >
+                          <div className="relative overflow-hidden rounded-lg" style={{ height: '205px' }}>
+                            <img
+                              src={video.thumbnails?.medium?.url || video.thumbnails?.default?.url || '/placeholder-video.jpg'}
+                              alt={video.title}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              onError={handleImageError}
+                            />
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center">
+                                <Play size={22} className="text-black ml-0.5" fill="black" />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="pt-[16px]">
+                            <h3 className="font-medium text-[16px] line-clamp-2 group-hover:text-[#2B7FFF] transition-colors" style={{ color: '#111111', fontFamily: 'Roboto, sans-serif', lineHeight: '1.2em' }}>
+                              {video.title}
+                            </h3>
+                            <p className="text-[16px] mt-[3px]" style={{ color: '#99A1AF', fontFamily: 'Roboto, sans-serif', fontWeight: 400, lineHeight: '1.2em' }}>
+                              {celebrity.name} • {formatCompactNumber(video.views)} views
+                            </p>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                    {/* Row 2: next 3 videos */}
+                    {celebrity.musicVideos.length > 3 && (
+                      <div
+                        className="flex flex-row gap-4 overflow-x-auto mt-[30px] cursor-grab active:cursor-grabbing"
+                        style={{ scrollbarWidth: 'none' }}
+                        ref={(el) => {
+                          if (!el) return;
+                          let isDown = false, startX, scrollLeft;
+                          el.onmousedown = (e) => { isDown = true; startX = e.pageX - el.offsetLeft; scrollLeft = el.scrollLeft; e.preventDefault(); };
+                          el.onmouseleave = () => { isDown = false; };
+                          el.onmouseup = () => { isDown = false; };
+                          el.onmousemove = (e) => { if (!isDown) return; el.scrollLeft = scrollLeft - (e.pageX - el.offsetLeft - startX); };
+                        }}
+                      >
+                        {celebrity.musicVideos.slice(3, 6).map((video, index) => (
+                          <a key={index} href={video.youtubeUrl} target="_blank" rel="noopener noreferrer"
+                            className="flex-shrink-0 group select-none" style={{ width: '365px' }}
+                            onDragStart={(e) => e.preventDefault()}
+                          >
+                            <div className="relative overflow-hidden rounded-lg" style={{ height: '205px' }}>
+                              <img
+                                src={video.thumbnails?.medium?.url || video.thumbnails?.default?.url || '/placeholder-video.jpg'}
+                                alt={video.title}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                onError={handleImageError}
+                              />
+                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center">
+                                  <Play size={22} className="text-black ml-0.5" fill="black" />
+                                </div>
+                              </div>
+                            </div>
+                            <div className="pt-2">
+                              <h3 className="font-medium text-[16px] line-clamp-2 group-hover:text-[#2B7FFF] transition-colors" style={{ color: '#111111', fontFamily: 'Roboto, sans-serif', lineHeight: '1.2em' }}>
+                                {video.title}
+                              </h3>
+                              <p className="text-[14px] mt-1" style={{ color: '#99A1AF', fontFamily: 'Roboto, sans-serif' }}>
+                                {celebrity.name} • {formatCompactNumber(video.views)} views
+                              </p>
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Recommended Artists Section */}
+                <div className="rounded-xl" style={{ padding: '30px 40px' }}>
+                  <div className="flex items-center justify-between" style={{ marginBottom: '30px' }}>
+                    <h2 className="font-black text-[26px]" style={{ fontFamily: 'Pretendard, sans-serif', color: '#111111', lineHeight: '1.23em' }}>
+                      Recommended Artists
+                    </h2>
+                  </div>
+                  {isLoadingRecommended ? (
+                    <div className="flex flex-row gap-[24px] overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                      {Array.from({ length: 7 }).map((_, idx) => (
+                        <div key={idx} className="flex-shrink-0 text-center animate-pulse" style={{ width: '151px' }}>
+                          <div className="rounded-full bg-gray-200 mx-auto" style={{ width: '151px', height: '150px' }}></div>
+                          <div className="h-4 bg-gray-200 rounded w-20 mx-auto mt-2 mb-1"></div>
+                          <div className="h-3 bg-gray-100 rounded w-14 mx-auto"></div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : recommendedArtists.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-xl">
+                      <p className="text-gray-500">No recommended artists available</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-row gap-[24px] overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', cursor: 'grab' }}
+                      ref={(el) => {
+                        if (!el) return;
+                        el.style.cssText += '::-webkit-scrollbar{display:none}';
+                        let isDown = false, startX, scrollLeft, hasMoved = false;
+                        el.onmousedown = (e) => { isDown = true; hasMoved = false; startX = e.pageX - el.offsetLeft; scrollLeft = el.scrollLeft; el.style.cursor = 'grabbing'; e.preventDefault(); };
+                        el.onmouseleave = () => { isDown = false; el.style.cursor = 'grab'; };
+                        el.onmouseup = () => { isDown = false; el.style.cursor = 'grab'; };
+                        el.onmousemove = (e) => { if (!isDown) return; e.preventDefault(); const x = e.pageX - el.offsetLeft; const walk = (x - startX) * 1.5; if (Math.abs(x - startX) > 3) hasMoved = true; el.scrollLeft = scrollLeft - walk; };
+                        el.onclick = (e) => { if (hasMoved) { e.preventDefault(); e.stopPropagation(); } };
+                      }}>
+                      {recommendedArtists.map((artist) => (
+                        <Link href={`/celeb/${artist.slug}`} key={artist._id}
+                          className="flex-shrink-0 flex flex-col items-center gap-[8px] group" style={{ width: '151px' }}>
+                          <div className="rounded-full overflow-hidden transition-all"
+                            style={{ width: '151px', height: '150px' }}>
+                            <img
+                              src={artist.profileImage || '/images/placeholder.jpg'}
+                              alt={artist.name}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                              onError={handleImageError}
+                            />
+                          </div>
+                          <h3 className="text-[16px] text-center line-clamp-1 group-hover:text-[#2B7FFF] transition-colors" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 500, color: '#111111', lineHeight: '1.2em', paddingTop: '8px' }}>{artist.name}</h3>
+                          <p className="text-[16px] text-center" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 400, color: '#99A1AF', lineHeight: '1.2em', paddingTop: '3px' }}>{artist.group || (artist.category === 'solo' ? 'Solo' : 'K-POP')}</p>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Related News Section */}
+                <div className="bg-white rounded-xl" style={{ padding: '30px 24px' }}>
+                  <div className="mb-[30px]">
+                    <h2 className="font-black text-[26px]" style={{ fontFamily: 'Pretendard', color: '#101828' }}>
+                      Related News
+                    </h2>
+                  </div>
+                  {relatedNews && relatedNews.length > 0 ? (
+                    <div className="space-y-[30px]">
+                      {/* Row 1 */}
+                      <div className="grid grid-cols-3" style={{ gap: '24px', height: '387px' }}>
+                        {relatedNews.slice(0, 3).map((news, index) => (
+                          <Link key={index} href={`/news/${news.slug || news._id}`}>
+                            <div className="cursor-pointer group relative" style={{ height: '387px' }}>
+                              <div className="overflow-hidden" style={{ width: '100%', height: '209px', borderRadius: '14px' }}>
+                                <img
+                                  src={news.coverImage || news.thumbnail || '/images/news/default-news.jpg'}
+                                  alt={news.title}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  onError={(e) => { e.target.onerror = null; e.target.src = '/images/news/default-news.jpg'; }}
+                                />
+                              </div>
+                              <div style={{ position: 'absolute', top: '229px', width: '100%' }}>
+                                <h4 className="line-clamp-2 group-hover:text-[#2B7FFF] transition-colors" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.375em', letterSpacing: '-0.024em', color: '#101828' }}>
+                                  {news.title}
+                                </h4>
+                              </div>
+                              <div style={{ position: 'absolute', top: '291px', width: '100%' }}>
+                                <p className="line-clamp-3" style={{ fontFamily: 'Pretendard', fontWeight: 400, fontSize: '14px', lineHeight: '1.625em', letterSpacing: '-0.01em', color: '#6A7282' }}>
+                                  {news.description || news.summary || ''}
+                                </p>
+                              </div>
+                              <div style={{ position: 'absolute', top: '371px' }}>
+                                <span style={{ fontFamily: 'Pretendard', fontWeight: 400, fontSize: '12px', lineHeight: '1.33em', color: '#99A1AF' }}>
+                                  {news.publishedAt ? new Date(news.publishedAt).toLocaleDateString('en-CA') : news.createdAt ? new Date(news.createdAt).toLocaleDateString('en-CA') : ''}
+                                </span>
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                      {/* Row 2 */}
+                      {relatedNews.length > 3 && (
+                        <div className="grid grid-cols-3" style={{ gap: '24px', height: '387px' }}>
+                          {relatedNews.slice(3, 6).map((news, index) => (
+                            <Link key={index} href={`/news/${news.slug || news._id}`}>
+                              <div className="cursor-pointer group relative" style={{ height: '387px' }}>
+                                <div className="overflow-hidden" style={{ width: '100%', height: '209px', borderRadius: '14px' }}>
+                                  <img
+                                    src={news.coverImage || news.thumbnail || '/images/news/default-news.jpg'}
+                                    alt={news.title}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    onError={(e) => { e.target.onerror = null; e.target.src = '/images/news/default-news.jpg'; }}
+                                  />
+                                </div>
+                                <div style={{ position: 'absolute', top: '229px', width: '100%' }}>
+                                  <h4 className="line-clamp-2 group-hover:text-[#2B7FFF] transition-colors" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.375em', letterSpacing: '-0.024em', color: '#101828' }}>
+                                    {news.title}
+                                  </h4>
+                                </div>
+                                <div style={{ position: 'absolute', top: '291px', width: '100%' }}>
+                                  <p className="line-clamp-3" style={{ fontFamily: 'Pretendard', fontWeight: 400, fontSize: '14px', lineHeight: '1.625em', letterSpacing: '-0.01em', color: '#6A7282' }}>
+                                    {news.description || news.summary || ''}
+                                  </p>
+                                </div>
+                                <div style={{ position: 'absolute', top: '371px' }}>
+                                  <span style={{ fontFamily: 'Pretendard', fontWeight: 400, fontSize: '12px', lineHeight: '1.33em', color: '#99A1AF' }}>
+                                    {news.publishedAt ? new Date(news.publishedAt).toLocaleDateString('en-CA') : news.createdAt ? new Date(news.createdAt).toLocaleDateString('en-CA') : ''}
+                                  </span>
+                                </div>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">No related news available</div>
+                  )}
+                </div>
+
+                {/* More Celeb News */}
+                <div className="bg-white rounded-xl px-6 py-8">
+                  <MoreNews category="celeb" storageKey="celeb-detail" />
+                </div>
+
+              </div>
+
+              {/* Right: Sidebar (500px) */}
+              <div className="w-[500px] flex-shrink-0">
+                <div ref={sidebarStickyRef} className="sticky" style={{ top: sidebarStickyTop + 'px' }}>
+                  <div className="space-y-8">
+                    <CommentTicker comments={recentComments || []} onNavigate={navigateToPage} />
+                    <TrendingNow items={rankingNews || []} onNavigate={navigateToPage} />
+                    {rankingNews && rankingNews.length > 0 && (
+                      <div>
+                        <h3 className="font-bold text-[23px] leading-[1.5] text-[#101828] mb-4 pl-1">Editor&apos;s <span className="text-ksp-accent">PICK</span></h3>
+                        <div className="bg-white border border-[#F3F4F6] shadow-card rounded-2xl p-4 space-y-6">
+                          {rankingNews.slice(0, 6).map((item) => (
+                            <div
+                              key={item._id}
+                              className="flex gap-4 cursor-pointer group"
+                              onClick={() => navigateToPage(`/news/${item.slug || item._id}`)}
+                            >
+                              <div className="flex-shrink-0 w-[140px] h-[90px] rounded overflow-hidden">
+                                <img
+                                  src={item.coverImage || item.thumbnailUrl || '/images/placeholder.jpg'}
+                                  alt={item.title}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => { e.target.src = '/images/placeholder.jpg'; }}
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-block px-1.5 py-0.5 bg-ksp-accent text-white text-[10px] font-bold uppercase tracking-wider rounded">
+                                    {item.category === 'kpop' ? 'K-POP' : item.category === 'drama' ? 'DRAMA' : item.category === 'movie' ? 'FILM' : item.category === 'celeb' ? 'CELEB' : 'NEWS'}
+                                  </span>
+                                  <span className="text-xs font-medium text-ksp-meta">
+                                    {getTimeAgo(item.createdAt || item.publishedAt)}
+                                  </span>
+                                </div>
+                                <h4 className="font-bold text-[15px] leading-[1.375] text-[#121212] line-clamp-2 group-hover:text-ksp-accent transition-colors">
+                                  {item.title}
+                                </h4>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div> {/* end hidden lg:block */}
+
     </MainLayout>
   );
 }
 
-export async function getServerSideProps({ params }) {
+export async function getServerSideProps({ params, req }) {
   try {
-    // 서버 URL 설정
-    const server = process.env.NODE_ENV === 'production'
-      ? process.env.NEXT_PUBLIC_API_URL || 'http://localhost:13001'
-      : 'http://localhost:3000';
-    
-    // 셀럽 정보 가져오기
-    const response = await fetch(`${server}/api/celeb/slug/${params.slug}`);
-    
+    const protocol = req.headers['x-forwarded-proto'] || 'http';
+    const baseUrl = `${protocol}://${req.headers.host}`;
+    const prodUrl = process.env.NEXT_PUBLIC_API_URL || baseUrl;
+
+    // Fetch celeb info + sidebar data in parallel
+    const [celebResponse, commentsResponse, rankingResponse] = await Promise.all([
+      fetch(`${prodUrl}/api/celeb/slug/${params.slug}`),
+      fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`).catch(() => ({ json: () => ({ success: false }) })),
+    ]);
+
     // 응답 확인
-    if (!response.ok) {
-      console.error(`Failed to fetch celebrity info: ${response.status}`);
-      return {
-        props: {
-          celebrity: null
-        }
-      };
+    if (!celebResponse.ok) {
+      console.error(`Failed to fetch celebrity info: ${celebResponse.status}`);
+      return { props: { celebrity: null } };
     }
-    
-    const data = await response.json();
-    
-    // 데이터 성공적으로 가져왔는지 확인
+
+    const data = await celebResponse.json();
+    const commentsData = await commentsResponse.json();
+    const rankingData = await rankingResponse.json();
+
+    const recentComments = commentsData.success ? (commentsData.data || commentsData.comments || []) : [];
+    const rankingNews = rankingData.success ? (rankingData.data?.news || rankingData.data || []) : [];
+
     if (data.success && data.data) {
       return {
         props: {
-          celebrity: data.data
+          celebrity: data.data,
+          recentComments,
+          rankingNews,
         }
       };
     }
-    
-    // 데이터가 없는 경우
-    return {
-      props: {
-        celebrity: null
-      }
-    };
+
+    return { props: { celebrity: null, recentComments: [], rankingNews: [] } };
   } catch (error) {
     console.error('Error getting celebrity detail info:', error);
-    return {
-      props: {
-        celebrity: null
-      }
-    };
+    return { props: { celebrity: null, recentComments: [], rankingNews: [] } };
   }
 } 

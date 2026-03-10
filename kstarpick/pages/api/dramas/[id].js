@@ -182,15 +182,30 @@ export default async function handler(req, res) {
           drama.reviews = [];
         }
         
-        // 외부 리뷰가 있으면 추가
+        // 외부 리뷰가 있으면 추가 (중복 제거)
         if (externalReviews && externalReviews.length > 0) {
-          // 기존 리뷰 배열을 유지하고 외부 리뷰를 추가
-          drama.reviews = [...drama.reviews, ...externalReviews];
-          console.log(`[API] ${externalReviews.length}개의 리뷰를 드라마/영화 객체에 추가했습니다.`);
+          const merged = [...drama.reviews, ...externalReviews];
+          const deduped = new Map();
+          merged.forEach(r => {
+            const key = r.reviewId || r._id?.toString() || `${r.username}-${r.rating}`;
+            if (!deduped.has(key)) deduped.set(key, r);
+          });
+          drama.reviews = Array.from(deduped.values());
+          console.log(`[API] 리뷰 병합: 내장=${drama.reviews.length - externalReviews.length}개 + 외부=${externalReviews.length}개 → 중복제거 후=${drama.reviews.length}개`);
         }
         
-        console.log(`[API] 드라마 데이터 반환: reviewCount=${drama.reviewCount}, reviewRating=${drama.reviewRating}, ratingDistribution=${JSON.stringify(drama.ratingDistribution)}`);
-        
+        // cast 데이터 정규화: {mainRoles, supportRoles} 객체 → 배열로 변환
+        if (drama.cast && !Array.isArray(drama.cast)) {
+          const main = Array.isArray(drama.cast.mainRoles) ? drama.cast.mainRoles : [];
+          const support = Array.isArray(drama.cast.supportRoles) ? drama.cast.supportRoles : [];
+          drama.cast = [...main, ...support].map(a => ({
+            ...a,
+            image: a.image || a.profileImage || '/images/placeholder-tvfilm.jpg'
+          }));
+        }
+
+        console.log(`[API] 드라마 데이터 반환: reviewCount=${drama.reviewCount}, reviewRating=${drama.reviewRating}, cast=${Array.isArray(drama.cast) ? drama.cast.length : 0}명`);
+
         return res.status(200).json({
           success: true,
           data: drama

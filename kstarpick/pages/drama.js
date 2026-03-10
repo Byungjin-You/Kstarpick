@@ -845,18 +845,19 @@ export async function getServerSideProps(context) {
   try {
     const protocol = context.req.headers['x-forwarded-proto'] || 'http';
     const baseUrl = `${protocol}://${context.req.headers.host}`;
+    const prodUrl = process.env.NEXT_PUBLIC_API_URL || baseUrl;
 
     // Fetch all data in parallel
     const [dramaResponse, dramaNewsResponse, commentsResponse, rankingResponse, allNewsResponse] = await Promise.all([
-      fetch(`${baseUrl}/api/dramas?category=drama&limit=50&sortBy=orderNumber&sortOrder=asc`, {
+      fetch(`${prodUrl}/api/dramas?category=drama&limit=50&sortBy=orderNumber&sortOrder=asc`, {
         headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
       }),
-      fetch(`${baseUrl}/api/news/drama?page=1&limit=12&sort=createdAt&order=desc`, {
+      fetch(`${prodUrl}/api/news/drama?page=1&limit=12&sort=createdAt&order=desc`, {
         headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
       }),
       fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => ({ json: () => ({ success: false }) })),
-      fetch(`${baseUrl}/api/news?limit=10&sort=viewCount`).catch(() => ({ json: () => ({ success: false }) })),
-      fetch(`${baseUrl}/api/news?limit=200`).catch(() => ({ json: () => ({ success: false }) }))
+      fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news?limit=200`).catch(() => ({ json: () => ({ success: false }) }))
     ]);
 
     const dramaData = await dramaResponse.json();
@@ -865,34 +866,53 @@ export async function getServerSideProps(context) {
     const rankingData = await rankingResponse.json();
     const allNewsData = await allNewsResponse.json();
 
+    // Fix relative image URLs to absolute production URLs
+    const fixImageUrl = (url) => {
+      if (!url) return url;
+      if (url.startsWith('/api/proxy/hash-image')) return `${prodUrl}${url}`;
+      // 로컬 개발 시 kstarpick.com 프록시 → 프로덕션 서버 직접 접근
+      if (process.env.NODE_ENV === 'development' && url.includes('kstarpick.com/api/proxy')) {
+        return url.replace('https://kstarpick.com', 'http://43.202.38.79:13001');
+      }
+      return url;
+    };
+
     const dramaNews = Array.isArray(dramaNewsData.data) ? dramaNewsData.data : (dramaNewsData.data?.news || []);
 
     // Process dramas
     const processedDramas = (dramaData.data || []).map(drama => {
       if (!drama.coverImage) drama.coverImage = '/images/dramas/default-poster.jpg';
+      else drama.coverImage = fixImageUrl(drama.coverImage);
       return drama;
     });
 
     // Process news images
     const processedNews = dramaNews.map(news => {
       if (!news.coverImage) news.coverImage = '/images/news/default-news.jpg';
+      else news.coverImage = fixImageUrl(news.coverImage);
+      if (news.thumbnailUrl) news.thumbnailUrl = fixImageUrl(news.thumbnailUrl);
       return news;
     });
 
     // Watch News: filter from all news (drama category only)
     const watchNews = allNewsData.success && allNewsData.data?.news
-      ? allNewsData.data.news.filter(n => n.title && n.title.startsWith('Watch:') && n.category === 'drama').slice(0, 6)
+      ? allNewsData.data.news.filter(n => n.title && n.title.startsWith('Watch:') && n.category === 'drama').slice(0, 6).map(n => ({ ...n, coverImage: fixImageUrl(n.coverImage), thumbnailUrl: fixImageUrl(n.thumbnailUrl) }))
       : [];
 
     // Recommended News: featured drama news
     const recommendedNews = allNewsData.success && allNewsData.data?.news
-      ? allNewsData.data.news.filter(n => n.featured && n.category === 'drama').slice(0, 3)
+      ? allNewsData.data.news.filter(n => n.featured && n.category === 'drama').slice(0, 3).map(n => ({ ...n, coverImage: fixImageUrl(n.coverImage), thumbnailUrl: fixImageUrl(n.thumbnailUrl) }))
+      : [];
+
+    // Ranking news
+    const rankingNews = rankingData.success
+      ? (rankingData.data?.news || []).slice(0, 10).map(n => ({ ...n, coverImage: fixImageUrl(n.coverImage), thumbnailUrl: fixImageUrl(n.thumbnailUrl) }))
       : [];
 
     // If not enough recommended, use ranking news as fallback
     const finalRecommended = recommendedNews.length >= 3
       ? recommendedNews
-      : (rankingData.success ? (rankingData.data?.news || []).slice(0, 3) : []);
+      : rankingNews.slice(0, 3);
 
     return {
       props: {
@@ -904,7 +924,7 @@ export async function getServerSideProps(context) {
           hasNextPage: processedNews.length > 12, hasPrevPage: false
         },
         recentComments: commentsData.success ? (commentsData.data || []).slice(0, 10) : [],
-        rankingNews: rankingData.success ? (rankingData.data?.news || []).slice(0, 10) : [],
+        rankingNews,
         watchNews: watchNews,
         recommendedNews: finalRecommended,
       }

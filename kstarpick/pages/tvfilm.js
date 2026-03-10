@@ -826,6 +826,10 @@ export async function getServerSideProps(context) {
     const fixImageUrl = (url) => {
       if (!url) return url;
       if (url.startsWith('/api/proxy/hash-image')) return `${prodUrl}${url}`;
+      // 로컬 개발 시 kstarpick.com 프록시 → 프로덕션 서버 직접 접근
+      if (process.env.NODE_ENV === 'development' && url.includes('kstarpick.com/api/proxy')) {
+        return url.replace('https://kstarpick.com', 'http://43.202.38.79:13001');
+      }
       return url;
     };
 
