@@ -1,0 +1,15 @@
+2026-03-03 14:24:53: Seed comments fatal error: TypeError: Cannot read properties of undefined (reading 'startsWith')
+2026-03-03 14:24:53:     at connectionStringHasValidScheme (/Users/byungjinyou/Desktop/kstarpick-server-backup/node_modules/mongodb-connection-string-url/lib/index.js:9:29)
+2026-03-03 14:24:53:     at new ConnectionString (/Users/byungjinyou/Desktop/kstarpick-server-backup/node_modules/mongodb-connection-string-url/lib/index.js:84:34)
+2026-03-03 14:24:53:     at parseOptions (/Users/byungjinyou/Desktop/kstarpick-server-backup/node_modules/mongodb/lib/connection_string.js:198:17)
+2026-03-03 14:24:53:     at new MongoClient (/Users/byungjinyou/Desktop/kstarpick-server-backup/node_modules/mongodb/lib/mongo_client.js:67:61)
+2026-03-03 14:24:53:     at connectToDatabase (/Users/byungjinyou/Desktop/kstarpick-server-backup/seed-comments-runner.js:29:18)
+2026-03-03 14:24:53:     at /Users/byungjinyou/Desktop/kstarpick-server-backup/seed-comments-runner.js:221:24
+2026-03-03 14:24:53:     at Object.<anonymous> (/Users/byungjinyou/Desktop/kstarpick-server-backup/seed-comments-runner.js:360:3)
+2026-03-03 14:24:53:     at Module._compile (node:internal/modules/cjs/loader:1738:14)
+2026-03-03 14:24:53:     at Object..js (node:internal/modules/cjs/loader:1871:10)
+2026-03-03 14:24:53:     at Module.load (node:internal/modules/cjs/loader:1470:32)
+2026-03-03 14:25:25:   [ERROR] test: Claude API 400: {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balan
+2026-03-03 14:25:27:   [ERROR] test: Claude API 400: {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balan
+2026-03-03 18:30:00:   [ERROR] test: Claude API 400: {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balan
+2026-03-05 00:30:08:   [ERROR] test: Claude API 529: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"},"request_

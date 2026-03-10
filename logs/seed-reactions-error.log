@@ -1,0 +1,11 @@
+2026-03-03 14:24:52: Seed reactions error: TypeError: Cannot read properties of undefined (reading 'startsWith')
+2026-03-03 14:24:52:     at connectionStringHasValidScheme (/Users/byungjinyou/Desktop/kstarpick-server-backup/node_modules/mongodb-connection-string-url/lib/index.js:9:29)
+2026-03-03 14:24:52:     at new ConnectionString (/Users/byungjinyou/Desktop/kstarpick-server-backup/node_modules/mongodb-connection-string-url/lib/index.js:84:34)
+2026-03-03 14:24:52:     at parseOptions (/Users/byungjinyou/Desktop/kstarpick-server-backup/node_modules/mongodb/lib/connection_string.js:198:17)
+2026-03-03 14:24:52:     at new MongoClient (/Users/byungjinyou/Desktop/kstarpick-server-backup/node_modules/mongodb/lib/mongo_client.js:67:61)
+2026-03-03 14:24:52:     at connectToDatabase (/Users/byungjinyou/Desktop/kstarpick-server-backup/seed-reactions-runner.js:28:18)
+2026-03-03 14:24:52:     at /Users/byungjinyou/Desktop/kstarpick-server-backup/seed-reactions-runner.js:95:24
+2026-03-03 14:24:52:     at Object.<anonymous> (/Users/byungjinyou/Desktop/kstarpick-server-backup/seed-reactions-runner.js:166:3)
+2026-03-03 14:24:52:     at Module._compile (node:internal/modules/cjs/loader:1738:14)
+2026-03-03 14:24:52:     at Object..js (node:internal/modules/cjs/loader:1871:10)
+2026-03-03 14:24:52:     at Module.load (node:internal/modules/cjs/loader:1470:32)

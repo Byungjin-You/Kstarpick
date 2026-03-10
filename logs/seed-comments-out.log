@@ -1,0 +1,155 @@
+2026-03-03 14:24:53: 
+2026-03-03 14:24:53: [2026-03-03T05:24:53.253Z] Seed comments cron started
+2026-03-03 14:25:24: 
+2026-03-03 14:25:24: [2026-03-03T05:25:24.679Z] Seed comments cron started
+2026-03-03 14:25:24: Found 2 unseeded + 0 partial = 2 articles
+2026-03-03 14:25:29: 
+2026-03-03 14:25:29: --- Summary ---
+2026-03-03 14:25:29: Processed: 0 | Skipped: 0 | Comments: 0 | API calls: 0
+2026-03-03 14:25:29: Errors: 2
+2026-03-03 14:25:29:   - test: Claude API 400: {"type":"error","error":{"type":"invalid_request_error","message
+2026-03-03 14:25:29:   - test: Claude API 400: {"type":"error","error":{"type":"invalid_request_error","message
+2026-03-03 18:30:00: 
+2026-03-03 18:30:00: [2026-03-03T09:30:00.405Z] Seed comments cron started
+2026-03-03 18:30:00: Found 2 unseeded + 0 partial = 2 articles
+2026-03-03 18:30:02: 
+2026-03-03 18:30:02: --- Summary ---
+2026-03-03 18:30:02: Processed: 0 | Skipped: 1 | Comments: 0 | API calls: 0
+2026-03-03 18:30:02: Errors: 1
+2026-03-03 18:30:02:   - test: Claude API 400: {"type":"error","error":{"type":"invalid_request_error","message
+2026-03-04 16:05:15: 
+2026-03-04 16:05:15: [2026-03-04T07:05:15.030Z] Seed comments cron started
+2026-03-04 16:05:15: Found 0 unseeded + 2 partial = 2 articles
+2026-03-04 16:05:17:   [+10] (total:16) test
+2026-03-04 16:05:20:   [+16] (total:31) test
+2026-03-04 16:05:20: 
+2026-03-04 16:05:20: --- Summary ---
+2026-03-04 16:05:20: Processed: 2 | Skipped: 0 | Comments: 26 | API calls: 2
+2026-03-04 16:05:20: 
+2026-03-04 16:05:20: Recent seeded comments:
+2026-03-04 16:05:20:   [BraveReVeluv75] i'm so grateful for them, this is perfection ✨
+2026-03-04 16:05:20:   [GoldenOnce85] honestly the best news i could've gotten today!
+2026-03-04 16:05:20:   [QuirkyArtist35] honestly this is the best news i could've asked for!!
+2026-03-04 16:05:20:   [AmazingARMY36] this is going to be the best thing ever, i'm calling it now!
+2026-03-04 16:05:20:   [JollyLegend62] pure perfection, i have no notes whatsoever ✨
+2026-03-04 18:30:00: 
+2026-03-04 18:30:00: [2026-03-04T09:30:00.278Z] Seed comments cron started
+2026-03-04 18:30:00: Found 0 unseeded + 1 partial = 1 articles
+2026-03-04 18:30:00: 
+2026-03-04 18:30:00: --- Summary ---
+2026-03-04 18:30:00: Processed: 0 | Skipped: 1 | Comments: 0 | API calls: 0
+2026-03-04 18:30:00: 
+2026-03-04 18:30:00: Recent seeded comments:
+2026-03-04 18:30:00:   [BraveReVeluv75] i'm so grateful for them, this is perfection ✨
+2026-03-04 18:30:00:   [GoldenOnce85] honestly the best news i could've gotten today!
+2026-03-04 18:30:00:   [QuirkyArtist35] honestly this is the best news i could've asked for!!
+2026-03-04 18:30:00:   [AmazingARMY36] this is going to be the best thing ever, i'm calling it now!
+2026-03-04 18:30:00:   [JollyLegend62] pure perfection, i have no notes whatsoever ✨
+2026-03-05 00:30:00: 
+2026-03-05 00:30:00: [2026-03-04T15:30:00.502Z] Seed comments cron started
+2026-03-05 00:30:00: Found 0 unseeded + 1 partial = 1 articles
+2026-03-05 00:30:10: 
+2026-03-05 00:30:10: --- Summary ---
+2026-03-05 00:30:10: Processed: 0 | Skipped: 0 | Comments: 0 | API calls: 0
+2026-03-05 00:30:10: Errors: 1
+2026-03-05 00:30:10:   - test: Claude API 529: {"type":"error","error":{"type":"overloaded_error","message":"Ov
+2026-03-05 00:30:10: 
+2026-03-05 00:30:10: Recent seeded comments:
+2026-03-05 00:30:10:   [BraveReVeluv75] i'm so grateful for them, this is perfection ✨
+2026-03-05 00:30:10:   [GoldenOnce85] honestly the best news i could've gotten today!
+2026-03-05 00:30:10:   [QuirkyArtist35] honestly this is the best news i could've asked for!!
+2026-03-05 00:30:10:   [AmazingARMY36] this is going to be the best thing ever, i'm calling it now!
+2026-03-05 00:30:10:   [JollyLegend62] pure perfection, i have no notes whatsoever ✨
+2026-03-05 06:30:00: 
+2026-03-05 06:30:00: [2026-03-04T21:30:00.475Z] Seed comments cron started
+2026-03-05 06:30:00: Found 0 unseeded + 1 partial = 1 articles
+2026-03-05 06:30:02:   [+5] (total:21) test
+2026-03-05 06:30:02: 
+2026-03-05 06:30:02: --- Summary ---
+2026-03-05 06:30:02: Processed: 1 | Skipped: 0 | Comments: 5 | API calls: 1
+2026-03-05 06:30:02: 
+2026-03-05 06:30:02: Recent seeded comments:
+2026-03-05 06:30:02:   [PurpleLion92] literally screaming at my phone rn, this is everything 💫
+2026-03-05 06:30:02:   [BraveReVeluv75] i'm so grateful for them, this is perfection ✨
+2026-03-05 06:30:02:   [GoldenOnce85] honestly the best news i could've gotten today!
+2026-03-05 06:30:02:   [QuirkyArtist35] honestly this is the best news i could've asked for!!
+2026-03-05 06:30:02:   [AmazingARMY36] this is going to be the best thing ever, i'm calling it now!
+2026-03-05 12:30:00: 
+2026-03-05 12:30:00: [2026-03-05T03:30:00.257Z] Seed comments cron started
+2026-03-05 12:30:00: 
+2026-03-05 12:30:00: [2026-03-05T03:30:00.257Z] Seed comments cron started
+2026-03-05 12:30:00: Found 0 unseeded + 1 partial = 1 articles
+2026-03-05 12:30:00: Found 0 unseeded + 1 partial = 1 articles
+2026-03-05 12:30:00: 
+2026-03-05 12:30:00: --- Summary ---
+2026-03-05 12:30:00: Processed: 0 | Skipped: 1 | Comments: 0 | API calls: 0
+2026-03-05 12:30:00: 
+2026-03-05 12:30:00: Recent seeded comments:
+2026-03-05 12:30:00:   [PurpleLion92] literally screaming at my phone rn, this is everything 💫
+2026-03-05 12:30:00:   [BraveReVeluv75] i'm so grateful for them, this is perfection ✨
+2026-03-05 12:30:00:   [GoldenOnce85] honestly the best news i could've gotten today!
+2026-03-05 12:30:00:   [QuirkyArtist35] honestly this is the best news i could've asked for!!
+2026-03-05 12:30:00:   [AmazingARMY36] this is going to be the best thing ever, i'm calling it now!
+2026-03-05 12:30:02:   [+4] (total:25) test
+2026-03-05 12:30:02: 
+2026-03-05 12:30:02: --- Summary ---
+2026-03-05 12:30:02: Processed: 1 | Skipped: 0 | Comments: 4 | API calls: 1
+2026-03-05 12:30:02: 
+2026-03-05 12:30:02: Recent seeded comments:
+2026-03-05 12:30:02:   [PurpleLion92] literally screaming at my phone rn, this is everything 💫
+2026-03-05 12:30:02:   [BraveReVeluv75] i'm so grateful for them, this is perfection ✨
+2026-03-05 12:30:02:   [GoldenOnce85] honestly the best news i could've gotten today!
+2026-03-05 12:30:02:   [QuirkyArtist35] honestly this is the best news i could've asked for!!
+2026-03-05 12:30:02:   [AmazingARMY36] this is going to be the best thing ever, i'm calling it now!
+2026-03-05 18:30:00: 
+2026-03-05 18:30:00: [2026-03-05T09:30:00.269Z] Seed comments cron started
+2026-03-05 18:30:00: Found 0 unseeded + 1 partial = 1 articles
+2026-03-05 18:30:00: 
+2026-03-05 18:30:00: --- Summary ---
+2026-03-05 18:30:00: Processed: 0 | Skipped: 1 | Comments: 0 | API calls: 0
+2026-03-05 18:30:00: 
+2026-03-05 18:30:00: Recent seeded comments:
+2026-03-05 18:30:00:   [PurpleLion92] literally screaming at my phone rn, this is everything 💫
+2026-03-05 18:30:00:   [BraveReVeluv75] i'm so grateful for them, this is perfection ✨
+2026-03-05 18:30:00:   [GoldenOnce85] honestly the best news i could've gotten today!
+2026-03-05 18:30:00:   [QuirkyArtist35] honestly this is the best news i could've asked for!!
+2026-03-05 18:30:00:   [AmazingARMY36] this is going to be the best thing ever, i'm calling it now!
+2026-03-06 00:30:00: 
+2026-03-06 00:30:00: [2026-03-05T15:30:00.268Z] Seed comments cron started
+2026-03-06 00:30:00: Found 0 unseeded + 1 partial = 1 articles
+2026-03-06 00:30:01:   [+1] (total:26) test
+2026-03-06 00:30:01: 
+2026-03-06 00:30:01: --- Summary ---
+2026-03-06 00:30:01: Processed: 1 | Skipped: 0 | Comments: 1 | API calls: 1
+2026-03-06 00:30:01: 
+2026-03-06 00:30:01: Recent seeded comments:
+2026-03-06 00:30:01:   [PurpleLion92] literally screaming at my phone rn, this is everything 💫
+2026-03-06 00:30:01:   [BraveReVeluv75] i'm so grateful for them, this is perfection ✨
+2026-03-06 00:30:01:   [GoldenOnce85] honestly the best news i could've gotten today!
+2026-03-06 00:30:01:   [QuirkyArtist35] honestly this is the best news i could've asked for!!
+2026-03-06 00:30:01:   [AmazingARMY36] this is going to be the best thing ever, i'm calling it now!
+2026-03-06 06:30:00: 
+2026-03-06 06:30:00: [2026-03-05T21:30:00.252Z] Seed comments cron started
+2026-03-06 06:30:00: Found 0 unseeded + 1 partial = 1 articles
+2026-03-06 06:30:00: 
+2026-03-06 06:30:00: --- Summary ---
+2026-03-06 06:30:00: Processed: 0 | Skipped: 1 | Comments: 0 | API calls: 0
+2026-03-06 06:30:00: 
+2026-03-06 06:30:00: Recent seeded comments:
+2026-03-06 06:30:00:   [PurpleLion92] literally screaming at my phone rn, this is everything 💫
+2026-03-06 06:30:00:   [BraveReVeluv75] i'm so grateful for them, this is perfection ✨
+2026-03-06 06:30:00:   [GoldenOnce85] honestly the best news i could've gotten today!
+2026-03-06 06:30:00:   [QuirkyArtist35] honestly this is the best news i could've asked for!!
+2026-03-06 06:30:00:   [AmazingARMY36] this is going to be the best thing ever, i'm calling it now!
+2026-03-06 12:30:00: 
+2026-03-06 12:30:00: [2026-03-06T03:30:00.277Z] Seed comments cron started
+2026-03-06 12:30:00: 
+2026-03-06 12:30:00: [2026-03-06T03:30:00.277Z] Seed comments cron started
+2026-03-06 12:30:00: Found 0 unseeded + 0 partial = 0 articles
+2026-03-06 12:30:00: Found 0 unseeded + 0 partial = 0 articles
+2026-03-06 12:30:00: No articles need comments. Done.
+2026-03-06 12:30:00: No articles need comments. Done.
+2026-03-06 18:30:00: 
+2026-03-06 18:30:00: [2026-03-06T09:30:00.317Z] Seed comments cron started
+2026-03-06 18:30:00: Found 0 unseeded + 0 partial = 0 articles
+2026-03-06 18:30:00: No articles need comments. Done.
