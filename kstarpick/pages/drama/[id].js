@@ -4125,8 +4125,9 @@ export async function getServerSideProps({ params, req, query, resolvedUrl }) {
         }
         return url;
       }
+      // 상대 경로는 그대로 유지 (브라우저가 현재 도메인 기준으로 로딩 → mixed content 방지)
       if (url.startsWith('/api/proxy/') || url.startsWith('/uploads/')) {
-        return `${baseUrl}${url}`;
+        return url;
       }
       return url;
     };
