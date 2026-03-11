@@ -4119,10 +4119,14 @@ export async function getServerSideProps({ params, req, query, resolvedUrl }) {
 
     const fixImageUrl = (url) => {
       if (!url) return null;
-      if (url.startsWith('/api/proxy')) return `${baseUrl}${url}`;
-      // 로컬 개발 시 kstarpick.com 프록시 → 프로덕션 서버 직접 접근
-      if (process.env.NODE_ENV === 'development' && url.includes('kstarpick.com/api/proxy')) {
-        return url.replace('https://kstarpick.com', 'http://43.202.38.79:13001');
+      if (url.startsWith('http')) {
+        if (process.env.NODE_ENV === 'development' && url.includes('kstarpick.com/api/proxy')) {
+          return url.replace('https://kstarpick.com', 'http://43.202.38.79:13001');
+        }
+        return url;
+      }
+      if (url.startsWith('/api/proxy/') || url.startsWith('/uploads/')) {
+        return `${baseUrl}${url}`;
       }
       return url;
     };
@@ -4174,7 +4178,8 @@ export async function getServerSideProps({ params, req, query, resolvedUrl }) {
 
           relatedNews = [...matched, ...filler].map(item => ({
             ...item,
-            coverImage: fixImageUrl(item.coverImage),
+            coverImage: fixImageUrl(item.coverImage) || fixImageUrl(item.thumbnailUrl) || '/images/news/default-news.jpg',
+            thumbnailUrl: fixImageUrl(item.thumbnailUrl),
             description: stripHtml(item.content).slice(0, 200),
             content: null,
           }));
