@@ -397,7 +397,7 @@ export default function Music({ musicNews = [], topSongs = [], watchNews = [], r
                   onError={(e) => { e.target.src = '/images/news/default-news.jpg'; }}
                 />
                 <div className="absolute bottom-0 left-0 right-0 px-[17px] py-5" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%)' }}>
-                  <p className="text-white font-bold text-[14px] leading-[1.6] line-clamp-2" style={{ fontFamily: 'Inter', letterSpacing: '0.004em' }}>
+                  <p className="text-white font-bold line-clamp-2" style={{ fontFamily: 'Inter, sans-serif', fontSize: '18px', lineHeight: '22.5px' }}>
                     {decodeHtmlEntities(typeof musicNews[0].title === 'string' ? musicNews[0].title : (musicNews[0].title?.en || ''))}
                   </p>
                 </div>
@@ -422,7 +422,7 @@ export default function Music({ musicNews = [], topSongs = [], watchNews = [], r
                       />
                     </div>
                     <div className="flex-1 min-w-0 flex flex-col gap-2">
-                      <p className="text-[#101828] font-bold text-[16px] leading-[1.25] line-clamp-2" style={{ fontFamily: 'Inter', letterSpacing: '-0.013em' }}>
+                      <p className="text-[#101828] font-bold line-clamp-2" style={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', lineHeight: '20px', letterSpacing: '-0.15px' }}>
                         {decodeHtmlEntities(typeof news.title === 'string' ? news.title : (news.title?.en || ''))}
                       </p>
                       <div className="flex items-center gap-2">

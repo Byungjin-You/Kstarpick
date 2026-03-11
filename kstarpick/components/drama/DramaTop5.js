@@ -116,7 +116,7 @@ const DramaTop5 = ({ dramas = [], onNavigate, type = 'drama' }) => {
 
         {/* Bottom overlay: title + ★rating + genres */}
         <div className="absolute bottom-0 left-0 right-0 flex flex-col items-center pb-4 px-5">
-          <h3 className="text-white font-bold text-center line-clamp-2 mb-1" style={{ fontSize: '24px', lineHeight: 1.43, letterSpacing: '-0.01em' }}>
+          <h3 className="text-white font-bold text-center line-clamp-2 mb-1 capitalize" style={{ fontFamily: 'Inter, sans-serif', fontSize: '18px', lineHeight: '24.75px', letterSpacing: '-0.439px' }}>
             {topDrama.title}
           </h3>
           <div className="flex items-center gap-[7px]">
@@ -232,7 +232,7 @@ const DramaTop5 = ({ dramas = [], onNavigate, type = 'drama' }) => {
 
                 {/* Bottom: title + rating overlay (center aligned) */}
                 <div className="absolute bottom-0 left-0 right-0 flex flex-col items-center pb-3 px-3">
-                  <p className="text-white font-bold line-clamp-1 text-center" style={{ fontSize: '16px', lineHeight: 1.2, letterSpacing: '-0.01em' }}>{drama.title}</p>
+                  <p className="text-white font-bold line-clamp-1 text-center capitalize" style={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', lineHeight: '20px', letterSpacing: '-0.15px' }}>{drama.title}</p>
                   <div className="flex items-center gap-[5px] mt-1">
                     <span className="font-bold" style={{ fontSize: '12px', color: '#FDC700' }}>★{getRating(drama)}</span>
                     {getGenres(drama).slice(0, 1).map((genre, idx) => (

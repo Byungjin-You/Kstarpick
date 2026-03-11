@@ -703,8 +703,8 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
                 </div>
                 <div className="flex flex-col" style={{ gap: '6px' }}>
                   <h3
-                    className="text-[#101828] font-bold text-[18px] leading-[1.25] line-clamp-2 cursor-pointer"
-                    style={{ fontFamily: 'Inter' }}
+                    className="text-[#101828] font-bold line-clamp-2 cursor-pointer"
+                    style={{ fontFamily: 'Inter, sans-serif', fontSize: '18px', lineHeight: '22.5px' }}
                     onClick={() => navigateToPage(`/news/${recommendedNews[0].slug || recommendedNews[0]._id}`)}
                   >
                     {recommendedNews[0].title}
@@ -743,7 +743,7 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
                         <span className="text-[#99A1AF] text-[10px]" style={{ fontFamily: 'Inter, sans-serif', lineHeight: '1.6' }}>
                           {news.createdAt ? new Date(news.createdAt).toLocaleDateString('en-CA').replace(/-/g, '.') : ''}
                         </span>
-                        <p className="text-[#101828] font-bold text-[14px] leading-[1.43] line-clamp-2" style={{ fontFamily: 'Inter', letterSpacing: '-0.0107em' }}>
+                        <p className="text-[#101828] font-bold line-clamp-2" style={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', lineHeight: '20px', letterSpacing: '-0.15px' }}>
                           {news.title}
                         </p>
                       </div>

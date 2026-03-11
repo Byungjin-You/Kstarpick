@@ -40,8 +40,8 @@ const ArticleCardGrid = ({ articles = [], onNavigate }) => {
             />
           </div>
           <h3
-            className="font-bold text-[18px] leading-[1.33] text-[#0A0A0A] line-clamp-2 mb-1"
-            style={{ letterSpacing: '-0.0244em' }}
+            className="font-bold text-[#0A0A0A] line-clamp-2 mb-1"
+            style={{ fontFamily: 'Inter, sans-serif', fontSize: '14.164px', lineHeight: '22.662px', letterSpacing: '0.05px' }}
           >
             {featured.title}
           </h3>
@@ -68,8 +68,8 @@ const ArticleCardGrid = ({ articles = [], onNavigate }) => {
               </div>
               <div className="flex-1 min-w-0 flex flex-col justify-center">
                 <h4
-                  className="font-medium text-[15px] leading-[1.375] text-[#0A0A0A] line-clamp-2 group-hover:text-ksp-accent transition-colors"
-                  style={{ letterSpacing: '-0.0244em' }}
+                  className="font-bold text-[#101828] line-clamp-2 group-hover:text-ksp-accent transition-colors"
+                  style={{ fontFamily: 'Inter, sans-serif', fontSize: '16px', lineHeight: '20px', letterSpacing: '-0.21px' }}
                 >
                   {article.title}
                 </h4>

@@ -522,10 +522,10 @@ function Home({ initialData }) {
                       />
                       <div className="absolute bottom-0 left-0 right-0" style={{ padding: '12px 12px 0', background: 'linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 100%)', height: '82px' }}>
                         <div className="flex flex-col" style={{ gap: '4px' }}>
-                          <span className="text-[#2B7FFF] font-bold text-[12px]" style={{ fontFamily: 'Inter' }}>
+                          <span className="text-white font-normal text-[12px]" style={{ fontFamily: 'Inter, sans-serif', lineHeight: '17.009px' }}>
                             {watchNews[0].category ? watchNews[0].category.charAt(0).toUpperCase() + watchNews[0].category.slice(1) : 'Pick'}
                           </span>
-                          <h3 className="text-white font-bold text-[14px] leading-[1.375] line-clamp-2" style={{ fontFamily: 'Inter', letterSpacing: '-0.0107em' }}>
+                          <h3 className="text-white font-bold text-[18px] line-clamp-2 capitalize" style={{ fontFamily: 'Inter, sans-serif', lineHeight: '24.75px', letterSpacing: '-0.439px' }}>
                             {watchNews[0].title?.replace(/^Watch:\s*/i, '') || watchNews[0].title}
                           </h3>
                         </div>
@@ -556,7 +556,7 @@ function Home({ initialData }) {
                                 onError={(e) => { e.target.src = '/images/placeholder.jpg'; }}
                               />
                             </div>
-                            <p className="font-bold text-[13px] leading-[1.23] line-clamp-2 text-[#0A0A0A]" style={{ fontFamily: 'Inter' }}>
+                            <p className="font-bold text-[14px] line-clamp-2 text-white text-center capitalize" style={{ fontFamily: 'Inter, sans-serif', lineHeight: '20px', letterSpacing: '-0.15px' }}>
                               {news.title?.replace(/^Watch:\s*/i, '') || news.title}
                             </p>
                           </div>

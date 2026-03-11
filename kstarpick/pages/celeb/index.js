@@ -540,7 +540,7 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
                     >1</span>
                     {/* Top: name + followers - Figma: x:24, y:24 */}
                     <div className="absolute flex items-center justify-between z-[2]" style={{ top: '24px', left: '24px', right: '30px' }}>
-                      <span className="text-white font-bold text-[24px] truncate" style={{ fontFamily: 'Inter', lineHeight: '1.17em', letterSpacing: '-0.018em' }}>
+                      <span className="text-white font-bold truncate" style={{ fontFamily: 'Inter', fontSize: '24px', lineHeight: '28px', letterSpacing: '-0.439px' }}>
                         {celeb.name}
                       </span>
                       {totalFollowers > 0 && (
@@ -604,7 +604,7 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
                           >{rank}</span>
                           {/* Top: name + followers - Figma: x:12, y:12 */}
                           <div className="absolute flex items-center justify-between z-[2]" style={{ top: '12px', left: '12px', width: '131px' }}>
-                            <span className="text-white font-bold text-[12px] truncate" style={{ fontFamily: 'Inter', lineHeight: '1.17em', letterSpacing: '-0.018em' }}>
+                            <span className="text-white font-bold truncate" style={{ fontFamily: 'Inter', fontSize: '12px', lineHeight: '14px', letterSpacing: '-0.22px' }}>
                               {celeb.name}
                             </span>
                             {totalFollowers > 0 && (
@@ -659,7 +659,7 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
                 onError={(e) => { e.target.src = '/images/news/default-news.jpg'; }}
               />
               <div className="absolute bottom-0 left-0 right-0 px-[17px] py-5" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%)' }}>
-                <p className="text-white font-bold text-[14px] leading-[1.6] line-clamp-2" style={{ fontFamily: 'Inter', letterSpacing: '0.004em' }}>
+                <p className="text-white font-bold line-clamp-2" style={{ fontFamily: 'Inter, sans-serif', fontSize: '18px', lineHeight: '22.5px' }}>
                   {celebNews[0].title}
                 </p>
               </div>
@@ -684,7 +684,7 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
                     />
                   </div>
                   <div className="flex-1 min-w-0 flex flex-col gap-2">
-                    <p className="text-[#101828] font-bold text-[16px] leading-[1.25] line-clamp-2" style={{ fontFamily: 'Inter', letterSpacing: '-0.013em' }}>
+                    <p className="text-[#101828] font-bold line-clamp-2" style={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', lineHeight: '20px', letterSpacing: '-0.15px' }}>
                       {news.title}
                     </p>
                     <div className="flex items-center gap-2">
