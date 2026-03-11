@@ -1189,9 +1189,7 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
   // Reactions state - DB에서 초기값 로드
   const [reactions, setReactions] = useState({
     like: newsArticle?.reactions?.like || 0,
-    congratulations: newsArticle?.reactions?.congratulations || 0,
-    surprised: newsArticle?.reactions?.surprised || 0,
-    sad: newsArticle?.reactions?.sad || 0
+    dislike: newsArticle?.reactions?.dislike || 0
   });
   const [userReaction, setUserReaction] = useState(null);
   const [showShareMenu, setShowShareMenu] = useState(false);
@@ -2692,7 +2690,7 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                         <div className="flex justify-center" style={{ padding: '20px 0', gap: '30px' }}>
                           {[
                             { key: 'like', label: 'Like it!', activeColor: '#2B7FFF', activeBg: 'rgba(43, 127, 255, 0.4)' },
-                            { key: 'sad', label: 'Not for me', activeColor: '#2B7FFF', activeBg: 'rgba(43, 127, 255, 0.4)' }
+                            { key: 'dislike', label: 'Not for me', activeColor: '#2B7FFF', activeBg: 'rgba(43, 127, 255, 0.4)' }
                           ].map(({ key, label, activeColor }) => {
                             const isSelected = userReaction === key;
                             const borderColor = isSelected ? activeColor : '#A7A7A7';

@@ -18,11 +18,9 @@ export default async function handler(req, res) {
         { projection: { reactions: 1 } }
       );
 
-      const reactions = news?.reactions || {
-        like: 0,
-        congratulations: 0,
-        surprised: 0,
-        sad: 0
+      const reactions = {
+        like: news?.reactions?.like || 0,
+        dislike: news?.reactions?.dislike || 0
       };
 
       return res.status(200).json({ reactions });
@@ -39,7 +37,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'newsId is required' });
     }
 
-    const validReactions = ['like', 'congratulations', 'surprised', 'sad'];
+    const validReactions = ['like', 'dislike'];
 
     if (reactionType && !validReactions.includes(reactionType)) {
       return res.status(400).json({ error: 'Invalid reaction type' });
@@ -65,7 +63,7 @@ export default async function handler(req, res) {
       // reactions 필드가 없을 수 있으므로 먼저 초기화
       await db.collection('news').updateOne(
         { _id: new ObjectId(newsId), reactions: { $exists: false } },
-        { $set: { reactions: { like: 0, congratulations: 0, surprised: 0, sad: 0 } } }
+        { $set: { reactions: { like: 0, dislike: 0 } } }
       );
 
       const result = await db.collection('news').findOneAndUpdate(
@@ -75,7 +73,7 @@ export default async function handler(req, res) {
       );
 
       const doc = result.value || result;
-      const reactions = doc?.reactions || { like: 0, congratulations: 0, surprised: 0, sad: 0 };
+      const reactions = doc?.reactions || { like: 0, dislike: 0 };
 
       // 음수 방지
       const sanitized = {};
