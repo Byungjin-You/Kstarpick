@@ -5,6 +5,7 @@ import MainLayout from '../components/MainLayout';
 import Seo from '../components/Seo';
 // 스크롤 복원은 _app.js handleRouteChangeComplete에서 중앙 처리
 import { generateWebsiteJsonLd } from '../utils/seoHelpers';
+import { connectToDatabase } from '../utils/mongodb';
 
 // PC layout components
 import CommentTicker from '../components/home/CommentTicker';
@@ -693,6 +694,14 @@ export async function getServerSideProps(context) {
     monthAgo.setDate(monthAgo.getDate() - 30);
     monthAgo.setHours(0, 0, 0, 0);
 
+    // Fetch multiplier directly from MongoDB (no auth needed)
+    let dataMultiplier = 1;
+    try {
+      const { db } = await connectToDatabase();
+      const settings = await db.collection('adminSettings').findOne({ key: 'dataMultiplier' });
+      if (settings?.value) dataMultiplier = settings.value;
+    } catch (e) { /* fallback to 1 */ }
+
     const [todayResponse, weekResponse, monthResponse, commentsResponse, rankingResponse, trendingResponse, editorsPickResponse] = await Promise.all([
       fetch(`${server}/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${threeDaysAgo.toISOString()}`),
       fetch(`${server}/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${weekAgo.toISOString()}`),
@@ -735,6 +744,7 @@ export async function getServerSideProps(context) {
         ...n,
         coverImage: fixImageUrl(n.coverImage) || '/images/news/default-news.jpg',
         thumbnailUrl: fixImageUrl(n.thumbnailUrl) || null,
+        viewCount: Math.round((n.viewCount || 0) * dataMultiplier),
       }));
     };
 

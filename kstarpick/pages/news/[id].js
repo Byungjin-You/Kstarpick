@@ -3298,9 +3298,10 @@ export async function getServerSideProps({ params, req }) {
           let editorsPickNews = [];
           try {
             const articleCategory = newsArticle.category || '';
+            const threeDaysAgo = new Date(); threeDaysAgo.setDate(threeDaysAgo.getDate() - 3); threeDaysAgo.setHours(0,0,0,0);
             const [commentsRes, rankingRes, trendingRes, editorsPickRes] = await Promise.all([
               fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
-              fetch(`${baseUrl}/api/news?limit=10&sort=viewCount`).catch(() => null),
+              fetch(`${baseUrl}/api/news?limit=10&sort=viewCount&order=desc&createdAfter=${threeDaysAgo.toISOString()}`).catch(() => null),
               fetch(`${baseUrl}/api/news/trending?limit=5${articleCategory ? `&category=${articleCategory}` : ''}`).catch(() => null),
               fetch(`${baseUrl}/api/news/editors-pick?limit=6${articleCategory ? `&category=${articleCategory}` : ''}`).catch(() => null),
             ]);
@@ -3342,10 +3343,11 @@ export async function getServerSideProps({ params, req }) {
               const protocol = req.headers['x-forwarded-proto'] || 'http';
               const baseUrl = `${protocol}://${req.headers.host}`;
               const artCat = article.category || '';
+              const threeDaysAgo2 = new Date(); threeDaysAgo2.setDate(threeDaysAgo2.getDate() - 3); threeDaysAgo2.setHours(0,0,0,0);
               const [relRes, commentsRes, rankingRes, trendingRes, editorsPickRes] = await Promise.all([
                 fetch(`${baseUrl}/api/news?limit=12&category=${artCat}`).catch(() => null),
                 fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
-                fetch(`${baseUrl}/api/news?limit=10&sort=viewCount`).catch(() => null),
+                fetch(`${baseUrl}/api/news?limit=10&sort=viewCount&order=desc&createdAfter=${threeDaysAgo2.toISOString()}`).catch(() => null),
                 fetch(`${baseUrl}/api/news/trending?limit=5${artCat ? `&category=${artCat}` : ''}`).catch(() => null),
                 fetch(`${baseUrl}/api/news/editors-pick?limit=6${artCat ? `&category=${artCat}` : ''}`).catch(() => null),
               ]);
@@ -3609,9 +3611,10 @@ export async function getServerSideProps({ params, req }) {
     let editorsPickNews = [];
     try {
       const newsCat = processedNewsArticle.category || '';
+      const threeDaysAgo3 = new Date(); threeDaysAgo3.setDate(threeDaysAgo3.getDate() - 3); threeDaysAgo3.setHours(0,0,0,0);
       const [commentsRes, rankingRes, trendingRes] = await Promise.all([
         fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
-        fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`).catch(() => null),
+        fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&order=desc&createdAfter=${threeDaysAgo3.toISOString()}`).catch(() => null),
         fetch(`${prodUrl}/api/news/trending?limit=5${newsCat ? `&category=${newsCat}` : ''}`).catch(() => null),
       ]);
       if (commentsRes) {
