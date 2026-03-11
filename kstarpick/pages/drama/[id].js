@@ -233,13 +233,15 @@ const renderImage = (imageUrl, alt, className = "object-cover", width = 0, heigh
   return <Image {...imgProps} fill sizes="100vw" />;
 };
 
-export default function DramaDetail({ drama, relatedNews, metaTags, recentComments, rankingNews }) {
+export default function DramaDetail({ drama, relatedNews, metaTags, recentComments, rankingNews, trendingNews = [], editorsPickNews = [] }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [currentDrama, setCurrentDrama] = useState(drama || null);
   const [relatedItems, setRelatedItems] = useState([]);
   const [showTrailer, setShowTrailer] = useState(false);
+  const [synopsisExpanded, setSynopsisExpanded] = useState(false);
+  const [mobileVisibleComments, setMobileVisibleComments] = useState(3);
   const [selectedTrailerUrl, setSelectedTrailerUrl] = useState('');
   const [activeSection, setActiveSection] = useState('overview');
   const [isLiked, setIsLiked] = useState(false);
@@ -257,6 +259,9 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
   const [musicRating, setMusicRating] = useState(0);
   const [rewatchRating, setRewatchRating] = useState(0);
   
+  // 댓글 데이터 (SSR fallback)
+  const [commentsData, setCommentsData] = useState(recentComments || []);
+
   // 스크롤 위치에 따른 비디오 화살표 표시 상태
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(true);
@@ -329,44 +334,49 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
     }
   }, [drama]);
 
+  // 댓글 데이터 클라이언트 fallback
+  useEffect(() => {
+    if (commentsData.length > 0) return;
+    fetch('/api/comments/recent?limit=10')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data?.length > 0) {
+          setCommentsData(data.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // 스크롤 위치 복원 로직 - drama 페이지에서 뒤로가기 시
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const isBackToDrama = sessionStorage.getItem('isBackToDrama');
+    const isBack = sessionStorage.getItem('isBackToDramaDetail') === 'true';
+    const wasBack = sessionStorage.getItem('_navWasBack') === 'true';
+    const savedPath = sessionStorage.getItem('dramaDetailScrollPositionPath');
     const savedScrollPosition = sessionStorage.getItem('dramaDetailScrollPosition');
+    const currentPath = window.location.pathname;
 
-    if (isBackToDrama === 'true' && savedScrollPosition) {
+    if (isBack && wasBack && savedScrollPosition && savedPath === currentPath) {
       const scrollPos = parseInt(savedScrollPosition, 10);
 
       const restoreScroll = () => {
-        // body에 직접 스크롤 설정
-        document.body.scrollTop = scrollPos;
-        document.documentElement.scrollTop = scrollPos;
         window.scrollTo(0, scrollPos);
+        document.documentElement.scrollTop = scrollPos;
+        document.body.scrollTop = scrollPos;
       };
 
-      // 여러 시도로 동적 콘텐츠 로딩을 고려
-      setTimeout(restoreScroll, 0);
-      setTimeout(restoreScroll, 50);
-      setTimeout(restoreScroll, 100);
-      setTimeout(restoreScroll, 200);
-      setTimeout(restoreScroll, 300);
-      setTimeout(restoreScroll, 500);
-      setTimeout(restoreScroll, 800);
-
-      requestAnimationFrame(() => {
-        setTimeout(restoreScroll, 100);
-        setTimeout(restoreScroll, 300);
-        setTimeout(restoreScroll, 500);
+      restoreScroll();
+      [50, 150, 300, 500, 800, 1200, 2000].forEach(delay => {
+        setTimeout(restoreScroll, delay);
       });
 
-      // 플래그 제거
-      setTimeout(() => {
-        sessionStorage.removeItem('isBackToDrama');
-        sessionStorage.removeItem('dramaDetailScrollPosition');
-      }, 1000);
+      sessionStorage.removeItem('dramaDetailScrollPosition');
+      sessionStorage.removeItem('dramaDetailScrollPositionPath');
     }
+
+    // 순방향이든 뒤로가기든 플래그 정리 (isBackToDrama는 드라마 목록용이므로 건드리지 않음)
+    sessionStorage.removeItem('isBackToDramaDetail');
   }, [router.asPath]);
 
   // 리뷰 데이터 불러오기
@@ -956,7 +966,20 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
   };
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(getDramaShareUrl());
+    const url = getDramaShareUrl();
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(url).catch(() => {});
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
     setIsLinkCopied(true);
     setTimeout(() => setIsLinkCopied(false), 2000);
     setShowShareMenu(false);
@@ -1042,14 +1065,19 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
       let rewatchTotal = 0;
       let validReviews = 0;
       
-      reviews.forEach(review => {
+      reviews.forEach((review, idx) => {
         if (review && review.rating) {
           validReviews++;
-          // 만약 리뷰에 세부 평점이 있다면 사용, 없다면 리뷰의 전체 평점을 기준으로 조금씩 차등 적용
-          castTotal += review.castRating || (review.rating * (Math.random() * 0.2 + 0.9));
-          storyTotal += review.storyRating || (review.rating * (Math.random() * 0.2 + 0.9));
-          musicTotal += review.musicRating || (review.rating * (Math.random() * 0.2 + 0.9));
-          rewatchTotal += review.rewatchValue || (review.rating * (Math.random() * 0.4 + 0.7));
+          // 만약 리뷰에 세부 평점이 있다면 사용, 없다면 리뷰의 전체 평점을 기준으로 고정 차등 적용
+          // idx 기반 고정 시드로 PC/모바일 동일 값 보장
+          const seed1 = ((idx * 13 + 7) % 20) / 100 + 0.9;  // 0.9 ~ 1.1
+          const seed2 = ((idx * 17 + 3) % 20) / 100 + 0.9;
+          const seed3 = ((idx * 23 + 11) % 20) / 100 + 0.9;
+          const seed4 = ((idx * 29 + 5) % 40) / 100 + 0.7;  // 0.7 ~ 1.1
+          castTotal += review.castRating || (review.rating * seed1);
+          storyTotal += review.storyRating || (review.rating * seed2);
+          musicTotal += review.musicRating || (review.rating * seed3);
+          rewatchTotal += review.rewatchValue || (review.rating * seed4);
         }
       });
       
@@ -1439,10 +1467,9 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
                   </div>
                 </div>
 
-                {/* Episodes (Figma: 431:13224) */}
-                {currentDrama.episodes && (
+                {/* Episodes (Figma: 431:13224) - 임시 주석처리 */}
+                {/* {currentDrama.episodes && (
                   <div className="bg-white border-[1.5px] border-[#E5E7EB] rounded-xl mb-6" style={{ padding: '30px 24px' }}>
-                    {/* Header: "Episodes" + "12 Episodes" link */}
                     <div className="flex items-center justify-between" style={{ marginBottom: '30px' }}>
                       <h2 className="font-black text-[26px] text-black" style={{ fontFamily: 'Pretendard' }}>
                         Episodes
@@ -1451,19 +1478,16 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
                         {currentDrama.episodes} Episodes
                       </span>
                     </div>
-                    {/* Episode list */}
                     <div className="flex flex-col gap-6">
                       {Array.from({ length: Math.min(3, currentDrama.episodes || 0) }, (_, i) => {
                         const episode = currentDrama.episodeList?.[i];
                         return (
                           <div key={i} className="flex items-center gap-4 rounded-lg" style={{ padding: '0 24px' }}>
-                            {/* Episode number */}
                             <div className="flex-shrink-0 flex justify-center" style={{ width: '48px' }}>
                               <span className="font-bold text-black" style={{ fontFamily: 'Inter', fontSize: '36px', lineHeight: '1.1' }}>
                                 {i + 1}
                               </span>
                             </div>
-                            {/* Thumbnail: 144x80, rounded 4px */}
                             <div className="flex-shrink-0 rounded overflow-hidden bg-[#262626]" style={{ width: '144px', height: '80px' }}>
                               {currentDrama.videos && currentDrama.videos[i] ? (
                                 <img
@@ -1478,7 +1502,6 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
                                 </div>
                               )}
                             </div>
-                            {/* Content + runtime */}
                             <div className="flex-1 min-w-0 flex justify-between" style={{ height: '80px' }}>
                               <div className="flex flex-col gap-2" style={{ flex: 1 }}>
                                 <h4 className="font-semibold text-[16px] text-black" style={{ fontFamily: 'Inter', lineHeight: '1.5' }}>
@@ -1498,14 +1521,13 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
                         );
                       })}
                     </div>
-                    {/* See More button */}
                     {currentDrama.episodes > 3 && (
                       <button className="w-full rounded-full border border-[#D5D8DF] text-[#2D3138] font-semibold text-[14px] text-center hover:bg-gray-50 transition-colors" style={{ height: '46px', marginTop: '30px', fontFamily: 'Inter' }}>
                         See More
                       </button>
                     )}
                   </div>
-                )}
+                )} */}
 
                 {/* Reviews (Figma: 431:13272) */}
                 <div className="bg-white border-[1.5px] border-[#E5E7EB] rounded-xl mb-6 flex flex-col" style={{ padding: '30px 24px', gap: '30px' }}>
@@ -1616,10 +1638,6 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
                           ))}
                         </div>
                       </div>
-                      <button className="flex items-center gap-2.5 py-0.5" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '14px', color: '#2B7FFF', letterSpacing: '-0.01em' }}>
-                        See more
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#2B7FFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      </button>
                     </div>
 
                     {/* Comment cards (Figma: each card has white bg, ~25px radius, padding 4px 24px, gap 12px between avatar & text) */}
@@ -1700,12 +1718,6 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
                     <h2 className="font-black text-[26px]" style={{ fontFamily: 'Pretendard', color: '#000000' }}>
                       Videos: Trailer & Teasers
                     </h2>
-                    {currentDrama.videos && currentDrama.videos.length > 0 && (
-                      <button className="flex items-center gap-2.5 py-0.5" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '14px', color: '#2B7FFF', letterSpacing: '-0.01em' }}>
-                        See more
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#2B7FFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      </button>
-                    )}
                   </div>
                   <div className="relative rounded-xl" style={{ maxWidth: '1148px', height: '434px' }}>
                     {currentDrama.videos && currentDrama.videos.length > 0 ? (
@@ -1767,12 +1779,6 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
                     <h2 className="font-black text-[26px]" style={{ fontFamily: 'Pretendard', color: '#000000' }}>
                       Cast
                     </h2>
-                    {cast && cast.length > 0 && (
-                      <button className="flex items-center gap-2.5 py-0.5" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '14px', color: '#2B7FFF', letterSpacing: '-0.01em' }}>
-                        See more
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#2B7FFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      </button>
-                    )}
                   </div>
                   {cast && cast.length > 0 ? (
                     <div className="flex items-center" style={{ gap: '16px' }}>
@@ -1952,17 +1958,17 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
                 <div ref={sidebarStickyRef} className="sticky" style={{ top: sidebarStickyTop + 'px' }}>
                   <div className="space-y-8">
                     {/* Comment Ticker */}
-                    <CommentTicker comments={recentComments || []} onNavigate={navigateToPage} />
+                    <CommentTicker comments={commentsData} onNavigate={navigateToPage} />
 
                     {/* Trending NOW */}
-                    <TrendingNow items={rankingNews || []} onNavigate={navigateToPage} />
+                    <TrendingNow items={trendingNews.length > 0 ? trendingNews : rankingNews || []} onNavigate={navigateToPage} />
 
                     {/* Editor's PICK */}
-                    {rankingNews && rankingNews.length > 0 && (
+                    {(editorsPickNews.length > 0 || (rankingNews && rankingNews.length > 0)) && (
                       <div>
                         <h3 className="font-bold text-[23px] leading-[1.5] text-[#101828] mb-4 pl-1">Editor&apos;s <span className="text-ksp-accent">PICK</span></h3>
                         <div className="bg-white border border-[#F3F4F6] shadow-card rounded-2xl p-4 space-y-6">
-                          {rankingNews.slice(0, 6).map((item) => (
+                          {(editorsPickNews.length > 0 ? editorsPickNews : rankingNews).slice(0, 6).map((item) => (
                             <div
                               key={item._id}
                               className="flex gap-4 cursor-pointer group"
@@ -2137,276 +2143,715 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
           </div>
         </div>
         
-        {/* 모바일 전용 상단 정보 영역 */}
-        <div className="sm:hidden pt-4 pb-2 px-4 bg-gradient-to-br from-gray-50 via-white to-purple-50/30">
-          {/* 첫 번째 트레일러 영상 섹션 */}
-          {currentDrama.videos && currentDrama.videos.length > 0 && (
-            <div className="mt-8 mb-4">
-              <div className="relative rounded-2xl overflow-hidden shadow-xl border-2 border-white/50 bg-black">
-                {/* 영상 썸네일 */}
-                <div className="relative aspect-video">
-                  {(() => {
-                    const firstVideo = currentDrama.videos[0];
-                    const videoId = getYoutubeIdFromUrl(firstVideo.url);
-                    return videoId ? (
-                      <Image
-                        src={`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
-                        alt={firstVideo.title || "Trailer"}
-                        fill
-                        className="object-cover"
-                        unoptimized={true}
-                        priority={true}
-                        placeholder="blur"
-                        blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNzAwIiBoZWlnaHQ9IjQ3NSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNzAwIiBoZWlnaHQ9IjQ3NSIgZmlsbD0iIzIwMjAyMCIvPjwvc3ZnPg=="
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-                        }}
-                      />
-                    ) : null;
-                  })()}
+        {/* ============ MOBILE POSTER HERO (Figma) ============ */}
+        <div className="sm:hidden relative w-full" style={{ backgroundColor: '#111111' }}>
+          {/* Background poster image - 625px tall, absolute */}
+          <div className="absolute top-0 left-0 right-0" style={{ height: '625px' }}>
+            {currentDrama.coverImage ? (
+              <img
+                src={currentDrama.coverImage}
+                alt={currentDrama.title}
+                className="w-full h-full object-cover"
+                onError={(e) => { e.target.onerror = null; e.target.src = "/images/placeholder-tvfilm.jpg"; }}
+              />
+            ) : (
+              <div className="w-full h-full bg-gray-800" />
+            )}
+            {/* Top gradient overlay - darkens top for header */}
+            <div className="absolute top-0 left-0 right-0" style={{
+              height: '173px',
+              background: 'linear-gradient(0deg, rgba(17,17,17,0) 0%, rgba(17,17,17,0.6) 47%, rgba(17,17,17,1) 100%)'
+            }} />
+          </div>
 
-                  {/* 그라데이션 오버레이 */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20"></div>
+          {/* Content overlay - starts at y:259, extends below image */}
+          <div className="relative flex flex-col" style={{
+            paddingTop: '259px',
+          }}>
+            <div className="flex flex-col" style={{
+              background: 'linear-gradient(180deg, rgba(17,17,17,0) 0%, rgba(17,17,17,1) 37%)',
+              padding: '100px 16px 40px',
+              gap: '24px',
+            }}>
+              {/* Title + Rating + Genre + Description */}
+              <div className="flex flex-col" style={{ gap: '22px' }}>
+                <div className="flex flex-col" style={{ gap: '11px' }}>
+                  {/* Title + Rating row */}
+                  <div className="flex flex-col" style={{ gap: '5px' }}>
+                    <h1 style={{
+                      fontFamily: 'Inter, sans-serif',
+                      fontWeight: 700,
+                      fontSize: '22px',
+                      lineHeight: '1.5em',
+                      letterSpacing: '-0.042em',
+                      textTransform: 'capitalize',
+                      color: '#FFFFFF',
+                      margin: 0,
+                    }}>
+                      {currentDrama.title}
+                    </h1>
+                    <div className="flex items-center" style={{ gap: '7px' }}>
+                      <span style={{ fontFamily: 'Arial, sans-serif', fontWeight: 700, fontSize: '13px', lineHeight: '1.43em', color: '#FDC700' }}>
+                        ★ {currentDrama.reviewRating && parseFloat(currentDrama.reviewRating) > 0 ? parseFloat(currentDrama.reviewRating).toFixed(1) : '-'}
+                      </span>
+                      <span style={{ fontFamily: 'Arial, sans-serif', fontWeight: 400, fontSize: '13px', color: '#D1D5DC' }}>•</span>
+                      <span style={{ fontFamily: 'Pretendard, sans-serif', fontWeight: 400, fontSize: '12px', lineHeight: '1.54em', color: '#AFB7C6' }}>
+                        {currentDrama.genres && currentDrama.genres.length > 0 ? currentDrama.genres.join(' · ') : currentDrama.category || 'Drama'}
+                      </span>
+                    </div>
+                  </div>
+                  {/* Description */}
+                  {currentDrama.description && (
+                    <p className="line-clamp-2" style={{
+                      fontFamily: 'Pretendard, sans-serif',
+                      fontWeight: 400,
+                      fontSize: '12px',
+                      lineHeight: '1.54em',
+                      color: '#AFB7C6',
+                      margin: 0,
+                    }}>
+                      {currentDrama.description}
+                    </p>
+                  )}
+                </div>
 
-                  {/* 재생 버튼 */}
+                {/* Buttons: Watch Trailer + Platform + More */}
+                <div className="flex items-center" style={{ gap: '8px' }}>
                   <button
                     onClick={() => {
-                      const firstVideo = currentDrama.videos[0];
-                      const videoId = getYoutubeIdFromUrl(firstVideo.url);
+                      if (currentDrama.videos && currentDrama.videos.length > 0) {
+                        const firstVideo = currentDrama.videos[0];
+                        const videoId = getYoutubeIdFromUrl(firstVideo.url);
+                        if (videoId) {
+                          setSelectedVideoId(videoId);
+                          setTrailerTitle(firstVideo.title || "Official Trailer");
+                          setShowTrailer(true);
+                        }
+                      }
+                    }}
+                    className="flex items-center justify-center cursor-pointer"
+                    style={{
+                      width: '140px',
+                      padding: '10px 14px',
+                      backgroundColor: '#FFFFFF',
+                      borderRadius: '4px',
+                      border: 'none',
+                      gap: '2px',
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 3L20 12L6 21V3Z" fill="#111111" stroke="#111111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: '14px', letterSpacing: '0.008em', color: '#111111' }}>Watch Trailer</span>
+                  </button>
+                  {currentDrama.whereToWatch && currentDrama.whereToWatch.length > 0 && (() => {
+                    const platformName = currentDrama.whereToWatch[0]?.name || '';
+                    const nameL = platformName.toLowerCase();
+                    const logoMap = {
+                      netflix:  { src: '/images/netflix-icon-crop-564dcf.png', style: { width: '17px', height: '24px', backgroundSize: '340%', backgroundPosition: 'center' } },
+                      tving:    { src: '/images/platforms/tving.png',          style: { width: '18px', height: '18px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      wavve:    { src: '/images/platforms/wavve.png',          style: { width: '18px', height: '18px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      watcha:   { src: '/images/platforms/watcha.png',         style: { width: '18px', height: '18px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      disney:   { src: '/images/platforms/disneyplus.png',     style: { width: '18px', height: '18px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      coupang:  { src: '/images/platforms/coupangplay.png',    style: { width: '18px', height: '18px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      viki:     { src: '/images/platforms/viki.png',           style: { width: '18px', height: '18px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      hulu:     { src: '/images/platforms/hulu.svg',           style: { width: '18px', height: '14px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      apple:    { src: '/images/platforms/appletv.svg',        style: { width: '18px', height: '18px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      prime:    { src: '/images/platforms/primevideo.svg',     style: { width: '18px', height: '18px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                      amazon:   { src: '/images/platforms/primevideo.svg',     style: { width: '18px', height: '18px', backgroundSize: 'contain', backgroundPosition: 'center' } },
+                    };
+                    const key = Object.keys(logoMap).find(k => nameL.includes(k));
+                    const logo = logoMap[key];
+                    return (
+                      <button
+                        className="flex items-center justify-center cursor-pointer"
+                        style={{
+                          width: '140px',
+                          padding: '10px 14px',
+                          backgroundColor: '#101010',
+                          border: '1px solid #737373',
+                          borderRadius: '4px',
+                          gap: '2px',
+                        }}
+                        onClick={() => {
+                          const link = currentDrama.whereToWatch[0]?.link;
+                          if (link) {
+                            window.open(link, '_blank');
+                          } else {
+                            const el = document.getElementById('watch');
+                            if (el) el.scrollIntoView({ behavior: 'smooth' });
+                          }
+                        }}
+                      >
+                        {logo && (
+                          <div style={{
+                            flexShrink: 0,
+                            backgroundImage: `url(${logo.src})`,
+                            backgroundRepeat: 'no-repeat',
+                            ...logo.style,
+                          }} />
+                        )}
+                        <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: '14px', letterSpacing: '0.008em', color: '#FFFFFF' }}>
+                          {platformName}
+                        </span>
+                      </button>
+                    );
+                  })()}
+                  {/* Share button (⋮) */}
+                  <button
+                    onClick={handleShare}
+                    className="flex items-center justify-center cursor-pointer"
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '18px',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                      <circle cx="10" cy="4" r="1.5" fill="#FFFFFF"/>
+                      <circle cx="10" cy="10" r="1.5" fill="#FFFFFF"/>
+                      <circle cx="10" cy="16" r="1.5" fill="#FFFFFF"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Trailer Video Thumbnail */}
+              {currentDrama.videos && currentDrama.videos.length > 0 && (() => {
+                const firstVideo = currentDrama.videos[0];
+                const videoId = getYoutubeIdFromUrl(firstVideo.url);
+                return videoId ? (
+                  <div
+                    className="relative w-full overflow-hidden cursor-pointer"
+                    style={{ borderRadius: '12px', height: '218px' }}
+                    onClick={() => {
                       setSelectedVideoId(videoId);
                       setTrailerTitle(firstVideo.title || "Official Trailer");
                       setShowTrailer(true);
                     }}
-                    className="absolute inset-0 flex items-center justify-center group"
                   >
-                    <div className="w-12 h-12 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center transform opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300 shadow-2xl">
-                      <Play className="w-6 h-6 text-[#2B7FFF] ml-1" />
-                    </div>
-                  </button>
-
-                  {/* 영상 제목 - 하단 */}
-                  <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
-                    <div className="flex items-center">
-                      <div className="w-6 h-6 rounded-full bg-[#2B7FFF] flex items-center justify-center mr-2">
-                        <Play className="w-3 h-3 text-white ml-0.5" />
+                    <img
+                      src={`https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`}
+                      alt={firstVideo.title || "Trailer"}
+                      className="w-full h-full object-cover"
+                      style={{ background: 'linear-gradient(90deg, rgba(8,11,18,1) 0%, rgba(8,11,18,0) 60%)' }}
+                      onError={(e) => { e.target.onerror = null; e.target.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`; }}
+                    />
+                    {/* Dark left gradient */}
+                    <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(8,11,18,1) 0%, rgba(8,11,18,0) 60%)' }} />
+                    {/* Play button */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="flex items-center justify-center" style={{
+                        width: '54px', height: '54px', borderRadius: '50%',
+                        backgroundColor: 'rgba(196, 196, 196, 0.6)',
+                        border: '1.25px solid #C2C2C2',
+                      }}>
+                        <Play className="w-6 h-6 text-white ml-0.5" />
                       </div>
-                      <h4 className="text-white text-sm font-semibold line-clamp-1">
-                        {currentDrama.videos[0].title || "Official Trailer"}
-                      </h4>
                     </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 영화 정보 카드 - 현대적 디자인 */}
-          <div className="bg-gradient-to-br from-white via-purple-50/20 to-pink-50/20 rounded-3xl overflow-hidden shadow-xl border border-purple-100/50 mb-4 relative">
-            {/* 배경 장식 요소 */}
-            <div className="absolute -top-8 -right-8 w-24 h-24 bg-gradient-to-br from-pink-200/30 to-purple-200/30 rounded-full blur-2xl"></div>
-            <div className="absolute -bottom-6 -left-6 w-20 h-20 bg-gradient-to-tr from-purple-200/30 to-pink-200/30 rounded-full blur-2xl"></div>
-
-            <div className="relative z-10">
-              {/* 헤더 영역 - 개선된 디자인 */}
-              <div className="pt-6 px-6 pb-5 border-b border-gradient-to-r from-purple-100/50 to-pink-100/50">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 pr-4">
-                    <h3 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent leading-tight">
-                      {currentDrama.title}
-                    </h3>
-                    {currentDrama.originalTitle && currentDrama.originalTitle !== currentDrama.title && (
-                      <p className="text-sm text-gray-500 mt-1 italic">
-                        {currentDrama.originalTitle}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center px-3 py-2 rounded-2xl shadow-lg" style={{ backgroundColor: '#2B7FFF' }}>
-                    <div className="h-7 w-7 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-bold text-sm mr-2 shadow-md">
-                      {currentDrama.reviewRating != null && currentDrama.reviewRating !== undefined && parseFloat(currentDrama.reviewRating) > 0
-                        ? parseFloat(currentDrama.reviewRating) === 10
-                          ? "10"
-                          : parseFloat(currentDrama.reviewRating).toFixed(1)
-                        : "NR"
-                      }
-                    </div>
-                    <span className="text-white text-sm font-medium">Rating</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 포스터와 기본 정보 - 개선된 레이아웃 */}
-              <div className="p-6">
-                <div className="flex items-start">
-                  {/* 포스터 섬네일 - 더 현대적인 디자인 */}
-                  <div className="relative w-[110px] h-[165px] flex-shrink-0 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/50 backdrop-blur-sm">
-                    {currentDrama && currentDrama.coverImage && renderImage(currentDrama.coverImage, currentDrama.title || "Drama Image", "object-cover", 0, 0, true)}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-                  </div>
-                  
-                  {/* 기본 정보 - 개선된 스타일링 */}
-                  <div className="ml-5 flex flex-col flex-1">
-                    <div className="space-y-2">
-                      {currentDrama.runtime && (
-                        <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm border border-white/50">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-2.5 shadow-sm" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
-                            <img src="/images/icons8-clock-24.png" alt="Runtime" className="w-5 h-5" />
-                          </div>
-                          <span className="text-xs font-medium text-gray-700">{currentDrama.runtime}</span>
-                        </div>
-                      )}
-
-                      {currentDrama.releaseDate && (
-                        <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm border border-white/50">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-2.5 shadow-sm" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
-                            <img src="/images/icons8-calendar-94.png" alt="Release Date" className="w-5 h-5" />
-                          </div>
-                          <span className="text-xs font-medium text-gray-700">{formatDate(currentDrama.releaseDate)}</span>
-                        </div>
-                      )}
-
-                      {currentDrama.ageRating && (
-                        <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm border border-white/50">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-2.5 shadow-sm" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
-                            <img src="/images/icons8-warning-shield-94.png" alt="Age Rating" className="w-5 h-5" />
-                          </div>
-                          <span className="text-xs font-medium text-gray-700">
-                            {currentDrama.ageRating === '15' || currentDrama.ageRating?.includes('15+') ? '15 and over' :
-                             currentDrama.ageRating === '12' || currentDrama.ageRating?.includes('12+') ? '12 and over' :
-                             currentDrama.ageRating === '18' || currentDrama.ageRating?.includes('18+') ? 'Adults only' :
-                             currentDrama.ageRating === 'ALL' ? 'All ages' :
-                             currentDrama.ageRating === 'Not Rated' ? 'Not Rated' :
-                             currentDrama.ageRating}
-                          </span>
-                        </div>
-                      )}
-
-                      {currentDrama.director && (
-                        <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm border border-white/50">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-2.5 shadow-sm" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
-                            <img src="/images/icons8-documentary-94.png" alt="Director" className="w-5 h-5" />
-                          </div>
-                          <span className="text-xs font-medium text-gray-700">{currentDrama.director}</span>
-                        </div>
-                      )}
-
-                      {currentDrama.country && (
-                        <div className="flex items-center bg-white/60 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm border border-white/50">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-2.5 shadow-sm" style={{ backgroundColor: 'rgba(35, 60, 250, 0.1)' }}>
-                            <img src="/images/icons8-globe-94.png" alt="Country" className="w-5 h-5" />
-                          </div>
-                          <span className="text-xs font-medium text-gray-700">{currentDrama.country}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* 장르 태그들 - 하단에 1열로 배치 */}
-                <div className="mt-6 flex flex-wrap gap-2">
-                  {(currentDrama && currentDrama.genres && Array.isArray(currentDrama.genres) && currentDrama.genres.length > 0) ? (
-                    currentDrama.genres.map((genre, index) => (
-                      <span
-                        key={index}
-                        className="px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm transition-colors cursor-pointer"
-                        style={{
-                          backgroundColor: '#f3f4f6',
-                          color: '#1f2937'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#009efc';
-                          e.currentTarget.style.color = 'white';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = '#f3f4f6';
-                          e.currentTarget.style.color = '#1f2937';
-                        }}
-                        onTouchStart={(e) => {
-                          e.currentTarget.style.backgroundColor = '#009efc';
-                          e.currentTarget.style.color = 'white';
-                        }}
-                        onTouchEnd={(e) => {
-                          setTimeout(() => {
-                            e.currentTarget.style.backgroundColor = '#f3f4f6';
-                            e.currentTarget.style.color = '#1f2937';
-                          }, 200);
-                        }}
-                      >
-                        {genre}
+                    {/* Time badge */}
+                    <div className="absolute" style={{
+                      bottom: '12px', right: '12px',
+                      backgroundColor: 'rgba(38, 38, 42, 0.6)',
+                      backdropFilter: 'blur(1.5px)',
+                      borderRadius: '60px',
+                      padding: '4px 12px',
+                    }}>
+                      <span style={{ fontFamily: 'Pretendard, sans-serif', fontWeight: 500, fontSize: '12px', lineHeight: '1.4em', color: '#FFFFFF' }}>
+                        {firstVideo.duration || ''}
                       </span>
-                    ))
-                  ) : (
-                    <span className="px-3 py-1.5 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-600 rounded-full text-xs font-semibold">{currentDrama.category || "Drama"}</span>
-                  )}
-                </div>
-               </div>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
             </div>
           </div>
-          
-          {/* 리뷰 평가 점수 (모바일 전용) */}
-          {currentDrama.reviewCount > 0 && (
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-1">
-              <h3 className="text-sm font-bold text-gray-800 mb-2 flex items-center">
-                <img src="/images/icons8-star-94.png" alt="Star" className="w-4 h-4 mr-1.5" />
-                Viewer Ratings
-              </h3>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">Acting/Cast</span>
-                  <div className="flex items-center">
-                    <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${(currentDrama?.reviewStats?.castRating || 8.0) * 10}%`, backgroundColor: '#2B7FFF' }}
-                      ></div>
-                    </div>
-                    <span className="text-xs font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.castRating || 8.0}</span>
+        </div>
+
+        {/* Synopsis Section - Mobile */}
+        <div className="sm:hidden" style={{ backgroundColor: '#FFFFFF', padding: '36px 16px 20px' }}>
+          <h2 style={{
+            fontFamily: 'Inter, sans-serif',
+            fontWeight: 700,
+            fontSize: '20px',
+            lineHeight: '1.4em',
+            letterSpacing: '-0.022em',
+            color: '#000000',
+            marginBottom: '16px',
+          }}>Synopsis</h2>
+          <div className="relative">
+            <div style={{
+              height: synopsisExpanded ? 'auto' : '260px',
+              overflow: 'hidden',
+              position: 'relative',
+            }}>
+              <p style={{
+                fontFamily: 'Inter, sans-serif',
+                fontWeight: 400,
+                fontSize: '16px',
+                lineHeight: '1.75em',
+                color: '#333333',
+                margin: 0,
+              }}>
+                {currentDrama.description || currentDrama.synopsis || 'No synopsis available.'}
+              </p>
+            </div>
+            {!synopsisExpanded && (
+              <div style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: '228px',
+                background: 'linear-gradient(180deg, transparent 0%, #FFFFFF 100%)',
+                pointerEvents: 'none',
+              }} />
+            )}
+          </div>
+          <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center' }}>
+            <button
+              onClick={() => setSynopsisExpanded(!synopsisExpanded)}
+              style={{
+                borderRadius: '9999px',
+                border: '1px solid #D5D8DF',
+                padding: '16px 150px',
+                fontFamily: 'Inter, sans-serif',
+                fontWeight: 600,
+                fontSize: '14px',
+                color: '#2D3138',
+                backgroundColor: 'transparent',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {synopsisExpanded ? 'See less' : 'See more'}
+            </button>
+          </div>
+        </div>
+
+        {/* Reviews Section - Mobile */}
+        <div className="sm:hidden" style={{ paddingBottom: '12px', backgroundColor: '#FFFFFF' }}>
+          {/* Header */}
+          <div style={{ padding: '24px 16px 16px' }}>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '18px', lineHeight: '1.333em', letterSpacing: '-0.017em', color: '#000000' }}>
+              Reviews
+            </span>
+          </div>
+          {/* Rating circle + bars */}
+          <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="flex items-center justify-between" style={{ gap: '16px' }}>
+              {/* Left: Rating circle */}
+              <div className="flex flex-col items-center" style={{ gap: '10px', padding: '0 20px' }}>
+                {/* Circle with conic gradient border */}
+                <div style={{
+                  width: '70px', height: '70px', borderRadius: '50%',
+                  background: `conic-gradient(#F0B100 ${((currentDrama?.reviewRating || 7.4) / 10) * 100}%, #FFFFFF ${((currentDrama?.reviewRating || 7.4) / 10) * 100}%)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <div style={{
+                    width: '58px', height: '58px', borderRadius: '50%',
+                    backgroundColor: '#FFFFFF',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '18px', lineHeight: '2em', color: '#000000' }}>
+                      {currentDrama?.reviewRating ? parseFloat(currentDrama.reviewRating).toFixed(1) : '0.0'}
+                    </span>
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">Story</span>
-                  <div className="flex items-center">
-                    <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${(currentDrama?.reviewStats?.storyRating || 8.0) * 10}%`, backgroundColor: '#2B7FFF' }}
-                      ></div>
-                    </div>
-                    <span className="text-xs font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.storyRating || 8.0}</span>
-                  </div>
+                {/* Stars */}
+                <div className="flex items-center" style={{ gap: '1.6px' }}>
+                  {[1, 2, 3, 4, 5].map(star => {
+                    const rating = (currentDrama?.reviewRating || 0) / 2;
+                    const filled = star <= Math.floor(rating);
+                    const partial = !filled && star === Math.ceil(rating) && rating % 1 > 0;
+                    const pct = partial ? Math.round((rating % 1) * 100) : 0;
+                    return (
+                      <svg key={star} width="14" height="14" viewBox="0 0 18 18" fill="none">
+                        {partial && (
+                          <defs>
+                            <linearGradient id={`star-grad-mobile-${star}`} x1="0" x2="1" y1="0" y2="0">
+                              <stop offset={`${pct}%`} stopColor="#F0B100" />
+                              <stop offset={`${pct}%`} stopColor="#FFFFFF" />
+                            </linearGradient>
+                          </defs>
+                        )}
+                        <path d="M9 1.5L11.3 6.2L16.5 6.9L12.7 10.6L13.6 15.8L9 13.3L4.4 15.8L5.3 10.6L1.5 6.9L6.7 6.2L9 1.5Z"
+                          fill={filled ? '#F0B100' : partial ? `url(#star-grad-mobile-${star})` : 'none'}
+                          stroke="#F0B100" strokeWidth="1.2" />
+                      </svg>
+                    );
+                  })}
                 </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">Music</span>
-                  <div className="flex items-center">
-                    <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${(currentDrama?.reviewStats?.musicRating || 7.5) * 10}%`, backgroundColor: '#2B7FFF' }}
-                      ></div>
+                {/* Review count */}
+                <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '12px', lineHeight: '1.333em', color: '#99A1AF' }}>
+                  {reviews.length || 0} reviews
+                </span>
+              </div>
+              {/* Right: Rating bars */}
+              <div className="flex-1 flex flex-col justify-center">
+                {[
+                  { label: 'Acting/Cast', value: parseFloat(castRating) || 0 },
+                  { label: 'Music', value: parseFloat(musicRating) || 0 },
+                  { label: 'Story', value: parseFloat(storyRating) || 0 },
+                  { label: 'Rewatch Value', value: parseFloat(rewatchRating) || 0 },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center" style={{ gap: '15px', height: '24px' }}>
+                    <span style={{ width: '94px', flexShrink: 0, fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '14px', lineHeight: '1.714em', letterSpacing: '-0.022em', color: '#4A5565' }}>
+                      {item.label}
+                    </span>
+                    <div className="flex items-center flex-1" style={{ gap: '10px' }}>
+                      <div style={{ flex: 1, height: '8px', backgroundColor: '#E5E7EB', borderRadius: '9999px', overflow: 'hidden' }}>
+                        <div style={{ width: `${item.value * 10}%`, height: '100%', backgroundColor: '#2B7FFF', borderRadius: '9999px' }} />
+                      </div>
+                      <span style={{ width: '20px', textAlign: 'right', fontFamily: 'Inter, sans-serif', fontWeight: 500, fontSize: '14px', lineHeight: '1.714em', letterSpacing: '-0.022em', color: '#101828' }}>
+                        {item.value % 1 === 0 ? item.value : item.value.toFixed(1)}
+                      </span>
                     </div>
-                    <span className="text-xs font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.musicRating || 7.5}</span>
                   </div>
-                </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">Rewatch Value</span>
-                  <div className="flex items-center">
-                    <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden mr-2">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${(currentDrama?.reviewStats?.rewatchRating || 7.0) * 10}%`, backgroundColor: '#2B7FFF' }}
-                      ></div>
+        {/* Comments Section - Mobile */}
+        <div className="sm:hidden" style={{ paddingBottom: '20px' }}>
+          {/* Header: Comments count */}
+          <div style={{ padding: '16px' }}>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '18px', lineHeight: '1.333em', letterSpacing: '-0.017em', color: '#000000' }}>
+              Comments <span style={{ color: '#2B7FFF' }}>{reviews.length || 0}</span>
+            </span>
+          </div>
+
+          {/* Review cards */}
+          {reviews.length > 0 ? sortReviews(reviews, reviewSortMode).slice(0, mobileVisibleComments).map((review, index) => (
+            <div key={review._id || index} onClick={() => openReviewModal(review)} className="cursor-pointer" style={{
+              padding: '20px 16px',
+              backgroundColor: '#FFFFFF',
+              borderBottom: '1px solid #E9EBEF',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}>
+              {/* User info row */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center" style={{ gap: '8px' }}>
+                  {/* Avatar */}
+                  <div style={{
+                    width: '40px', height: '40px', borderRadius: '50%',
+                    backgroundColor: '#E9EBEF', border: '1px solid #E9EBEF',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    overflow: 'hidden', flexShrink: 0,
+                  }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v2h20v-2c0-3.3-6.7-5-10-5z" fill="#99A1AF"/>
+                    </svg>
+                  </div>
+                  {/* Name + Stars */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '14px', lineHeight: '1.43em', letterSpacing: '-0.01em', color: '#101828' }}>
+                      {review.username || 'Anonymous'}
+                    </span>
+                    <div className="flex" style={{ gap: '1.6px' }}>
+                      {[1, 2, 3, 4, 5].map(star => (
+                        <svg key={star} width="14" height="14" viewBox="0 0 18 18" fill="none">
+                          <path d="M9 1.5L11.3 6.2L16.5 6.9L12.7 10.6L13.6 15.8L9 13.3L4.4 15.8L5.3 10.6L1.5 6.9L6.7 6.2L9 1.5Z"
+                            fill={star <= Math.round(parseFloat(review.rating || 0) / 2) ? '#F0B100' : 'none'}
+                            stroke="#F0B100" strokeWidth="1.2" />
+                        </svg>
+                      ))}
                     </div>
-                    <span className="text-xs font-medium text-gray-800 w-8 text-right">{currentDrama?.reviewStats?.rewatchRating || 7.0}</span>
                   </div>
                 </div>
               </div>
+              {/* Comment text */}
+              <p className="line-clamp-2" style={{
+                fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '14px',
+                lineHeight: '1.375em', letterSpacing: '-0.01em', color: '#6A7282', margin: 0,
+              }}>
+                {review.reviewText?.replace(/^This review may contain spoilers\s+/i, '') || review.title || ''}
+              </p>
+            </div>
+          )) : (
+            <p className="text-center" style={{ padding: '20px 16px', fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#99A1AF' }}>
+              No reviews yet. Be the first to review!
+            </p>
+          )}
+
+          {/* See more / Fold button */}
+          {reviews.length > 3 && (
+            <div style={{ marginTop: '16px', padding: '0 16px', display: 'flex', justifyContent: 'center' }}>
+              <button
+                onClick={() => setMobileVisibleComments(prev => prev >= reviews.length ? 3 : prev + 3)}
+                style={{
+                  width: '100%',
+                  borderRadius: '9999px',
+                  border: '1px solid #D5D8DF',
+                  padding: '16px 150px',
+                  fontFamily: 'Inter, sans-serif',
+                  fontWeight: 600,
+                  fontSize: '14px',
+                  color: '#2D3138',
+                  backgroundColor: 'transparent',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {mobileVisibleComments >= reviews.length ? 'Fold' : 'See more'}
+              </button>
             </div>
           )}
         </div>
-        
+
+        {/* Spacer */}
+        <div className="sm:hidden" style={{ width: '100%', height: '8px', backgroundColor: '#F3F4F6' }} />
+
+        {/* Videos: Trailer & Teasers - Mobile */}
+        {currentDrama.videos && currentDrama.videos.length > 0 && (
+          <div className="sm:hidden" style={{ paddingBottom: '16px' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between" style={{ padding: '24px 16px 16px' }}>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '18px', lineHeight: '1.333em', letterSpacing: '-0.017em', color: '#000000' }}>
+                Videos: Trailer & Teasers
+              </span>
+            </div>
+            {/* Horizontal scroll video cards */}
+            <div
+              className="overflow-x-auto hide-scrollbar"
+              style={{ display: 'flex', gap: '10px', padding: '0 16px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            >
+              {currentDrama.videos.map((video, index) => {
+                const videoId = getYoutubeIdFromUrl(video.url);
+                return (
+                  <div
+                    key={index}
+                    className="flex-shrink-0 relative overflow-hidden cursor-pointer"
+                    style={{ width: '286px', height: '156px', borderRadius: '12px', backgroundColor: '#1E2939' }}
+                    onClick={() => {
+                      setSelectedVideoId(videoId);
+                      setTrailerTitle(video.title || 'Trailer');
+                      setShowTrailer(true);
+                    }}
+                  >
+                    {videoId && (
+                      <Image
+                        src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
+                        alt={video.title || 'Video'}
+                        fill
+                        className="object-cover"
+                        unoptimized
+                        onError={(e) => { e.target.onerror = null; e.target.src = '/images/placeholder-tvfilm.jpg'; }}
+                      />
+                    )}
+                    {/* Dark overlay */}
+                    <div className="absolute inset-0" style={{ backgroundColor: 'rgba(17, 17, 17, 0.2)' }} />
+                    {/* Play button */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div style={{
+                        width: '39px', height: '39px', borderRadius: '50%',
+                        backgroundColor: 'rgba(196, 196, 196, 0.6)',
+                        border: '0.9px solid #C2C2C2',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Play className="w-5 h-5 text-white ml-0.5" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Spacer */}
+        <div className="sm:hidden" style={{ width: '100%', height: '8px', backgroundColor: '#F3F4F6' }} />
+
+        {/* Cast - Mobile */}
+        {cast && cast.length > 0 && (
+          <div className="sm:hidden" style={{ paddingBottom: '20px' }}>
+            {/* Header */}
+            <div style={{ padding: '24px 16px 16px' }}>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '18px', lineHeight: '1.333em', letterSpacing: '-0.017em', color: '#000000' }}>
+                Cast
+              </span>
+            </div>
+            {/* Content */}
+            <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Horizontal scroll cast cards */}
+              <div
+                className="overflow-x-auto hide-scrollbar"
+                style={{ display: 'flex', gap: '3px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              >
+                {cast.map((actor, index) => (
+                  <div
+                    key={index}
+                    className="flex-shrink-0 cursor-pointer"
+                    style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'none', border: 'none', boxShadow: 'none' }}
+                    onClick={() => handleActorClick(actor.name, null)}
+                  >
+                    <div style={{ width: '120px', height: '150px', borderRadius: '12px', overflow: 'hidden', backgroundColor: '#E5E7EB', boxShadow: 'none' }}>
+                      {actor.image || actor.profileImage ? (
+                        <Image
+                          src={actor.image || actor.profileImage}
+                          alt={actor.name || 'Actor'}
+                          width={120}
+                          height={150}
+                          className="object-cover"
+                          style={{ width: '120px', height: '150px' }}
+                          unoptimized
+                          onError={(e) => { e.target.onerror = null; e.target.src = '/images/placeholder-tvfilm.jpg'; }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: '#E5E7EB' }}>
+                          <User className="w-8 h-8 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ width: '120px', background: 'none', border: 'none', boxShadow: 'none', padding: 0 }}>
+                      <p style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '14px', lineHeight: '1.4em', color: '#0A0A0A', margin: 0, padding: 0, background: 'none', border: 'none', boxShadow: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {actor.name || 'Unknown'}
+                      </p>
+                      <p style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '12px', lineHeight: '1.4em', color: '#6A7282', margin: 0, padding: 0, background: 'none', border: 'none', boxShadow: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {actor.role || actor.character || ''}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 8px Spacer */}
+        <div className="sm:hidden" style={{ width: '100%', height: '8px', backgroundColor: '#F3F4F6' }} />
+
+        {/* Mobile: Comment Ticker (rolling, gradient border) */}
+        <div className="sm:hidden" style={{ padding: '24px 16px 4px', backgroundColor: '#FFFFFF' }}>
+          <CommentTicker comments={commentsData} onNavigate={navigateToPage} />
+        </div>
+
+        {/* Mobile: Related News */}
+        {relatedNews && relatedNews.length > 0 && (
+          <div className="sm:hidden" style={{ backgroundColor: '#FFFFFF', padding: '24px 16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+              {/* Header + Big Card */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {/* Header row */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontFamily: 'Pretendard, sans-serif', fontWeight: 900, fontSize: '20px', lineHeight: '1.35em', color: '#101828' }}>
+                    <span style={{ color: '#2B7FFF' }}>Related</span> News
+                  </span>
+                </div>
+
+                {/* Big card (first news) */}
+                <Link href={`/news/${relatedNews[0]?.slug || relatedNews[0]?._id}`} style={{ textDecoration: 'none' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ width: '100%', height: '222px', borderRadius: '14px', overflow: 'hidden', backgroundColor: '#E5E7EB' }}>
+                      <img
+                        src={relatedNews[0]?.coverImage || relatedNews[0]?.thumbnail || '/images/news/default-news.jpg'}
+                        alt={relatedNews[0]?.title || ''}
+                        style={{ width: '100%', height: '222px', objectFit: 'cover' }}
+                        onError={(e) => { e.target.onerror = null; e.target.src = '/images/news/default-news.jpg'; }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <h3 className="line-clamp-2" style={{
+                        fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '18px',
+                        lineHeight: '1.25em', color: '#101828', margin: 0
+                      }}>
+                        {relatedNews[0]?.title || ''}
+                      </h3>
+                      <p className="line-clamp-2" style={{
+                        fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '12px',
+                        lineHeight: '1.5em', color: '#6A7282', margin: 0
+                      }}>
+                        {relatedNews[0]?.description || relatedNews[0]?.summary || ''}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              </div>
+
+              {/* Small cards - Row 1 (2 cards) */}
+              {relatedNews.length > 1 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {relatedNews.slice(1, 3).map((news, index) => (
+                    <Link key={index} href={`/news/${news.slug || news._id}`} style={{ textDecoration: 'none' }}>
+                      <div style={{ display: 'flex', gap: '12px', height: '70px' }}>
+                        <div style={{ width: '100px', height: '70px', borderRadius: '6px', overflow: 'hidden', backgroundColor: '#E5E7EB', flexShrink: 0 }}>
+                          <img
+                            src={news.coverImage || news.thumbnail || '/images/news/default-news.jpg'}
+                            alt={news.title || ''}
+                            style={{ width: '100px', height: '70px', objectFit: 'cover' }}
+                            onError={(e) => { e.target.onerror = null; e.target.src = '/images/news/default-news.jpg'; }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, minWidth: 0 }}>
+                          <span style={{
+                            fontFamily: 'Pretendard, sans-serif', fontWeight: 400, fontSize: '10px',
+                            lineHeight: '1.6em', color: '#99A1AF'
+                          }}>
+                            {news.publishedAt ? new Date(news.publishedAt).toLocaleDateString('en-CA') : news.createdAt ? new Date(news.createdAt).toLocaleDateString('en-CA') : ''}
+                          </span>
+                          <p className="line-clamp-2" style={{
+                            fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '14px',
+                            lineHeight: '1.43em', letterSpacing: '-0.01em', color: '#101828', margin: 0
+                          }}>
+                            {news.title || ''}
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {/* Small cards - Row 2 (2 more cards) */}
+              {relatedNews.length > 3 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {relatedNews.slice(3, 5).map((news, index) => (
+                    <Link key={index} href={`/news/${news.slug || news._id}`} style={{ textDecoration: 'none' }}>
+                      <div style={{ display: 'flex', gap: '12px', height: '70px' }}>
+                        <div style={{ width: '100px', height: '70px', borderRadius: '6px', overflow: 'hidden', backgroundColor: '#E5E7EB', flexShrink: 0 }}>
+                          <img
+                            src={news.coverImage || news.thumbnail || '/images/news/default-news.jpg'}
+                            alt={news.title || ''}
+                            style={{ width: '100px', height: '70px', objectFit: 'cover' }}
+                            onError={(e) => { e.target.onerror = null; e.target.src = '/images/news/default-news.jpg'; }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, minWidth: 0 }}>
+                          <span style={{
+                            fontFamily: 'Pretendard, sans-serif', fontWeight: 400, fontSize: '10px',
+                            lineHeight: '1.6em', color: '#99A1AF'
+                          }}>
+                            {news.publishedAt ? new Date(news.publishedAt).toLocaleDateString('en-CA') : news.createdAt ? new Date(news.createdAt).toLocaleDateString('en-CA') : ''}
+                          </span>
+                          <p className="line-clamp-2" style={{
+                            fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '14px',
+                            lineHeight: '1.43em', letterSpacing: '-0.01em', color: '#101828', margin: 0
+                          }}>
+                            {news.title || ''}
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+
+            </div>
+          </div>
+        )}
+
+        {/* Mobile: More Drama News */}
+        <div className="sm:hidden" style={{ backgroundColor: '#FFFFFF', padding: '24px 16px 32px' }}>
+          <MoreNews category="drama" storageKey="drama-detail-mobile" />
+        </div>
+
+
         {/* Trailer Modal */}
         {showTrailer && (
           <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -3683,10 +4128,12 @@ export async function getServerSideProps({ params, req, query, resolvedUrl }) {
     };
 
     // 각 API를 개별 try/catch로 감싸서 하나가 실패해도 나머지 데이터는 유지
-    const [newsRes, commentsRes, rankingRes] = await Promise.allSettled([
+    const [newsRes, commentsRes, rankingRes, trendingRes, editorsPickRes] = await Promise.allSettled([
       fetch(`${baseUrl}/api/news/drama?limit=50`),
       fetch(`${baseUrl}/api/comments/recent?limit=10`),
       fetch(`${baseUrl}/api/news?limit=10&sort=viewCount&category=drama`),
+      fetch(`${baseUrl}/api/news/trending?limit=5`),
+      fetch(`${baseUrl}/api/news/editors-pick?limit=6`),
     ]);
 
     // 관련 뉴스
@@ -3697,29 +4144,41 @@ export async function getServerSideProps({ params, req, query, resolvedUrl }) {
           if (!html) return '';
           return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
         };
-        relatedNews = newsData.success ? newsData.data.filter(item => {
-          const dramaTitle = drama?.title?.toLowerCase() || '';
-          const titleMatch = item?.title?.toLowerCase().includes(dramaTitle);
-          const summaryMatch = item?.summary?.toLowerCase().includes(dramaTitle);
-          const contentMatch = item?.content?.toLowerCase().includes(dramaTitle);
-          const tagMatch = Array.isArray(item?.tags) && item.tags.some(tag => tag?.toLowerCase().includes(dramaTitle));
-          const castMatch = Array.isArray(drama.cast) && drama.cast.some(actor => {
-            if (!actor?.name) return false;
-            const name = actor.name.toLowerCase();
-            return (
-              item?.title?.toLowerCase().includes(name) ||
-              item?.summary?.toLowerCase().includes(name) ||
-              item?.content?.toLowerCase().includes(name) ||
-              (Array.isArray(item?.tags) && item.tags.some(tag => tag?.toLowerCase().includes(name)))
-            );
-          });
-          return titleMatch || summaryMatch || contentMatch || tagMatch || castMatch;
-        }).slice(0, 6).map(item => ({
-          ...item,
-          coverImage: fixImageUrl(item.coverImage),
-          description: stripHtml(item.content).slice(0, 200),
-          content: null,
-        })) : [];
+        if (newsData.success && newsData.data) {
+          const allNews = newsData.data;
+          // 1) 드라마 제목/출연진 매칭 뉴스 우선
+          const matched = allNews.filter(item => {
+            const dramaTitle = drama?.title?.toLowerCase() || '';
+            const titleMatch = item?.title?.toLowerCase().includes(dramaTitle);
+            const summaryMatch = item?.summary?.toLowerCase().includes(dramaTitle);
+            const contentMatch = item?.content?.toLowerCase().includes(dramaTitle);
+            const tagMatch = Array.isArray(item?.tags) && item.tags.some(tag => tag?.toLowerCase().includes(dramaTitle));
+            const castMatch = Array.isArray(drama.cast) && drama.cast.some(actor => {
+              if (!actor?.name) return false;
+              const name = actor.name.toLowerCase();
+              return (
+                item?.title?.toLowerCase().includes(name) ||
+                item?.summary?.toLowerCase().includes(name) ||
+                item?.content?.toLowerCase().includes(name) ||
+                (Array.isArray(item?.tags) && item.tags.some(tag => tag?.toLowerCase().includes(name)))
+              );
+            });
+            return titleMatch || summaryMatch || contentMatch || tagMatch || castMatch;
+          }).slice(0, 6);
+
+          // 2) 6개 미만이면 최신순으로 나머지 채움
+          const usedIds = new Set(matched.map(m => m._id?.toString()));
+          const filler = allNews
+            .filter(item => !usedIds.has(item._id?.toString()))
+            .slice(0, 6 - matched.length);
+
+          relatedNews = [...matched, ...filler].map(item => ({
+            ...item,
+            coverImage: fixImageUrl(item.coverImage),
+            description: stripHtml(item.content).slice(0, 200),
+            content: null,
+          }));
+        }
       }
     } catch (e) { console.error('관련 뉴스 로딩 오류:', e.message); }
 
@@ -3741,12 +4200,32 @@ export async function getServerSideProps({ params, req, query, resolvedUrl }) {
       }
     } catch (e) { console.error('랭킹 뉴스 로딩 오류:', e.message); }
 
+    // 트렌딩 뉴스
+    let trendingNews = [];
+    try {
+      if (trendingRes.status === 'fulfilled' && trendingRes.value.ok) {
+        const trendingData = await trendingRes.value.json();
+        trendingNews = trendingData.success ? (trendingData.data || []) : [];
+      }
+    } catch (e) { console.error('트렌딩 뉴스 로딩 오류:', e.message); }
+
+    // Editor's Pick 뉴스
+    let editorsPickNews = [];
+    try {
+      if (editorsPickRes.status === 'fulfilled' && editorsPickRes.value.ok) {
+        const editorsPickData = await editorsPickRes.value.json();
+        editorsPickNews = editorsPickData.success ? (editorsPickData.data || []).map(n => ({ ...n, coverImage: fixImageUrl(n.coverImage), thumbnailUrl: fixImageUrl(n.thumbnailUrl) })) : [];
+      }
+    } catch (e) { console.error('Editor\'s Pick 뉴스 로딩 오류:', e.message); }
+
     return {
       props: {
         drama: processedDrama,
         relatedNews,
         recentComments,
         rankingNews,
+        trendingNews,
+        editorsPickNews,
         metaTags: generateMetaTags(processedDrama)
       }
     };

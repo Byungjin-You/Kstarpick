@@ -58,7 +58,6 @@ const TrendingNow = ({ items = [], onNavigate, showCard = true }) => {
     <div className={showCard ? 'bg-white border border-[#F3F4F6] shadow-card rounded-2xl p-4' : ''}>
       <div className="flex items-center justify-between mb-4">
         <h3 className={`font-bold leading-[1.5] text-black ${showCard ? 'text-[21px] lg:text-[23px]' : 'text-[20px]'}`} style={{ fontFamily: 'Inter, sans-serif' }}>Trending <span className="text-ksp-accent">NOW</span></h3>
-        <span className="text-xs text-ksp-meta" style={{ fontFamily: "'Pretendard', sans-serif" }}>See more</span>
       </div>
 
       <div className="space-y-3" ref={containerRef}>
@@ -123,13 +122,6 @@ const TrendingNow = ({ items = [], onNavigate, showCard = true }) => {
         })}
       </div>
 
-      <button
-        className="w-full mt-4 py-4 rounded-full text-sm font-semibold text-[#2D3138] hover:bg-gray-50 transition-colors"
-        style={{ border: '0.86px solid #E5E7EB', fontFamily: 'Inter, sans-serif' }}
-        onClick={() => onNavigate('/news')}
-      >
-        More Content
-      </button>
     </div>
   );
 };

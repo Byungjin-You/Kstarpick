@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import useScrollRestore from '../../hooks/useScrollRestore';
+// 스크롤 복원은 _app.js handleRouteChangeComplete에서 중앙 처리
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Instagram, Twitter, Youtube, Music, Star, Heart, Users, ChevronRight, Globe, ChevronLeft, X } from 'lucide-react';
@@ -66,7 +66,7 @@ const SocialIconMap = {
   spotify: <Music className="text-green-500" size={18} />
 };
 
-export default function CelebrityListPage({ celebrities = [], celebNews = [], recentComments, rankingNews, watchNews, recommendedNews }) {
+export default function CelebrityListPage({ celebrities = [], celebNews = [], recentComments, rankingNews, trendingNews = [], watchNews, recommendedNews, editorsPickNews = [] }) {
   const router = useRouter();
   const [currentCelebPage, setCurrentCelebPage] = useState(0);
   const [isPageChanging, setIsPageChanging] = useState(false);
@@ -89,8 +89,7 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
   const sidebarStickyRef = useRef(null);
   const [sidebarStickyTop, setSidebarStickyTop] = useState(92);
 
-  // 스크롤 위치 복원
-  useScrollRestore('celebScrollPosition', 'isBackToCeleb');
+  // 스크롤 복원은 _app.js handleRouteChangeComplete에서 중앙 처리
 
   // Sidebar sticky logic
   useEffect(() => {
@@ -245,12 +244,25 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
     Math.ceil(sortedCelebrities.length / celebsPerPage)
   , [sortedCelebrities, celebsPerPage]);
 
+  // PC 캐러셀은 카드 3개 단위로 이동
+  const pcCardsPerSlide = 3;
+  const pcMaxPage = useMemo(() =>
+    Math.max(0, Math.ceil(sortedCelebrities.length / pcCardsPerSlide) - 1)
+  , [sortedCelebrities.length]);
+
   useEffect(() => {
     if (isPageChanging) return;
     if (currentCelebPage >= totalPages && totalPages > 0) {
       setCurrentCelebPage(totalPages - 1);
     }
   }, [celebsPerPage, totalPages, currentCelebPage, isPageChanging]);
+
+  // PC에서 pcMaxPage 초과 방지
+  useEffect(() => {
+    if (!isMobile && currentCelebPage > pcMaxPage && pcMaxPage >= 0) {
+      setCurrentCelebPage(pcMaxPage);
+    }
+  }, [isMobile, currentCelebPage, pcMaxPage]);
 
   const goToPrevPage = () => {
     if (currentCelebPage > 0 && !isPageChanging) {
@@ -262,14 +274,84 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
   };
 
   const goToNextPage = () => {
-    const maxPage = Math.ceil(sortedCelebrities.length / 3) - 1;
-    if (currentCelebPage < maxPage && !isPageChanging) {
+    if (currentCelebPage < pcMaxPage && !isPageChanging) {
       setIsPageChanging(true);
       setSlideDirection('right');
       setCurrentCelebPage(currentCelebPage + 1);
       setTimeout(() => { setIsPageChanging(false); }, animationDuration / 2);
     }
   };
+
+  // 마우스 드래그 스크롤 (translateX 방식)
+  const celebCarouselRef = useRef(null);
+  const dragOffset = useRef(0); // 현재 translateX 값
+  const dragState = useRef({ isDragging: false, startX: 0, startOffset: 0, didDrag: false });
+
+  const applyTranslate = (x, smooth) => {
+    const el = celebCarouselRef.current;
+    if (!el) return;
+    el.style.transition = smooth ? 'transform 0.3s ease' : 'none';
+    el.style.transform = `translateX(${x}px)`;
+  };
+
+  const handleMouseDown = (e) => {
+    // See More 버튼 클릭은 무시
+    if (e.target.closest('button')) return;
+    e.preventDefault();
+    dragState.current = { isDragging: true, startX: e.clientX, startOffset: dragOffset.current, didDrag: false };
+  };
+
+  // 드래그 중이면 카드 링크 클릭 방지
+  const handleCardClick = (e) => {
+    if (dragState.current.didDrag) {
+      e.preventDefault();
+      e.stopPropagation();
+      dragState.current.didDrag = false;
+    }
+  };
+
+  useEffect(() => {
+    const onMouseMove = (e) => {
+      if (!dragState.current.isDragging) return;
+      e.preventDefault();
+      const diff = e.clientX - dragState.current.startX;
+      if (Math.abs(diff) > 5) dragState.current.didDrag = true;
+      const el = celebCarouselRef.current;
+      if (!el) return;
+      const parentWidth = el.parentElement?.offsetWidth || 0;
+      const contentWidth = el.scrollWidth;
+      const maxOffset = 0;
+      const minOffset = -(contentWidth - parentWidth);
+      let newOffset = dragState.current.startOffset + diff;
+      // 경계 제한 (약간의 탄성)
+      if (newOffset > maxOffset) newOffset = maxOffset + (newOffset - maxOffset) * 0.2;
+      if (newOffset < minOffset) newOffset = minOffset + (newOffset - minOffset) * 0.2;
+      dragOffset.current = newOffset;
+      applyTranslate(newOffset, false);
+    };
+
+    const onMouseUp = () => {
+      if (!dragState.current.isDragging) return;
+      dragState.current.isDragging = false;
+      const el = celebCarouselRef.current;
+      if (!el) return;
+      const parentWidth = el.parentElement?.offsetWidth || 0;
+      const contentWidth = el.scrollWidth;
+      const maxOffset = 0;
+      const minOffset = -(contentWidth - parentWidth);
+      // 경계 스냅백
+      if (dragOffset.current > maxOffset) dragOffset.current = maxOffset;
+      if (dragOffset.current < minOffset) dragOffset.current = minOffset;
+      applyTranslate(dragOffset.current, true);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
 
   const goToPage = (pageNumber) => {
     if (pageNumber >= 0 && pageNumber < totalPages && !isPageChanging && pageNumber !== currentCelebPage) {
@@ -312,6 +394,7 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
             src={celeb.profileImage}
             alt={celeb.name}
             className="absolute inset-0 w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-700"
+            draggable="false"
             onError={handleImageError}
           />
           {/* Dark blur overlay */}
@@ -329,6 +412,7 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
               src={celeb.profileImage}
               alt={celeb.name}
               className="w-full h-full object-cover object-top group-hover:scale-110 transition-transform duration-700"
+              draggable="false"
               onError={handleImageError}
             />
           </div>
@@ -387,85 +471,242 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
       />
 
       {/* ============ MOBILE LAYOUT (< lg) ============ */}
-      <div className="lg:hidden">
-        <div className="container mx-auto px-4 pt-0 pb-12">
-          {/* 제목 영역 */}
-          <div className="mb-8 mt-8">
-            <h1 className="font-bold text-black" style={{ fontSize: '20px' }}>
-              <span style={{ color: '#233CFA' }}>Celebrities</span> at a Glance
-            </h1>
+      <div className="lg:hidden overflow-x-hidden">
+
+        {/* === CommentTicker === */}
+        <div className="bg-white" style={{ padding: '16px 16px 4px' }}>
+          <CommentTicker comments={recentComments} onNavigate={navigateToPage} />
+        </div>
+
+        {/* === Section: Celebrities at a glance === */}
+        <div className="bg-white">
+          {/* Header */}
+          <div className="px-4 pt-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[21px] font-extrabold" style={{ fontFamily: 'Pretendard, sans-serif', lineHeight: '1.29em', color: '#101828' }}>
+                <span className="text-ksp-accent">Celebrities</span> at a glance
+              </h2>
+            </div>
           </div>
 
-          {celebrities.length > 0 ? (
-            <>
-              {/* 모바일 가로 스크롤 레이아웃 */}
-              <div className="mt-8 mb-12">
-                <div className="relative">
+          {/* Content */}
+          <div className="flex flex-col" style={{ gap: '20px', padding: '16px 16px 20px' }}>
+            <div className="flex flex-col" style={{ gap: '16px' }}>
+
+              {/* Hero Card #1 */}
+              {sortedCelebrities.length > 0 && (() => {
+                const celeb = sortedCelebrities[0];
+                const totalFollowers = getTotalFollowers(celeb);
+                return (
                   <div
-                    ref={scrollContainerRef}
-                    className="flex overflow-x-auto pb-4 space-x-4 hide-scrollbar px-6 snap-x snap-mandatory scroll-smooth"
-                    onScroll={handleScrollUpdate}
-                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', paddingLeft: '1.5rem' }}
+                    className="relative rounded-xl overflow-hidden cursor-pointer"
+                    style={{ height: '360px', background: '#1a1a2e' }}
+                    onClick={() => navigateToPage(`/celeb/${celeb.slug}`)}
                   >
-                    {sortedCelebrities.slice(0, 30).map((celeb, index) => {
-                      const isSolo = celeb.category === 'solo';
+                    {/* Blurred background image */}
+                    <img
+                      src={celeb.profileImage}
+                      alt=""
+                      className="absolute w-full h-full object-cover object-top"
+                      style={{ inset: '-20px', width: 'calc(100% + 40px)', height: 'calc(100% + 40px)', filter: 'blur(50px)', WebkitFilter: 'blur(50px)' }}
+                      onError={handleImageError}
+                    />
+                    {/* Dark overlay */}
+                    <div className="absolute inset-0" style={{ background: 'rgba(0,7,20,0.3)' }} />
+                    {/* Inner album image */}
+                    <div
+                      className="absolute overflow-hidden z-[1]"
+                      style={{ top: '74px', left: '50%', transform: 'translateX(-50%)', width: 'calc(100% - 62px)', height: '262px', borderRadius: '12px' }}
+                    >
+                      <img
+                        src={celeb.profileImage}
+                        alt={celeb.name}
+                        className="w-full h-full object-cover object-top"
+                        onError={handleImageError}
+                      />
+                    </div>
+                    {/* Rank number */}
+                    <span
+                      className="absolute select-none pointer-events-none z-[2]"
+                      style={{
+                        top: '277px', left: '34px',
+                        fontFamily: 'Inter', fontWeight: 900, fontStyle: 'italic',
+                        fontSize: '70px', lineHeight: '48px',
+                        letterSpacing: '0.352px',
+                        color: '#FFF', WebkitTextStroke: '1px #1D1D1D',
+                        paintOrder: 'stroke fill',
+                        textShadow: '0 4px 10px rgba(0,0,0,0.4)',
+                      }}
+                    >1</span>
+                    {/* Top: name + followers - Figma: x:24, y:24 */}
+                    <div className="absolute flex items-center justify-between z-[2]" style={{ top: '24px', left: '24px', right: '30px' }}>
+                      <span className="text-white font-bold text-[24px] truncate" style={{ fontFamily: 'Inter', lineHeight: '1.17em', letterSpacing: '-0.018em' }}>
+                        {celeb.name}
+                      </span>
+                      {totalFollowers > 0 && (
+                        <div className="flex items-center gap-1 rounded-full flex-shrink-0" style={{ padding: '4px 12px 4px 10px', background: 'rgba(255,255,255,0.2)' }}>
+                          <Heart size={14} className="text-white" fill="white" />
+                          <span className="text-white text-[12px] font-bold" style={{ fontFamily: 'Inter', letterSpacing: '-0.013em' }}>
+                            {formatCompactNumber(totalFollowers)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Small Cards #2-5 horizontal scroll */}
+              {sortedCelebrities.length > 1 && (
+                <div className="overflow-x-auto scrollbar-hide -mx-4">
+                  <div className="flex gap-2 px-4">
+                    {sortedCelebrities.slice(1, 5).map((celeb, idx) => {
+                      const rank = idx + 2;
+                      const totalFollowers = getTotalFollowers(celeb);
                       return (
-                        <Link
-                          href={`/celeb/${celeb.slug}`}
+                        <div
                           key={celeb._id}
-                          className={`flex-shrink-0 w-[65%] snap-center transition-all duration-300 ${
-                            activeCardIndex === index ? 'opacity-100 scale-100' : 'opacity-90 scale-95'
-                          } ${index === 0 ? 'ml-6' : ''}`}
-                          style={{ boxShadow: 'none !important' }}
+                          className="flex-shrink-0 relative rounded-[6px] overflow-hidden cursor-pointer"
+                          style={{ width: '155px', height: '180px', background: '#1a1a2e' }}
+                          onClick={() => navigateToPage(`/celeb/${celeb.slug}`)}
                         >
-                          <div className="bg-white overflow-hidden transition-all duration-300 group relative h-full rounded-lg shadow-none"
-                            style={{ boxShadow: 'none !important', border: 'none !important', outline: 'none !important' }}
-                          >
-                            <div className="aspect-[4/5] overflow-hidden relative rounded-md">
-                              <img
-                                src={celeb.profileImage}
-                                alt={celeb.name}
-                                className="object-cover object-top w-full h-full group-hover:scale-105 transition-transform duration-500"
-                                onError={handleImageError}
-                              />
-                              <div className="absolute top-0 left-0 w-16 h-16 flex items-center justify-center">
-                                <span className="text-white font-bold text-5xl drop-shadow-lg" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
-                                  {index + 1}
+                          {/* Blurred background */}
+                          <img
+                            src={celeb.profileImage}
+                            alt=""
+                            className="absolute w-full h-full object-cover object-top"
+                            style={{ inset: '-10px', width: 'calc(100% + 20px)', height: 'calc(100% + 20px)', filter: 'blur(25px)', WebkitFilter: 'blur(25px)' }}
+                            onError={handleImageError}
+                          />
+                          {/* Dark overlay */}
+                          <div className="absolute inset-0" style={{ background: 'rgba(0,7,20,0.3)' }} />
+                          {/* Inner album */}
+                          <div className="absolute overflow-hidden z-[1]" style={{ top: '37px', left: '12px', width: '131px', height: '131px', borderRadius: '6px' }}>
+                            <img
+                              src={celeb.profileImage}
+                              alt={celeb.name}
+                              className="w-full h-full object-cover object-top"
+                              onError={handleImageError}
+                            />
+                          </div>
+                          {/* Rank */}
+                          <span
+                            className="absolute select-none pointer-events-none z-[2]"
+                            style={{
+                              top: '138px', left: '17px',
+                              fontFamily: 'Inter', fontWeight: 900, fontStyle: 'italic',
+                              fontSize: '50px', lineHeight: '24px',
+                              letterSpacing: '0.176px',
+                              color: '#FFF', WebkitTextStroke: '0.5px #1D1D1D',
+                              paintOrder: 'stroke fill',
+                              textShadow: '0 2px 5px rgba(0,0,0,0.4)',
+                            }}
+                          >{rank}</span>
+                          {/* Top: name + followers - Figma: x:12, y:12 */}
+                          <div className="absolute flex items-center justify-between z-[2]" style={{ top: '12px', left: '12px', width: '131px' }}>
+                            <span className="text-white font-bold text-[12px] truncate" style={{ fontFamily: 'Inter', lineHeight: '1.17em', letterSpacing: '-0.018em' }}>
+                              {celeb.name}
+                            </span>
+                            {totalFollowers > 0 && (
+                              <div className="flex items-center gap-[2px] rounded-full flex-shrink-0" style={{ padding: '2px 6px 2px 5px', background: 'rgba(255,255,255,0.2)' }}>
+                                <Heart size={10} className="text-white" fill="white" />
+                                <span className="text-white text-[8px] font-bold" style={{ fontFamily: 'Inter' }}>
+                                  {formatCompactNumber(totalFollowers)}
                                 </span>
                               </div>
-                            </div>
-                            <div className="p-3">
-                              <h3 className="font-bold text-gray-800 text-lg mb-1 line-clamp-1">
-                                {celeb.name}
-                              </h3>
-                              {celeb.agency && (
-                                <div className="flex items-center text-xs text-gray-500">
-                                  <Globe size={10} className="mr-1" />
-                                  <span className="truncate">{celeb.agency}</span>
-                                </div>
-                              )}
-                            </div>
+                            )}
                           </div>
-                        </Link>
+                        </div>
                       );
                     })}
+                    <div className="flex-shrink-0 w-4" />
                   </div>
                 </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+
+        {/* Separator */}
+        <div className="h-2 bg-[#F3F4F6]" />
+
+        {/* === Remaining sections (Trending, Latest Updates, More News) === */}
+        <div className="bg-white px-4 py-5">
+          <TrendingNow items={trendingNews.length > 0 ? trendingNews : rankingNews} onNavigate={navigateToPage} showCard={false} />
+        </div>
+        <div className="h-2 bg-[#F3F4F6]" />
+
+        {/* Latest Celeb Updates */}
+        <div className="bg-white" style={{ padding: '24px 16px' }}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[20px] font-black text-[#101828]" style={{ fontFamily: 'Inter, sans-serif' }}>
+              <span className="text-ksp-accent">Latest Celeb</span> Updates
+            </h2>
+          </div>
+
+          {/* Featured large card */}
+          {celebNews && celebNews.length > 0 && (
+            <div
+              className="rounded-[10px] overflow-hidden cursor-pointer relative"
+              style={{ height: '227px' }}
+              onClick={() => navigateToPage(`/news/${celebNews[0].slug || celebNews[0]._id}`)}
+            >
+              <img
+                src={celebNews[0].coverImage || celebNews[0].thumbnailUrl || '/images/news/default-news.jpg'}
+                alt={celebNews[0].title}
+                className="w-full h-full object-cover"
+                onError={(e) => { e.target.src = '/images/news/default-news.jpg'; }}
+              />
+              <div className="absolute bottom-0 left-0 right-0 px-[17px] py-5" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%)' }}>
+                <p className="text-white font-bold text-[14px] leading-[1.6] line-clamp-2" style={{ fontFamily: 'Inter', letterSpacing: '0.004em' }}>
+                  {celebNews[0].title}
+                </p>
               </div>
-            </>
-          ) : (
-            <div className="bg-white rounded-2xl p-16 text-center mb-16">
-              <div className="text-gray-400 mb-6">
-                <Users size={64} className="mx-auto opacity-60" />
-              </div>
-              <p className="text-gray-600 text-xl mb-4">No celebrities found</p>
-              <p className="text-gray-400 text-base">Check back later for updates</p>
             </div>
           )}
 
-          {/* 셀럽 뉴스 - MoreNews */}
-          <MoreNews category="celeb" initialNews={celebNews} />
-          <div className="mb-12"></div>
+          {/* News list items */}
+          {celebNews && celebNews.length > 1 && (
+            <div className="pt-4 flex flex-col gap-4">
+              {celebNews.slice(1, 5).map((news) => (
+                <div
+                  key={news._id}
+                  className="flex items-center gap-4 cursor-pointer"
+                  onClick={() => navigateToPage(`/news/${news.slug || news._id}`)}
+                >
+                  <div className="flex-shrink-0 w-[127px] h-[95px] rounded-lg overflow-hidden" style={{ background: '#F3F4F6' }}>
+                    <img
+                      src={news.coverImage || news.thumbnailUrl || '/images/news/default-news.jpg'}
+                      alt={news.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.target.src = '/images/news/default-news.jpg'; }}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0 flex flex-col gap-2">
+                    <p className="text-[#101828] font-bold text-[16px] leading-[1.25] line-clamp-2" style={{ fontFamily: 'Inter', letterSpacing: '-0.013em' }}>
+                      {news.title}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-[2px] rounded bg-[#DBE6F6] text-[#2B7FFF] font-bold text-[12px]" style={{ fontFamily: 'Inter' }}>
+                        Celeb
+                      </span>
+                      <span className="text-[#6A7282] text-[12px]" style={{ fontFamily: 'Inter' }}>
+                        {news.author?.name || news.author || ''}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="h-2 bg-[#F3F4F6]" />
+
+        {/* More News */}
+        <div className="bg-white py-5 px-4">
+          <MoreNews category="celeb" initialNews={celebNews} storageKey="celeb_mobile" />
         </div>
       </div>
 
@@ -485,58 +726,29 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
                       <span style={{ color: '#2B7FFF' }}>Celebrities</span>{' '}
                       <span style={{ color: '#101828' }}>at a glance</span>
                     </h2>
-                    <button
-                      onClick={() => navigateToPage('/celeb')}
-                      className="flex items-center gap-[10px] text-[14px] font-bold hover:underline"
-                      style={{ color: '#2B7FFF', letterSpacing: '-0.0107em' }}
-                    >
-                      See more
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="#2B7FFF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    </button>
                   </div>
 
                   {celebrities.length > 0 ? (
-                    <div className="relative">
-                      {/* Card row (Figma: 1148px, overflow hidden, gap 16px, cards 310x360) */}
-                      <div className="overflow-hidden" style={{ maxWidth: '1148px' }}>
-                        <div
-                          className="flex gap-4 transition-transform duration-300 ease-in-out"
-                          style={{ transform: `translateX(-${currentCelebPage * (310 + 16) * 3}px)` }}
-                        >
-                          {sortedCelebrities.map((celeb, index) => (
-                            <CelebCardPC
-                              key={celeb._id}
-                              celeb={celeb}
-                              index={index}
-                              rank={index + 1}
-                            />
-                          ))}
-                        </div>
+                    <div
+                      className="overflow-hidden select-none"
+                      style={{ cursor: 'grab' }}
+                      onMouseDown={handleMouseDown}
+                      onClickCapture={handleCardClick}
+                    >
+                      <div
+                        ref={celebCarouselRef}
+                        className="flex gap-4"
+                        style={{ width: 'max-content' }}
+                      >
+                        {sortedCelebrities.map((celeb, index) => (
+                          <CelebCardPC
+                            key={celeb._id}
+                            celeb={celeb}
+                            index={index}
+                            rank={index + 1}
+                          />
+                        ))}
                       </div>
-
-                      {/* Right arrow button (Figma: overlapping 4th card, vertically centered) */}
-                      {currentCelebPage < Math.ceil(sortedCelebrities.length / 3) - 1 && (
-                        <button
-                          onClick={goToNextPage}
-                          disabled={isPageChanging}
-                          aria-label="Next page"
-                          className="absolute z-20 w-[44px] h-[44px] rounded-full bg-white flex items-center justify-center transition-all duration-300 hover:bg-gray-50"
-                          style={{ top: '50%', transform: 'translateY(-50%)', right: '-22px', border: '1.5px solid #C0D9FF', boxShadow: '0px 0px 6px rgba(139, 185, 255, 0.43)' }}
-                        >
-                          <ChevronRight size={18} strokeWidth={2} className="text-[#2B7FFF]" />
-                        </button>
-                      )}
-                      {currentCelebPage > 0 && (
-                        <button
-                          onClick={goToPrevPage}
-                          disabled={isPageChanging}
-                          aria-label="Previous page"
-                          className="absolute z-20 w-[44px] h-[44px] rounded-full bg-white flex items-center justify-center transition-all duration-300 hover:bg-gray-50"
-                          style={{ top: '50%', transform: 'translateY(-50%)', left: '0px', border: '1.5px solid #C0D9FF', boxShadow: '0px 0px 6px rgba(139, 185, 255, 0.43)' }}
-                        >
-                          <ChevronLeft size={18} strokeWidth={2} className="text-[#2B7FFF]" />
-                        </button>
-                      )}
                     </div>
                   ) : (
                     <div className="text-center py-12">
@@ -545,18 +757,10 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
                     </div>
                   )}
 
-                  {/* See More button (Figma: full-width, 46px, border #D5D8DF, rounded 100px) */}
-                  <button
-                    onClick={() => navigateToPage('/celeb')}
-                    className="w-full mt-6 flex items-center justify-center rounded-full transition-colors hover:bg-gray-50"
-                    style={{ height: '46px', border: '1px solid #D5D8DF' }}
-                  >
-                    <span className="text-[14px] font-semibold" style={{ color: '#2D3138' }}>See More</span>
-                  </button>
                 </div>
 
                 {/* ===== Section 2: Latest Celeb Updates (3-column grid) ===== */}
-                <SectionWrapper title="Latest Celeb Updates" emoji="🔥" seeMoreHref="/news" onNavigate={navigateToPage}>
+                <SectionWrapper title="Latest Celeb Updates" emoji="🔥">
                   <ArticleCardGrid articles={celebNews?.slice(4, 7) || []} onNavigate={navigateToPage} />
                   {celebNews?.length > 7 && (
                     <div className="mt-8">
@@ -575,14 +779,6 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
                       </h2>
                       <span className="text-2xl">👀</span>
                     </div>
-                    <button
-                      onClick={() => navigateToPage('/celeb')}
-                      className="flex items-center gap-[10px] text-[14px] font-bold hover:underline"
-                      style={{ color: '#2B7FFF', letterSpacing: '-0.0107em' }}
-                    >
-                      See more
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="#2B7FFF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    </button>
                   </div>
 
                   {/* Content: Featured left + News list right */}
@@ -657,14 +853,14 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
                 <div ref={sidebarStickyRef} className="sticky" style={{ top: sidebarStickyTop + 'px' }}>
                   <div className="space-y-8">
                     {/* Trending NOW */}
-                    <TrendingNow items={rankingNews || []} onNavigate={navigateToPage} />
+                    <TrendingNow items={trendingNews.length > 0 ? trendingNews : rankingNews || []} onNavigate={navigateToPage} />
 
                     {/* Editor's PICK (Figma: DramaNewsWidget) */}
-                    {rankingNews && rankingNews.length > 0 && (
+                    {(editorsPickNews.length > 0 || (rankingNews && rankingNews.length > 0)) && (
                       <div>
                         <h3 className="font-bold text-[23px] leading-[1.5] text-[#101828] mb-[6px] pl-[26px]">Editor&apos;s <span className="text-ksp-accent">PICK</span></h3>
                         <div className="bg-white border border-[#F3F4F6] shadow-card rounded-2xl p-4 space-y-6">
-                          {rankingNews.slice(0, 6).map((item) => (
+                          {(editorsPickNews.length > 0 ? editorsPickNews : rankingNews).slice(0, 6).map((item) => (
                             <div
                               key={item._id}
                               className="flex gap-4 cursor-pointer group"
@@ -743,15 +939,16 @@ export async function getServerSideProps(context) {
     const baseUrl = `${protocol}://${host}`;
 
     // Use production API for data (local DB may not have all data)
-    const prodUrl = process.env.NEXT_PUBLIC_API_URL || baseUrl;
+    const prodUrl = baseUrl;
 
     // Fetch all data in parallel
-    const [celebResponse, celebNewsResponse, commentsResponse, rankingResponse, allNewsResponse] = await Promise.all([
+    const [celebResponse, celebNewsResponse, commentsResponse, rankingResponse, allNewsResponse, trendingResponse] = await Promise.all([
       fetch(`${prodUrl}/api/celeb?limit=50&active=true`),
       fetch(`${prodUrl}/api/news/celeb?limit=200`),
       fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&category=celeb`).catch(() => ({ json: () => ({ success: false }) })),
-      fetch(`${prodUrl}/api/news?limit=200`).catch(() => ({ json: () => ({ success: false }) }))
+      fetch(`${prodUrl}/api/news?limit=200`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news/trending?limit=5&category=celeb`).catch(() => ({ json: () => ({ success: false }) })),
     ]);
 
     const celebData = await celebResponse.json();
@@ -759,6 +956,12 @@ export async function getServerSideProps(context) {
     const commentsData = await commentsResponse.json();
     const rankingData = await rankingResponse.json();
     const allNewsData = await allNewsResponse.json();
+    const trendingData = await trendingResponse.json();
+
+    // Editor's PICK: trending ID 제외
+    const trendingIds = (trendingData.success ? trendingData.data || [] : []).map(n => n._id).join(',');
+    const editorsPickResponse = await fetch(`${prodUrl}/api/news/editors-pick?limit=6&category=celeb${trendingIds ? `&exclude=${trendingIds}` : ''}`).catch(() => ({ json: () => ({ success: false }) }));
+    const editorsPickData = await editorsPickResponse.json();
 
     // Fix relative image URLs to absolute production URLs
     const fixImageUrl = (url) => {
@@ -800,6 +1003,11 @@ export async function getServerSideProps(context) {
       ? recommendedNews
       : rankingNews.slice(0, 3);
 
+    // Trending news
+    const trendingNews = trendingData.success
+      ? (trendingData.data || []).slice(0, 5).map(n => ({ ...n, coverImage: fixImageUrl(n.coverImage), thumbnailUrl: fixImageUrl(n.thumbnailUrl) }))
+      : [];
+
     // Celebrities
     const celebrities = celebData.success && celebData.data?.celebrities
       ? celebData.data.celebrities
@@ -811,8 +1019,10 @@ export async function getServerSideProps(context) {
         celebNews: processedNews,
         recentComments: commentsData.success ? (commentsData.data || []).slice(0, 10) : [],
         rankingNews,
+        trendingNews,
         watchNews,
         recommendedNews: finalRecommended,
+        editorsPickNews: editorsPickData.success ? (editorsPickData.data || []).map(n => ({ ...n, coverImage: fixImageUrl(n.coverImage), thumbnailUrl: fixImageUrl(n.thumbnailUrl) })) : [],
       }
     };
   } catch (error) {
@@ -823,8 +1033,10 @@ export async function getServerSideProps(context) {
         celebNews: [],
         recentComments: [],
         rankingNews: [],
+        trendingNews: [],
         watchNews: [],
         recommendedNews: [],
+        editorsPickNews: [],
       }
     };
   }

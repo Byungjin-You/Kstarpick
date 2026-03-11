@@ -27,7 +27,6 @@ const LatestNewsList = ({ articles = [], onNavigate, title = 'Latest News' }) =>
             <h2 className="text-[26px] font-black text-[#101828]">{title}</h2>
             <span className="text-2xl">📋</span>
           </div>
-          <span className="flex items-center gap-1 text-sm font-bold text-ksp-accent">See more <span>›</span></span>
         </div>
       )}
       <div className="space-y-6">

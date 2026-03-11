@@ -66,8 +66,8 @@ const HeroSection = ({ article, onNavigate, children }) => {
             </span>
             {/* Mobile Rank Number */}
             <span
-              className="lg:hidden absolute bottom-3 left-3 text-white font-black leading-none"
-              style={{ fontFamily: 'Inter, sans-serif', fontSize: '67px', textShadow: '0 3px 6px rgba(0,0,0,0.3)' }}
+              className="lg:hidden absolute bottom-3 left-3 text-white font-black italic leading-none"
+              style={{ fontFamily: 'Inter, sans-serif', fontSize: '67px', fontStyle: 'italic', textShadow: '0 3px 6px rgba(0,0,0,0.3)' }}
             >
               1
             </span>

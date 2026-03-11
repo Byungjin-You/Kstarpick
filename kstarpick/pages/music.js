@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { X, Eye } from 'lucide-react';
 import MainLayout from '../components/MainLayout';
 import Seo from '../components/Seo';
-import useScrollRestore from '../hooks/useScrollRestore';
+// 스크롤 복원은 _app.js handleRouteChangeComplete에서 중앙 처리
 import { decodeHtmlEntities } from '../utils/helpers';
 import { generateWebsiteJsonLd } from '../utils/seoHelpers';
 import MoreNews from '../components/MoreNews';
@@ -136,17 +136,18 @@ const MusicCard = ({ song, rank, size = 'small', onClick }) => {
   );
 };
 
-export default function Music({ musicNews = [], topSongs = [], watchNews = [], recentComments = [], rankingNews = [] }) {
+export default function Music({ musicNews = [], topSongs = [], watchNews = [], recentComments = [], rankingNews = [], trendingNews = [], editorsPickNews = [] }) {
   const router = useRouter();
   const [showYoutubeModal, setShowYoutubeModal] = useState(false);
   const [currentYoutubeUrl, setCurrentYoutubeUrl] = useState('');
   const [processedSongs, setProcessedSongs] = useState([]);
+  const [glanceExpanded, setGlanceExpanded] = useState(false);
 
   // Sidebar sticky
   const sidebarStickyRef = useRef(null);
   const [sidebarStickyTop, setSidebarStickyTop] = useState(92);
 
-  useScrollRestore('musicScrollPosition', 'isBackToMusic');
+  // 스크롤 복원은 _app.js handleRouteChangeComplete에서 중앙 처리
 
   useEffect(() => {
     const el = sidebarStickyRef.current;
@@ -204,7 +205,7 @@ export default function Music({ musicNews = [], topSongs = [], watchNews = [], r
   };
 
   // Songs for the "at a glance" section
-  const glanceSongs = processedSongs.slice(0, 9);
+  const glanceSongs = processedSongs.slice(0, 19);
 
   return (
     <MainLayout>
@@ -224,42 +225,219 @@ export default function Music({ musicNews = [], topSongs = [], watchNews = [], r
           <div className="px-4 py-3">
             <CommentTicker comments={recentComments} onNavigate={navigateToPage} />
           </div>
+
+          {/* Music News at a glance */}
+          <div className="bg-white">
+            {/* Header */}
+            <div className="px-4 pt-4 pb-0">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[21px] font-extrabold" style={{ fontFamily: 'Pretendard, sans-serif', lineHeight: '1.29em', color: '#101828' }}>
+                  <span className="text-ksp-accent">Music News</span> at a glance
+                </h2>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex flex-col gap-5 px-4 pt-4 pb-5">
+              {/* Top 3 large cards */}
+              <div className="flex flex-col gap-4">
+                {glanceSongs.slice(0, 3).map((song) => (
+                  <div
+                    key={song._id}
+                    className="relative overflow-hidden cursor-pointer group"
+                    style={{ height: '250px', borderRadius: '14px' }}
+                    onClick={() => handleSongClick(song)}
+                  >
+                    {/* Background image */}
+                    <img
+                      src={song.coverImage || '/images/placeholder.jpg'}
+                      alt={decodeHtmlEntities(song.title || '')}
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      onError={(e) => { e.target.src = '/images/placeholder.jpg'; }}
+                    />
+                    {/* Gradient overlay */}
+                    <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 100%)' }} />
+                    {/* Bottom content: rank + title + views */}
+                    <div className="absolute bottom-0 left-0 right-0 flex gap-3" style={{ padding: '0 16px 16px' }}>
+                      <span
+                        className="select-none flex-shrink-0"
+                        style={{
+                          fontFamily: 'Inter', fontWeight: 900, fontStyle: 'italic', fontSize: '48px',
+                          lineHeight: '48px', letterSpacing: '0.352px',
+                          color: '#FFF', WebkitTextStroke: '1px #1D1D1D',
+                          paintOrder: 'stroke fill',
+                          textShadow: '0 4px 10px rgba(0,0,0,0.4)',
+                          width: '32px',
+                        }}
+                      >{song.position}</span>
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <h3
+                          className="text-white font-bold line-clamp-2"
+                          style={{ fontFamily: 'Inter', fontSize: '18px', lineHeight: '1.375em', letterSpacing: '-0.0244em' }}
+                        >
+                          {decodeHtmlEntities(song.title || '')}
+                        </h3>
+                        <div className="flex items-center gap-[2px]">
+                          <Eye size={14} style={{ color: '#E3E6EB' }} />
+                          <span style={{ fontFamily: 'Pretendard', fontWeight: 500, fontSize: '10px', lineHeight: '1.5em', color: '#E3E6EB' }}>
+                            {song.totalViews ? Number(song.totalViews).toLocaleString() : '0'} views
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Play button on hover */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <div className="w-14 h-14 bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 ml-0.5" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z" /></svg>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Small music cards - 2 column grid */}
+              {glanceSongs.length > 3 && (
+                <div className="grid grid-cols-2 gap-x-3 gap-y-4">
+                  {glanceSongs.slice(3, glanceExpanded ? 19 : 9).map((song) => (
+                    <div
+                      key={song._id}
+                      className="flex flex-col gap-2 cursor-pointer"
+                      onClick={() => handleSongClick(song)}
+                    >
+                      {/* Thumbnail with rank */}
+                      <div className="relative w-full overflow-hidden" style={{ height: '146px', borderRadius: '10px', background: '#F3F4F6' }}>
+                        <img
+                          src={song.coverImage || '/images/placeholder.jpg'}
+                          alt={decodeHtmlEntities(song.title || '')}
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.target.src = '/images/placeholder.jpg'; }}
+                        />
+                        {/* Rank number */}
+                        <span
+                          className="absolute select-none pointer-events-none"
+                          style={{
+                            bottom: '8px', left: '10px',
+                            fontFamily: 'Inter', fontWeight: 900, fontStyle: 'italic',
+                            fontSize: '40px', lineHeight: '48px', letterSpacing: '0.352px',
+                            color: '#FFF', WebkitTextStroke: '1px #1D1D1D',
+                            paintOrder: 'stroke fill',
+                            textShadow: '0 4px 10px rgba(0,0,0,0.4)',
+                          }}
+                        >{song.position}</span>
+                      </div>
+                      {/* Title + views */}
+                      <div className="flex flex-col gap-[6px]">
+                        <h4
+                          className="line-clamp-2"
+                          style={{ fontFamily: 'Pretendard', fontWeight: 600, fontSize: '14px', lineHeight: '17.5px', letterSpacing: '-0.15px', color: '#101828', WebkitFontSmoothing: 'antialiased' }}
+                        >
+                          {decodeHtmlEntities(song.title || '')}
+                        </h4>
+                        <div className="flex items-center gap-[2px]">
+                          <Eye size={14} style={{ color: '#99A1AF' }} />
+                          <span style={{ fontFamily: 'Pretendard', fontWeight: 500, fontSize: '10px', lineHeight: '15px', color: '#99A1AF' }}>
+                            {song.totalViews ? Number(song.totalViews).toLocaleString() : '0'} views
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* See More / Collapse button */}
+              {!glanceExpanded ? (
+                <button
+                  onClick={() => setGlanceExpanded(true)}
+                  className="w-full flex items-center justify-center gap-[3px] hover:bg-gray-50 transition-colors"
+                  style={{ padding: '12px 16px', border: '1px solid #D1D5DC', borderRadius: '10px' }}
+                >
+                  <span className="text-[14px] font-semibold" style={{ color: '#2D3138', fontFamily: 'Inter' }}>See More</span>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 5.25L7 8.75L10.5 5.25" stroke="#2D3138" strokeWidth="1.17" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setGlanceExpanded(false)}
+                  className="w-full flex items-center justify-center gap-[3px] hover:bg-gray-50 transition-colors"
+                  style={{ padding: '12px 16px', border: '1px solid #D1D5DC', borderRadius: '10px' }}
+                >
+                  <span className="text-[14px] font-semibold" style={{ color: '#2D3138', fontFamily: 'Inter' }}>Collapse</span>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 8.75L7 5.25L10.5 8.75" stroke="#2D3138" strokeWidth="1.17" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </button>
+              )}
+            </div>
+          </div>
           <div className="h-2 bg-[#F3F4F6]" />
 
           {/* Mobile Trending */}
           <div className="px-4 py-4">
-            <TrendingNow items={rankingNews} onNavigate={navigateToPage} showCard={false} />
-          </div>
-          <div className="h-2 bg-[#F3F4F6]" />
-
-          {/* Music News at a glance - mobile: vertical list */}
-          <div className="px-4 py-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-[21px] font-black">
-                <span style={{ color: '#2B7FFF' }}>Music News</span>{' '}
-                <span style={{ color: '#101828' }}>at a glance</span>
-              </h2>
-            </div>
-            <div className="flex flex-col gap-3">
-              {glanceSongs.slice(0, 6).map((song, i) => (
-                <div key={song._id} className="relative rounded-xl overflow-hidden cursor-pointer" style={{ height: i === 0 ? '280px' : '180px' }} onClick={() => handleSongClick(song)}>
-                  <MusicCard song={song} rank={song.position} size={i === 0 ? 'large' : 'small'} onClick={handleSongClick} />
-                </div>
-              ))}
-            </div>
+            <TrendingNow items={trendingNews.length > 0 ? trendingNews : rankingNews} onNavigate={navigateToPage} showCard={false} />
           </div>
           <div className="h-2 bg-[#F3F4F6]" />
 
           {/* Latest Kpop Updates */}
-          <div className="py-5 px-4">
-            <div className="flex items-center gap-2 mb-4">
-              <h2 className="text-[21px] font-black">
-                <span style={{ color: '#2B7FFF' }}>Latest</span>{' '}
-                <span style={{ color: '#101828' }}>Kpop Updates</span>
+          <div className="bg-white" style={{ padding: '24px 16px' }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[20px] font-black text-[#101828]" style={{ fontFamily: 'Inter, sans-serif' }}>
+                <span className="text-ksp-accent">Latest Kpop</span> Updates
               </h2>
-              <span className="text-xl">🔥</span>
             </div>
-            <ArticleCardGrid articles={musicNews.slice(0, 6)} onNavigate={navigateToPage} />
+
+            {/* Featured large card */}
+            {musicNews.length > 0 && (
+              <div
+                className="rounded-[10px] overflow-hidden cursor-pointer relative"
+                style={{ height: '227px' }}
+                onClick={() => navigateToPage(`/news/${musicNews[0].slug || musicNews[0]._id}`)}
+              >
+                <img
+                  src={musicNews[0].coverImage || musicNews[0].thumbnailUrl || '/images/news/default-news.jpg'}
+                  alt={decodeHtmlEntities(typeof musicNews[0].title === 'string' ? musicNews[0].title : (musicNews[0].title?.en || ''))}
+                  className="w-full h-full object-cover"
+                  onError={(e) => { e.target.src = '/images/news/default-news.jpg'; }}
+                />
+                <div className="absolute bottom-0 left-0 right-0 px-[17px] py-5" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%)' }}>
+                  <p className="text-white font-bold text-[14px] leading-[1.6] line-clamp-2" style={{ fontFamily: 'Inter', letterSpacing: '0.004em' }}>
+                    {decodeHtmlEntities(typeof musicNews[0].title === 'string' ? musicNews[0].title : (musicNews[0].title?.en || ''))}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* News list items */}
+            {musicNews.length > 1 && (
+              <div className="pt-4 flex flex-col gap-4">
+                {musicNews.slice(1, 5).map((news) => (
+                  <div
+                    key={news._id}
+                    className="flex items-center gap-4 cursor-pointer"
+                    onClick={() => navigateToPage(`/news/${news.slug || news._id}`)}
+                  >
+                    <div className="flex-shrink-0 w-[127px] h-[95px] rounded-lg overflow-hidden" style={{ background: '#F3F4F6' }}>
+                      <img
+                        src={news.coverImage || news.thumbnailUrl || '/images/news/default-news.jpg'}
+                        alt={decodeHtmlEntities(typeof news.title === 'string' ? news.title : (news.title?.en || ''))}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.target.src = '/images/news/default-news.jpg'; }}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0 flex flex-col gap-2">
+                      <p className="text-[#101828] font-bold text-[16px] leading-[1.25] line-clamp-2" style={{ fontFamily: 'Inter', letterSpacing: '-0.013em' }}>
+                        {decodeHtmlEntities(typeof news.title === 'string' ? news.title : (news.title?.en || ''))}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-[2px] rounded bg-[#DBE6F6] text-[#2B7FFF] font-bold text-[12px]" style={{ fontFamily: 'Inter' }}>
+                          K-POP
+                        </span>
+                        <span className="text-[#6A7282] text-[12px]" style={{ fontFamily: 'Inter' }}>
+                          {news.author?.name || news.author || ''}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="h-2 bg-[#F3F4F6]" />
 
@@ -285,14 +463,6 @@ export default function Music({ musicNews = [], topSongs = [], watchNews = [], r
                     <h2 className="text-[26px] font-black" style={{ fontFamily: 'Pretendard, sans-serif' }}>
                       <span style={{ color: '#101828' }}>Music News at a glance</span>
                     </h2>
-                    <button
-                      onClick={() => navigateToPage('/music')}
-                      className="flex items-center gap-[10px] text-[14px] font-bold hover:underline"
-                      style={{ color: '#2B7FFF', letterSpacing: '-0.0107em' }}
-                    >
-                      See more
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="#2B7FFF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    </button>
                   </div>
 
                   {/* Row 1: Large card (512px) + 2 stacked cards (636px, gap 16px) */}
@@ -335,18 +505,49 @@ export default function Music({ musicNews = [], topSongs = [], watchNews = [], r
                     </div>
                   )}
 
-                  {/* See More button */}
-                  <button
-                    onClick={() => navigateToPage('/music')}
-                    className="w-full mt-6 py-3 text-center font-semibold text-[15px] hover:bg-gray-50 transition-colors"
-                    style={{ border: '1.5px solid #D5D8DF', borderRadius: '100px', color: '#4B5563' }}
-                  >
-                    See More
-                  </button>
+                  {/* Expanded rows (10~19) */}
+                  {glanceExpanded && glanceSongs.length > 9 && (
+                    <>
+                      {[9, 12, 15].map((startIdx) => (
+                        glanceSongs.length > startIdx && (
+                          <div key={startIdx} className="grid grid-cols-3 gap-4 mt-4">
+                            {glanceSongs.slice(startIdx, Math.min(startIdx + 3, 19)).map((song) => (
+                              <div key={song._id} style={{ height: '260px' }}>
+                                <MusicCard song={song} rank={song.position} size="small" onClick={handleSongClick} />
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      ))}
+                    </>
+                  )}
+
+                  {/* See More / Collapse button */}
+                  {glanceSongs.length > 9 && (
+                    !glanceExpanded ? (
+                      <button
+                        onClick={() => setGlanceExpanded(true)}
+                        className="w-full mt-6 py-3 text-center font-semibold text-[15px] hover:bg-gray-50 transition-colors flex items-center justify-center gap-1"
+                        style={{ border: '1.5px solid #D5D8DF', borderRadius: '100px', color: '#4B5563' }}
+                      >
+                        See More
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6L8 10L12 6" stroke="#4B5563" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setGlanceExpanded(false)}
+                        className="w-full mt-6 py-3 text-center font-semibold text-[15px] hover:bg-gray-50 transition-colors flex items-center justify-center gap-1"
+                        style={{ border: '1.5px solid #D5D8DF', borderRadius: '100px', color: '#4B5563' }}
+                      >
+                        Collapse
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 10L8 6L12 10" stroke="#4B5563" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </button>
+                    )
+                  )}
                 </div>
 
                 {/* Latest Kpop Updates */}
-                <SectionWrapper title="Latest Kpop Updates" emoji="🔥" seeMoreHref="/music" onNavigate={navigateToPage}>
+                <SectionWrapper title="Latest Kpop Updates" emoji="🔥">
                   <ArticleCardGrid articles={musicNews?.slice(0, 3) || []} onNavigate={navigateToPage} />
                   {musicNews?.length > 3 && (
                     <div className="mt-8">
@@ -357,7 +558,7 @@ export default function Music({ musicNews = [], topSongs = [], watchNews = [], r
 
                 {/* Watch News */}
                 {watchNews && watchNews.length > 0 && (
-                  <SectionWrapper title="Watch News" emoji="👀" seeMoreHref="/news" onNavigate={navigateToPage}>
+                  <SectionWrapper title="Watch News" emoji="👀">
                     <WatchNewsSection articles={watchNews} onNavigate={navigateToPage} onPlayVideo={openYoutubeModal} />
                   </SectionWrapper>
                 )}
@@ -373,12 +574,12 @@ export default function Music({ musicNews = [], topSongs = [], watchNews = [], r
                 <div ref={sidebarStickyRef} className="sticky" style={{ top: sidebarStickyTop + 'px' }}>
                   <div className="space-y-8">
                     <CommentTicker comments={recentComments} onNavigate={navigateToPage} />
-                    <TrendingNow items={rankingNews} onNavigate={navigateToPage} />
-                    {rankingNews && rankingNews.length > 0 && (
+                    <TrendingNow items={trendingNews.length > 0 ? trendingNews : rankingNews} onNavigate={navigateToPage} />
+                    {(editorsPickNews.length > 0 || (rankingNews && rankingNews.length > 0)) && (
                       <div>
                         <h3 className="font-bold text-[23px] leading-[1.5] text-[#101828] mb-4 pl-1">Editor&apos;s <span className="text-ksp-accent">PICK</span></h3>
                         <div className="bg-white border border-[#F3F4F6] shadow-card rounded-2xl p-4 space-y-6">
-                          {rankingNews.slice(0, 6).map((item) => (
+                          {(editorsPickNews.length > 0 ? editorsPickNews : rankingNews).slice(0, 6).map((item) => (
                             <div
                               key={item._id}
                               className="flex gap-4 cursor-pointer group"
@@ -454,7 +655,7 @@ export async function getServerSideProps(context) {
   try {
     const protocol = context.req.headers['x-forwarded-proto'] || 'http';
     const baseUrl = `${protocol}://${context.req.headers.host}`;
-    const prodUrl = process.env.NEXT_PUBLIC_API_URL || baseUrl;
+    const prodUrl = baseUrl;
 
     const fixImageUrl = (url) => {
       if (!url) return url;
@@ -466,17 +667,23 @@ export async function getServerSideProps(context) {
       return url;
     };
 
-    const [newsRes, musicRes, watchRes, commentsRes, rankingRes] = await Promise.all([
+    const [newsRes, musicRes, watchRes, commentsRes, rankingRes, trendingRes] = await Promise.all([
       fetch(`${prodUrl}/api/news?category=kpop&limit=100`),
       fetch(`${prodUrl}/api/music/popular?limit=20`),
       fetch(`${prodUrl}/api/news?limit=200`),
       fetch(`${baseUrl}/api/comments/recent?limit=10`),
       fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&category=kpop`),
+      fetch(`${prodUrl}/api/news/trending?limit=5&category=kpop`).catch(() => ({ json: () => ({ success: false }) })),
     ]);
 
-    const [newsData, musicData, allNewsData, commentsData, rankingData] = await Promise.all([
-      newsRes.json(), musicRes.json(), watchRes.json(), commentsRes.json(), rankingRes.json(),
+    const [newsData, musicData, allNewsData, commentsData, rankingData, trendingData] = await Promise.all([
+      newsRes.json(), musicRes.json(), watchRes.json(), commentsRes.json(), rankingRes.json(), trendingRes.json(),
     ]);
+
+    // Editor's PICK: trending ID 제외
+    const trendingIds = (trendingData.success ? trendingData.data || [] : []).map(n => n._id).join(',');
+    const editorsPickRes = await fetch(`${prodUrl}/api/news/editors-pick?limit=6&category=kpop${trendingIds ? `&exclude=${trendingIds}` : ''}`).catch(() => ({ json: () => ({ success: false }) }));
+    const editorsPickData = await editorsPickRes.json();
 
     // Process music news
     let musicNews = [];
@@ -516,13 +723,31 @@ export async function getServerSideProps(context) {
       }));
     }
 
+    // Trending news
+    const trendingNews = trendingData?.success
+      ? (trendingData.data || []).slice(0, 5).map(n => ({
+          ...n,
+          coverImage: fixImageUrl(n.coverImage) || '/images/news/default-news.jpg',
+          thumbnailUrl: fixImageUrl(n.thumbnailUrl) || null,
+        }))
+      : [];
+
+    // Editor's Pick news
+    const editorsPickNews = editorsPickData?.success
+      ? (editorsPickData.data || []).map(n => ({
+          ...n,
+          coverImage: fixImageUrl(n.coverImage) || '/images/news/default-news.jpg',
+          thumbnailUrl: fixImageUrl(n.thumbnailUrl) || null,
+        }))
+      : [];
+
     return {
-      props: { musicNews, topSongs, watchNews, recentComments, rankingNews }
+      props: { musicNews, topSongs, watchNews, recentComments, rankingNews, trendingNews, editorsPickNews }
     };
   } catch (error) {
     console.error('Music page data fetching error:', error);
     return {
-      props: { musicNews: [], topSongs: [], watchNews: [], recentComments: [], rankingNews: [] }
+      props: { musicNews: [], topSongs: [], watchNews: [], recentComments: [], rankingNews: [], trendingNews: [], editorsPickNews: [] }
     };
   }
 }

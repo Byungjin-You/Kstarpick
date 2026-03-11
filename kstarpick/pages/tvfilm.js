@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import useScrollRestore from '../hooks/useScrollRestore';
+// 스크롤 복원은 _app.js handleRouteChangeComplete에서 중앙 처리
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import MainLayout from '../components/MainLayout';
@@ -17,7 +17,7 @@ import TopRatedDramaGrid from '../components/drama/TopRatedDramaGrid';
 import DramaCategories from '../components/drama/DramaCategories';
 
 // Section wrapper for consistent styling (matches home page)
-const SectionWrapper = ({ title, emoji, seeMoreHref, onNavigate, children }) => (
+const SectionWrapper = ({ title, emoji, children }) => (
   <div className="bg-white border-0 lg:border-[1.5px] border-ksp-border rounded-none lg:rounded-xl py-5 lg:py-8 px-4 lg:px-6 mb-0 lg:mb-8">
     <div className="flex items-center justify-between mb-5 lg:mb-7">
       <div className="flex items-center gap-2">
@@ -27,16 +27,6 @@ const SectionWrapper = ({ title, emoji, seeMoreHref, onNavigate, children }) => 
         </h2>
         {emoji && <span className="text-xl lg:text-2xl">{emoji}</span>}
       </div>
-      {seeMoreHref && (
-        <button
-          onClick={() => onNavigate?.(seeMoreHref)}
-          className="flex items-center gap-[10px] text-[12px] lg:text-[14px] font-bold hover:underline"
-          style={{ color: '#2B7FFF', letterSpacing: '-0.0107em' }}
-        >
-          See more
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="#2B7FFF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        </button>
-      )}
     </div>
     {children}
   </div>
@@ -58,7 +48,7 @@ const getTimeAgo = (dateStr) => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPagination, recentComments, rankingNews, watchNews, recommendedNews }) {
+export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPagination, recentComments, rankingNews, trendingNews = [], watchNews, recommendedNews, recentReviews = [], editorsPickNews = [] }) {
   const router = useRouter();
   const [movies, setMovies] = useState(tvfilms);
   const [loading, setLoading] = useState(tvfilms.length === 0);
@@ -70,8 +60,11 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
   const [touchEnd, setTouchEnd] = useState(0);
   const [collapsedCards, setCollapsedCards] = useState({});
   const [showMoreMobile, setShowMoreMobile] = useState(false);
-  const [allMovies, setAllMovies] = useState([]);
+  const [allMovies, setAllMovies] = useState(tvfilms);
   const [activeCategory, setActiveCategory] = useState(null);
+
+  // Review rolling
+  const [reviewIndex, setReviewIndex] = useState(0);
 
   // 페이지 전환 애니메이션을 위한 상태 추가
   const [isPageChanging, setIsPageChanging] = useState(false);
@@ -88,8 +81,7 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
 
   const itemsPerPage = 5;
 
-  // 스크롤 위치 복원
-  useScrollRestore('tvfilmScrollPosition', 'isBackToTvfilm');
+  // 스크롤 복원은 _app.js handleRouteChangeComplete에서 중앙 처리
 
   // Sidebar sticky logic
   useEffect(() => {
@@ -109,6 +101,15 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
     window.addEventListener('resize', calcTop);
     return () => window.removeEventListener('resize', calcTop);
   }, []);
+
+  // Review rolling timer
+  useEffect(() => {
+    if (recentReviews.length <= 1) return;
+    const timer = setInterval(() => {
+      setReviewIndex(prev => (prev + 1) % recentReviews.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [recentReviews.length]);
 
   // Navigate helper
   const navigateToPage = (path, e) => {
@@ -382,273 +383,386 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
   return (
     <MainLayout>
       {/* ============ MOBILE LAYOUT (< lg) ============ */}
-      <div className="lg:hidden">
-        <div className="container mx-auto px-4 py-12">
-          {/* 제목 영역 */}
-          <div className="mb-8 mt-8">
-            <h1 className="font-bold text-black" style={{ fontSize: '20px' }}>
-              Most searched <span style={{ color: '#233CFA' }}>movies</span> right now
-            </h1>
-          </div>
+      <div className="lg:hidden overflow-x-hidden">
+        {/* === Section 1: TV/Film TOP 5 === */}
+        <div className="px-4 pt-5 pb-0">
+          <h2 className="font-bold text-[20px] leading-[1.4] text-[#101828]" style={{ fontFamily: 'Inter' }}>
+            TV/Film <span className="text-ksp-accent">TOP 5</span>
+          </h2>
+        </div>
 
-          {error && (
-            <div className="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg">
-              {error}
-            </div>
-          )}
-
-          {/* TV/Film 리스트 */}
-          <div className="relative">
-            {currentPage > 1 && !isMobile && (
-              <button
-                onClick={goToPrevPage}
-                disabled={isPageChanging}
-                className="flex absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-3 md:-translate-x-6 z-10 w-10 h-10 md:w-12 md:h-12 rounded-full items-center justify-center text-white hover:shadow-md transition-all duration-300 shadow-md"
-                style={{ backgroundColor: '#233CFA' }}
-                aria-label="Previous Page"
+        {/* Hero Card (#1) */}
+        {allMovies.length > 0 && (() => {
+          const hero = allMovies[0];
+          const heroGenres = hero.genres && Array.isArray(hero.genres) ? hero.genres : (hero.genre ? hero.genre.split(',').map(g => g.trim()) : []);
+          return (
+            <div className="mt-4 px-4">
+              <div
+                className="relative rounded-[20px] overflow-hidden cursor-pointer"
+                style={{ height: '251px', background: '#18181B' }}
+                onClick={() => navigateToPage(`/tvfilm/${hero.slug || hero._id}`)}
               >
-                <ChevronLeft size={18} />
-              </button>
-            )}
-
-            <div
-              key={`tvfilm-page-${currentPage}`}
-              className={`grid grid-cols-1 md:grid-cols-5 gap-5 transition-all duration-300
-                ${isPageChanging ? 'opacity-70 ' + (slideDirection === 'right' ? 'translate-x-4' : '-translate-x-4') : 'opacity-100 translate-x-0'}`}
-              onTouchStart={!isMobile ? handleTouchStart : undefined}
-              onTouchMove={!isMobile ? handleTouchMove : undefined}
-              onTouchEnd={!isMobile ? handleTouchEnd : undefined}
-            >
-              {loading || error ? (
-                Array(5).fill().map((_, i) => (
-                  <div key={i} className="group relative">
-                    <div className="bg-white rounded-2xl overflow-hidden shadow-md h-full">
-                      <div className="relative">
-                        <div className="h-60 md:h-64 lg:h-80 bg-gray-200 animate-pulse"></div>
-                        <div className="p-4">
-                          <div className="h-6 bg-gray-200 rounded animate-pulse mb-2"></div>
-                          <div className="h-4 bg-gray-200 rounded animate-pulse w-2/3 mb-2"></div>
-                        </div>
+                {/* Background image */}
+                <img
+                  src={hero.coverImage || '/images/dramas/default-poster.jpg'}
+                  alt={hero.title}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  style={{ opacity: 0.8 }}
+                  onError={(e) => { e.target.src = '/images/dramas/default-poster.jpg'; }}
+                />
+                {/* Gradient overlay */}
+                <div className="absolute bottom-0 left-0 right-0" style={{ height: '100px', background: 'linear-gradient(180deg, rgba(29,29,29,0) 0%, rgba(29,29,29,1) 100%)' }} />
+                {/* Content */}
+                <div className="absolute bottom-0 left-0 right-0 px-4 pb-3 flex items-end gap-3">
+                  <span className="text-white font-black italic" style={{ fontFamily: 'Inter', fontSize: '48px', lineHeight: '48px', letterSpacing: '0.352px', textShadow: '0 3px 6px rgba(0,0,0,0.12)' }}>1</span>
+                  <div className="flex-1 min-w-0 flex flex-col gap-[6px]">
+                    <span className="text-white font-bold line-clamp-2" style={{ fontFamily: 'Inter', fontSize: '18px', lineHeight: '24.75px', letterSpacing: '-0.439px', textTransform: 'capitalize' }}>
+                      {hero.title}
+                    </span>
+                    <div className="flex flex-col gap-[6px]">
+                      <span className="text-white line-clamp-1" style={{ fontFamily: 'Inter', fontSize: '12px', fontWeight: 400, lineHeight: '17px' }}>
+                        {hero.description ? hero.description.substring(0, 50) : 'A captivating production featuring compelling storytelling'}
+                      </span>
+                      <div className="flex items-center gap-[10px]">
+                        {heroGenres.slice(0, 3).map((g, i) => (
+                          <span key={i} className="px-2 py-1 rounded-[10px] text-white text-[10px] font-medium" style={{ fontFamily: 'Inter', background: 'rgba(255,255,255,0.12)' }}>
+                            {typeof g === 'string' ? g.charAt(0).toUpperCase() + g.slice(1) : g}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   </div>
-                ))
-              ) : (
-                currentItems.map((item, index) => {
-                  const isCollapsed = isMobile && collapsedCards[item._id];
-                  return (
-                    <div
-                      key={item._id}
-                      className={`group relative transition-all duration-300
-                        ${isPageChanging ? 'opacity-60 scale-98' : 'opacity-100 scale-100'}`}
-                      style={{
-                        transitionDelay: !isPageChanging ? `${index * 40}ms` : '0ms',
-                        transform: isPageChanging ? (slideDirection === 'right' ? 'translateX(10px)' : 'translateX(-10px)') : 'translateX(0)'
-                      }}
-                    >
-                      {isMobile && (
-                        <div
-                          className="absolute top-3 right-3 z-30 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-md cursor-pointer hover:bg-white transition-all"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            toggleCardCollapse(item._id);
-                          }}
-                        >
-                          {isCollapsed ? (
-                            <ChevronDown size={18} className="text-gray-700" />
-                          ) : (
-                            <ChevronUp size={18} className="text-gray-700" />
-                          )}
-                        </div>
-                      )}
-
-                      {isCollapsed ? (
-                        <div className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 h-full">
-                          <div className="flex items-center p-4">
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg mr-3 flex-shrink-0" style={{ backgroundColor: '#233CFA' }}>
-                              {(currentPage - 1) * itemsPerPage + index + 1}
-                            </div>
-                            <div className="flex-grow min-w-0">
-                              <Link href={`/tvfilm/${item.slug || item._id}`} className="block">
-                                <h3 className="text-base font-semibold text-gray-800 hover:text-[#009efc] transition-colors line-clamp-1 truncate">
-                                  {item.title}
-                                </h3>
-                                <div className="flex items-center mt-1.5 overflow-hidden">
-                                  {(item.genres && Array.isArray(item.genres) && item.genres.length > 0) ? (
-                                    <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full shadow-sm mr-2 whitespace-nowrap flex-shrink-0" style={{ backgroundColor: '#f3f4f6', color: '#1f2937' }}>
-                                      {typeof item.genres[0] === 'string' ? item.genres[0].charAt(0).toUpperCase() + item.genres[0].slice(1) : item.genres[0]}
-                                    </span>
-                                  ) : (typeof item.genre === 'string' && item.genre.trim() !== '') ? (
-                                    <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full shadow-sm mr-2 whitespace-nowrap flex-shrink-0" style={{ backgroundColor: '#f3f4f6', color: '#1f2937' }}>
-                                      {item.genre.split(',')[0].trim().charAt(0).toUpperCase() + item.genre.split(',')[0].trim().slice(1)}
-                                    </span>
-                                  ) : (
-                                    <span className="text-xs text-gray-500 mr-2 whitespace-nowrap flex-shrink-0">Film</span>
-                                  )}
-                                  <div className="flex items-center flex-shrink-0 whitespace-nowrap">
-                                    <Star size={12} className="text-amber-500 mr-1" fill="#f59e0b" />
-                                    <span className="text-xs font-medium text-gray-700">
-                                      {item.reviewRating != null && parseFloat(item.reviewRating) > 0
-                                        ? parseFloat(item.reviewRating) === 10 ? "10" : parseFloat(item.reviewRating).toFixed(1)
-                                        : "-"
-                                      }
-                                    </span>
-                                  </div>
-                                </div>
-                              </Link>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <Link href={`/tvfilm/${item.slug || item._id}`} className="block h-full">
-                          <div
-                            className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 h-full transform hover:-translate-y-1"
-                            style={isMobile ? { border: '2px solid #233CFA' } : {}}
-                          >
-                            <div className="relative">
-                              <div className={`${isMobile ? 'aspect-[5/4.5]' : 'h-60 md:h-64 lg:h-80'} bg-gray-100 relative overflow-hidden`}>
-                                <span className="absolute inset-0 flex items-center justify-center text-gray-400">
-                                  <img
-                                    src={item.coverImage || '/images/dramas/default-poster.jpg'}
-                                    alt={item.title}
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                    style={{ objectPosition: isMobile ? 'center 5%' : 'center center' }}
-                                    onError={(e) => { e.target.onerror = null; e.target.src = '/images/dramas/default-poster.jpg'; }}
-                                  />
-                                </span>
-                                <div className="absolute top-0 left-0 w-16 h-16 flex items-center justify-center">
-                                  <span className="text-white font-bold text-5xl drop-shadow-lg" style={{textShadow: '0 2px 4px rgba(0,0,0,0.5)'}}>{(currentPage - 1) * itemsPerPage + index + 1}</span>
-                                </div>
-                                {!isMobile && (
-                                  <div className="absolute top-2 right-2 flex items-center bg-black/50 backdrop-blur-sm px-2 py-1 rounded-full">
-                                    <div className="h-6 w-6 rounded-full flex items-center justify-center text-white font-bold text-xs mr-1 shadow-lg" style={{ backgroundColor: '#233CFA' }}>
-                                      {item.reviewRating != null && parseFloat(item.reviewRating) > 0
-                                        ? parseFloat(item.reviewRating) === 10 ? "10" : parseFloat(item.reviewRating).toFixed(1)
-                                        : "-"
-                                      }
-                                    </div>
-                                    <span className="text-white/90 text-xs">Rating</span>
-                                  </div>
-                                )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end">
-                                  <div className="p-4 w-full">
-                                    <p className="text-white font-medium">{item.title}</p>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="p-4 pb-3">
-                                <h3 className="text-base font-semibold text-gray-800 group-hover:text-[#009efc] transition-colors line-clamp-1 flex items-center justify-between">
-                                  <span className="mr-2 truncate">{item.title}</span>
-                                  {isMobile && (
-                                    <div className="flex-shrink-0 flex items-center bg-gradient-to-r from-amber-50 to-amber-100 px-2 py-1 rounded-full border border-amber-200">
-                                      <Star size={12} className="text-amber-500 mr-1 flex-shrink-0" fill="#f59e0b" />
-                                      <span className="text-xs font-bold text-amber-700">
-                                        {item.reviewRating != null && parseFloat(item.reviewRating) > 0
-                                          ? parseFloat(item.reviewRating) === 10 ? "10" : parseFloat(item.reviewRating).toFixed(1)
-                                          : "-"
-                                        }
-                                      </span>
-                                    </div>
-                                  )}
-                                </h3>
-
-                                <div className="flex mt-2">
-                                  <div className="w-full overflow-hidden">
-                                    <div className="whitespace-nowrap overflow-hidden text-ellipsis">
-                                      {(item.genres && Array.isArray(item.genres) && item.genres.length > 0)
-                                        ? item.genres.map((genre, idx) => (
-                                          <span key={idx} className="inline-block text-xs font-medium px-2 py-0.5 rounded-full mr-1 shadow-sm transition-colors" style={{ backgroundColor: '#f3f4f6', color: '#1f2937' }}>
-                                            {genre && typeof genre === 'string' ? genre.charAt(0).toUpperCase() + genre.slice(1) : genre}
-                                          </span>
-                                        ))
-                                        : (typeof item.genre === 'string' && item.genre.trim() !== '')
-                                          ? item.genre.split(',').map((g, idx) => (
-                                            <span key={idx} className="inline-block text-xs font-medium px-2 py-0.5 rounded-full mr-1 shadow-sm transition-colors" style={{ backgroundColor: '#f3f4f6', color: '#1f2937' }}>
-                                              {g.trim().charAt(0).toUpperCase() + g.trim().slice(1)}
-                                            </span>
-                                          ))
-                                          : (
-                                            <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full mr-1 shadow-sm" style={{ backgroundColor: '#f3f4f6', color: '#1f2937' }}>
-                                              {item.category ? item.category.charAt(0).toUpperCase() + item.category.slice(1) : "Film"}
-                                            </span>
-                                          )
-                                      }
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {item.runtime && (
-                                  <div className="flex mt-2 mb-2">
-                                    <div className="inline-flex items-center px-2 py-1 rounded-full bg-gray-50 border border-gray-100 text-gray-600 text-xs">
-                                      <Clock size={12} className="mr-1 text-gray-500" />
-                                      {item.runtime}
-                                    </div>
-                                  </div>
-                                )}
-
-                                <div className="mt-2 mb-1">
-                                  {(item.description || item.summary) ? (
-                                    <p className="text-xs text-gray-600 line-clamp-1 overflow-ellipsis">
-                                      {item.description || item.summary}
-                                    </p>
-                                  ) : (
-                                    <p className="text-xs text-gray-400 line-clamp-1 overflow-ellipsis italic">
-                                      No synopsis available
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </Link>
-                      )}
-                    </div>
-                  );
-                })
-              )}
+                </div>
+                {/* Pick badge */}
+                <div className="absolute top-0 right-0 px-3 py-[5px] rounded-bl-[10px]" style={{ background: 'linear-gradient(90deg, rgba(6,74,236,1) 0%, rgba(77,139,244,1) 91%, rgba(175,230,255,1) 100%)' }}>
+                  <span className="text-white font-bold text-[14px]" style={{ fontFamily: 'Inter' }}>Pick</span>
+                </div>
+              </div>
             </div>
+          );
+        })()}
 
-            {currentPage < totalPages && !isMobile && (
-              <button
-                onClick={goToNextPage}
-                disabled={isPageChanging}
-                className="flex absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-3 md:translate-x-6 z-10 w-10 h-10 md:w-12 md:h-12 rounded-full items-center justify-center text-white hover:shadow-md transition-all duration-300 shadow-md"
-                style={{ backgroundColor: '#233CFA' }}
-                aria-label="Next Page"
-              >
-                <ChevronRight size={18} />
-              </button>
-            )}
+        {/* Cards #2 ~ #5 horizontal scroll */}
+        {allMovies.length > 1 && (
+          <div className="mt-4 overflow-x-auto scrollbar-hide">
+            <div className="flex gap-3 ml-4">
+              {allMovies.slice(1, 5).map((film, idx) => {
+                const rank = idx + 2;
+                const genres = film.genres && Array.isArray(film.genres) ? film.genres : (film.genre ? film.genre.split(',').map(g => g.trim()) : []);
+                return (
+                  <div
+                    key={film._id}
+                    className="flex-shrink-0 rounded-[14px] overflow-hidden cursor-pointer relative"
+                    style={{ width: '140px', height: '177px' }}
+                    onClick={() => navigateToPage(`/tvfilm/${film.slug || film._id}`)}
+                  >
+                    {/* Full card background image */}
+                    <img
+                      src={film.coverImage || '/images/dramas/default-poster.jpg'}
+                      alt={film.title}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      onError={(e) => { e.target.src = '/images/dramas/default-poster.jpg'; }}
+                    />
+                    {/* Dark overlay */}
+                    <div className="absolute inset-0" style={{ background: rank > 2 ? 'linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.75) 100%)' : 'linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.7) 100%)' }} />
+                    {/* Rank number */}
+                    <span className="absolute text-white font-black italic" style={{ fontFamily: 'Inter', fontSize: '30px', lineHeight: '30px', top: '8px', left: '11px', letterSpacing: '0.396px', fontStyle: 'italic', textShadow: '0.95px 1.9px 1.9px rgba(0,0,0,0.25)' }}>{rank}</span>
+                    {/* Bottom info */}
+                    <div className="absolute bottom-0 left-0 right-0 flex flex-col items-center px-2 pb-2.5">
+                      <span className="text-center line-clamp-1 w-full" style={{ color: '#FFF', fontFamily: 'Inter', fontSize: '14px', fontWeight: 700, lineHeight: '20px', letterSpacing: '-0.15px', textTransform: 'capitalize' }}>
+                        {film.title}
+                      </span>
+                      <div className="flex items-center justify-center gap-[2px] mt-0.5">
+                        <span className="text-[#FDC700] font-bold text-[10px]" style={{ fontFamily: 'Arial' }}>
+                          ★{(film.reviewRating && film.reviewRating > 0) ? parseFloat(film.reviewRating) === 10 ? '10' : parseFloat(film.reviewRating).toFixed(1) : '-'}
+                        </span>
+                        {genres.slice(0, 2).map((g, i) => (
+                          <React.Fragment key={i}>
+                            <span className="w-[2px] h-[2px] rounded-full bg-[#6A7282]" />
+                            <span className="text-center" style={{ color: '#FAFAFA', fontFamily: 'Inter', fontSize: '8px', fontWeight: 400, lineHeight: '15px', letterSpacing: '0.117px' }}>
+                              {typeof g === 'string' ? g.charAt(0).toUpperCase() + g.slice(1) : g}
+                            </span>
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {/* Right spacer for scroll alignment with hero card */}
+              <div className="flex-shrink-0 w-4" />
+            </div>
+          </div>
+        )}
+
+
+        {/* Separator */}
+        <div className="lg:hidden mt-5 h-2 bg-[#F3F4F6]" />
+
+        {/* === Section 2: Top Rated TV/Film === */}
+        <div className="px-4 pt-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-[20px] font-extrabold text-[#101828]" style={{ fontFamily: 'Inter, sans-serif' }}><span className="text-ksp-accent">Top Rated</span> TV/Film</h2>
+            </div>
+          </div>
+        </div>
+
+        {/* Top Rated horizontal scroll cards */}
+        <div className="mt-3 overflow-x-auto scrollbar-hide">
+          <div className="flex gap-3 ml-4">
+            {(() => {
+              const topRated = [...(allMovies.length > 0 ? allMovies : tvfilms)]
+                .sort((a, b) => (b.reviewRating || 0) - (a.reviewRating || 0))
+                .slice(0, 8);
+              return topRated.map((film) => {
+                const genres = film.genres && Array.isArray(film.genres) ? film.genres : (film.genre ? film.genre.split(',').map(g => g.trim()) : []);
+                return (
+                  <div
+                    key={film._id}
+                    className="flex-shrink-0 rounded-[14px] overflow-hidden relative cursor-pointer"
+                    style={{ width: '280px', height: '157.5px', background: '#1E2939', boxShadow: '0px 8px 10px -6px rgba(0,0,0,0.1), 0px 20px 25px -5px rgba(0,0,0,0.1)' }}
+                    onClick={() => navigateToPage(`/tvfilm/${film.slug || film._id}`)}
+                  >
+                    {/* Background poster */}
+                    <img
+                      src={film.coverImage || '/images/dramas/default-poster.jpg'}
+                      alt={film.title}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      onError={(e) => { e.target.src = '/images/dramas/default-poster.jpg'; }}
+                    />
+                    {/* Gradient overlay */}
+                    <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0) 100%)' }} />
+                    {/* Content overlay */}
+                    <div className="absolute inset-0" style={{ padding: '32.75px 46px 0px 16px' }}>
+                      <div className="flex flex-col gap-1">
+                        <h4 className="text-white font-bold text-[16px] leading-[1.5] line-clamp-2" style={{ fontFamily: 'Inter', letterSpacing: '-0.02em' }}>
+                          {film.title}
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.17L8.56 4.33L12 4.83L9.5 7.27L10.12 10.7L7 9.05L3.88 10.7L4.5 7.27L2 4.83L5.44 4.33L7 1.17Z" stroke="#F0B100" strokeWidth="1.17" fill="#F0B100"/></svg>
+                          <span className="text-[#F0B100] font-semibold text-[14px]" style={{ fontFamily: 'Inter', letterSpacing: '-0.01em' }}>
+                            {(film.reviewRating && film.reviewRating > 0) ? parseFloat(film.reviewRating) === 10 ? '10' : parseFloat(film.reviewRating).toFixed(1) : '-'}
+                          </span>
+                        </div>
+                        <span className="text-[#D1D5DC] text-[12px]" style={{ fontFamily: 'Inter' }}>
+                          {genres.slice(0, 2).map(g => typeof g === 'string' ? g.charAt(0).toUpperCase() + g.slice(1) : g).join(' · ')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+              {/* Right spacer for scroll alignment */}
+              <div className="flex-shrink-0 w-4" />
+          </div>
+        </div>
+
+        {/* === Section 3: Rolling Review Card === */}
+        {recentReviews.length > 0 && (
+          <div className="px-4 pt-4 pb-4">
+            <div
+              className="rounded-full p-[10px_16px_10px_16px] flex items-center justify-between cursor-pointer"
+              style={{ border: '2px solid transparent', backgroundImage: 'linear-gradient(#fff, #fff), linear-gradient(90deg, #78A5FF 0%, #9075FF 100%)', backgroundOrigin: 'padding-box, border-box', backgroundClip: 'padding-box, border-box', WebkitBackgroundClip: 'padding-box, border-box' }}
+              onClick={() => {
+                const r = recentReviews[reviewIndex];
+                if (r?.dramaSlug) navigateToPage(`/drama/${r.dramaSlug}`);
+              }}
+            >
+              <div className="flex items-center gap-2 flex-1 min-w-0 relative h-[28px]">
+                {recentReviews.map((rv, i) => (
+                  <div
+                    key={rv._id || i}
+                    className="absolute inset-0 flex items-center gap-[7px] transition-all duration-500"
+                    style={{ opacity: i === reviewIndex ? 1 : 0, transform: i === reviewIndex ? 'translateY(0)' : 'translateY(12px)', pointerEvents: i === reviewIndex ? 'auto' : 'none' }}
+                  >
+                    {/* Text: title | review */}
+                    <div className="flex items-center gap-1 flex-1 min-w-0">
+                      <span className="text-[#000] font-bold text-[10px] truncate" style={{ fontFamily: 'Inter, sans-serif', maxWidth: '35%' }}>{rv.dramaTitle}</span>
+                      <div className="w-0 h-[10px] flex-shrink-0" style={{ borderRight: '0.75px solid rgba(106,114,130,0.8)' }} />
+                      <span className="text-[#6A7282] truncate flex-1 min-w-0" style={{ fontFamily: 'Inter, sans-serif', fontSize: '9px', fontWeight: 400, lineHeight: '16px' }}>
+                        {rv.content || 'Great film!'}
+                      </span>
+                    </div>
+                    {/* Rating */}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1L7.5 3.8L10.7 4.3L8.35 6.6L8.95 9.8L6 8.2L3.05 9.8L3.65 6.6L1.3 4.3L4.5 3.8L6 1Z" stroke="#FDC700" strokeWidth="1" fill="#FDC700"/></svg>
+                      <span className="text-[#364153] font-semibold text-[12px]" style={{ fontFamily: 'Inter' }}>
+                        {rv.rating || '-'}
+                      </span>
+                      <span className="text-[#99A1AF] text-[12px]" style={{ fontFamily: 'Inter' }}>/ 10</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Chevron */}
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="ml-2 flex-shrink-0"><path d="M6 4L10 8L6 12" stroke="#0A0A0A" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+          </div>
+        )}
+
+        {/* Separator */}
+        <div className="w-full h-2" style={{ background: '#F3F4F6' }} />
+
+        {/* === Section 4: Latest TV/Film Updates === */}
+        <div className="bg-white">
+          <div className="px-4 pt-5 pb-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[20px] font-black text-[#101828]" style={{ fontFamily: 'Inter, sans-serif' }}><span className="text-ksp-accent">Latest TV/Film</span> Updates</h2>
+            </div>
           </div>
 
-          {/* 모바일 View More Button */}
-          {isMobile && (
-            <div className="mt-6">
-              <button
-                onClick={toggleMobileView}
-                className="w-full py-3 bg-white text-black font-medium rounded-2xl border-2 border-gray-300 hover:border-gray-400 hover:shadow-md transition-all"
+          {/* Featured large card */}
+          {movieNews && movieNews.length > 0 && (
+            <div className="px-4">
+              <div
+                className="rounded overflow-hidden cursor-pointer"
+                style={{ background: '#E5E7EB', borderRadius: '4px' }}
+                onClick={() => navigateToPage(`/news/${movieNews[0].slug || movieNews[0]._id}`)}
               >
-                {showMoreMobile ? (
-                  <span className="flex items-center justify-center">
-                    Fold
-                    <ChevronUp className="ml-2" size={20} />
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center">
-                    See more
-                    <ChevronDown className="ml-2" size={20} />
-                  </span>
-                )}
-              </button>
+                <div className="relative overflow-hidden" style={{ height: '227px', borderRadius: '10px' }}>
+                  <img
+                    src={movieNews[0].coverImage || movieNews[0].thumbnailUrl || '/images/news/default-news.jpg'}
+                    alt={movieNews[0].title}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.target.src = '/images/news/default-news.jpg'; }}
+                  />
+                  {/* Bottom gradient overlay */}
+                  <div className="absolute bottom-0 left-0 right-0 px-[17px] py-5" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%)' }}>
+                    <p className="text-white font-bold text-[14px] leading-[1.6] line-clamp-2" style={{ fontFamily: 'Inter', letterSpacing: '0.004em' }}>
+                      {movieNews[0].title}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* MoreNews */}
-          <div className="mt-16">
-            <MoreNews initialNews={movieNews} category="movie" />
-            <div className="mb-12"></div>
+          {/* News list items */}
+          {movieNews && movieNews.length > 1 && (
+            <div className="pl-4 pr-0 pt-4 pb-4 flex flex-col gap-4">
+              {movieNews.slice(1, 5).map((news) => (
+                <div
+                  key={news._id}
+                  className="flex items-center gap-4 cursor-pointer"
+                  onClick={() => navigateToPage(`/news/${news.slug || news._id}`)}
+                >
+                  <div className="flex-shrink-0 w-[127px] h-[95px] rounded-lg overflow-hidden" style={{ background: '#F3F4F6' }}>
+                    <img
+                      src={news.coverImage || news.thumbnailUrl || '/images/news/default-news.jpg'}
+                      alt={news.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.target.src = '/images/news/default-news.jpg'; }}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0 flex flex-col gap-2">
+                    <p className="text-[#101828] font-bold text-[16px] leading-[1.25] line-clamp-2" style={{ fontFamily: 'Inter', letterSpacing: '-0.013em' }}>
+                      {news.title}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-[2px] rounded bg-[#DBE6F6] text-[#2B7FFF] font-bold text-[12px]" style={{ fontFamily: 'Inter' }}>
+                        TV/Film
+                      </span>
+                      <span className="text-[#6A7282] text-[12px]" style={{ fontFamily: 'Inter, sans-serif' }}>
+                        {news.author?.name || news.author || ''}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Separator */}
+        <div className="lg:hidden h-2 bg-[#F3F4F6]" />
+
+        {/* === Section 5: Recommended News === */}
+        <div className="bg-white" style={{ padding: '24px 16px' }}>
+          <div className="flex flex-col" style={{ gap: '24px' }}>
+            {/* Title row */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-[20px] font-black text-[#101828]" style={{ fontFamily: 'Inter, sans-serif' }}><span className="text-ksp-accent">Recommended</span> News</h2>
+            </div>
+
+            {/* Featured recommended */}
+            {recommendedNews && recommendedNews.length > 0 && (
+              <div className="flex flex-col" style={{ gap: '10px' }}>
+                <div
+                  className="rounded-[14px] overflow-hidden cursor-pointer relative"
+                  style={{ height: '222px' }}
+                  onClick={() => navigateToPage(`/news/${recommendedNews[0].slug || recommendedNews[0]._id}`)}
+                >
+                  <img
+                    src={recommendedNews[0].coverImage || recommendedNews[0].thumbnailUrl || '/images/news/default-news.jpg'}
+                    alt={recommendedNews[0].title}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.target.src = '/images/news/default-news.jpg'; }}
+                  />
+                </div>
+                <div className="flex flex-col" style={{ gap: '6px' }}>
+                  <h3
+                    className="text-[#101828] font-bold text-[18px] leading-[1.25] line-clamp-2 cursor-pointer"
+                    style={{ fontFamily: 'Inter' }}
+                    onClick={() => navigateToPage(`/news/${recommendedNews[0].slug || recommendedNews[0]._id}`)}
+                  >
+                    {recommendedNews[0].title}
+                  </h3>
+                  <p className="text-[#6A7282] text-[12px] leading-[1.5] line-clamp-2" style={{ fontFamily: 'Inter' }}>
+                    {recommendedNews[0].description || recommendedNews[0].content?.replace(/<[^>]+>/g, '').substring(0, 120) || ''}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Recommended news list */}
+            {(() => {
+              const recNews = recommendedNews && recommendedNews.length > 1
+                ? recommendedNews.slice(1, 5)
+                : (rankingNews || []).slice(0, 4);
+              if (recNews.length === 0) return null;
+              return (
+                <div className="flex flex-col gap-4">
+                  {recNews.map((news) => (
+                    <div
+                      key={news._id}
+                      className="flex items-center cursor-pointer"
+                      style={{ gap: '12px' }}
+                      onClick={() => navigateToPage(`/news/${news.slug || news._id}`)}
+                    >
+                      <div className="flex-shrink-0 w-[100px] h-[70px] overflow-hidden" style={{ borderRadius: '6px' }}>
+                        <img
+                          src={news.coverImage || news.thumbnailUrl || '/images/news/default-news.jpg'}
+                          alt={news.title}
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.target.src = '/images/news/default-news.jpg'; }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0 flex flex-col" style={{ gap: '4px' }}>
+                        <span className="text-[#99A1AF] text-[10px]" style={{ fontFamily: 'Inter, sans-serif', lineHeight: '1.6' }}>
+                          {news.createdAt ? new Date(news.createdAt).toLocaleDateString('en-CA').replace(/-/g, '.') : ''}
+                        </span>
+                        <p className="text-[#101828] font-bold text-[14px] leading-[1.43] line-clamp-2" style={{ fontFamily: 'Inter', letterSpacing: '-0.0107em' }}>
+                          {news.title}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+          </div>
+        </div>
+
+        {/* Separator */}
+        <div className="lg:hidden h-2 bg-[#F3F4F6]" />
+
+        {/* === Section 7: More News (Infinite Scroll) === */}
+        <div className="bg-white">
+          <div className="py-5 px-4">
+            <MoreNews initialNews={movieNews} category="movie" storageKey="tvfilm_mobile" />
           </div>
         </div>
       </div>
@@ -662,17 +776,17 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
               <div className="flex-1 min-w-0 max-w-content">
 
                 {/* TV/Film Top 5 */}
-                <SectionWrapper title="TV/Film Top 5" emoji="🎬" seeMoreHref="/tvfilm" onNavigate={navigateToPage}>
+                <SectionWrapper title="TV/Film Top 5" emoji="🎬">
                   <DramaTop5 dramas={allMovies.length > 0 ? allMovies : tvfilms} type="tvfilm" onNavigate={navigateToPage} />
                 </SectionWrapper>
 
                 {/* Top Rated TV/Film */}
-                <SectionWrapper title="Top Rated" emoji="" seeMoreHref="/tvfilm" onNavigate={navigateToPage}>
+                <SectionWrapper title="Top Rated TV/Film" emoji="">
                   <TopRatedDramaGrid dramas={allMovies.length > 0 ? allMovies : tvfilms} onNavigate={navigateToPage} />
                 </SectionWrapper>
 
                 {/* Latest TV/Film Updates */}
-                <SectionWrapper title="Latest TV/Film Updates" emoji="🔥" seeMoreHref="/tvfilm" onNavigate={navigateToPage}>
+                <SectionWrapper title="Latest TV/Film Updates" emoji="🔥">
                   <ArticleCardGrid articles={movieNews?.slice(0, 3) || []} onNavigate={navigateToPage} />
                   {movieNews?.length > 3 && (
                     <div className="mt-8">
@@ -683,14 +797,14 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
 
                 {/* Watch News */}
                 {watchNews && watchNews.length > 0 && (
-                  <SectionWrapper title="Watch News" emoji="👀" seeMoreHref="/news" onNavigate={navigateToPage}>
+                  <SectionWrapper title="Watch News" emoji="👀">
                     <WatchNewsSection articles={watchNews} onNavigate={navigateToPage} onPlayVideo={openYoutubeModal} />
                   </SectionWrapper>
                 )}
 
                 {/* Recommended News */}
                 {recommendedNews && recommendedNews.length > 0 && (
-                  <SectionWrapper title="Recommended News" emoji="💓" seeMoreHref="/news" onNavigate={navigateToPage}>
+                  <SectionWrapper title="Recommended News" emoji="💓">
                     <ArticleCardGrid articles={recommendedNews.slice(0, 3)} onNavigate={navigateToPage} />
                   </SectionWrapper>
                 )}
@@ -709,17 +823,17 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
                     <CommentTicker comments={recentComments || []} onNavigate={navigateToPage} />
 
                     {/* Trending NOW */}
-                    <TrendingNow items={rankingNews || []} onNavigate={navigateToPage} />
+                    <TrendingNow items={trendingNews.length > 0 ? trendingNews : rankingNews || []} onNavigate={navigateToPage} />
 
                     {/* TV/Film Categories */}
-                    <DramaCategories type="tvfilm" onCategoryClick={handleCategoryClick} activeCategory={activeCategory} />
+                    {/* <DramaCategories type="tvfilm" onCategoryClick={handleCategoryClick} activeCategory={activeCategory} /> */}
 
                     {/* Editor's PICK */}
-                    {rankingNews && rankingNews.length > 0 && (
+                    {(editorsPickNews.length > 0 || (rankingNews && rankingNews.length > 0)) && (
                       <div>
                         <h3 className="font-bold text-[23px] leading-[1.5] text-[#101828] mb-4 pl-1">Editor&apos;s <span className="text-ksp-accent">PICK</span></h3>
                         <div className="bg-white border border-[#F3F4F6] shadow-card rounded-2xl p-4 space-y-6">
-                          {rankingNews.slice(0, 6).map((item) => (
+                          {(editorsPickNews.length > 0 ? editorsPickNews : rankingNews).slice(0, 6).map((item) => (
                             <div
                               key={item._id}
                               className="flex gap-4 cursor-pointer group"
@@ -798,11 +912,11 @@ export async function getServerSideProps(context) {
     const baseUrl = `${protocol}://${host}`;
 
     // Use production API for movie/tvfilm data (local DB may not have movie category data)
-    const prodUrl = process.env.NEXT_PUBLIC_API_URL || baseUrl;
+    const prodUrl = baseUrl;
 
     // Fetch all data in parallel
     // comments/recent may not exist on production, use local for that
-    const [moviesResponse, movieNewsResponse, commentsResponse, rankingResponse, allNewsResponse] = await Promise.all([
+    const [moviesResponse, movieNewsResponse, commentsResponse, rankingResponse, allNewsResponse, reviewsResponse, trendingResponse] = await Promise.all([
       fetch(`${prodUrl}/api/dramas?category=movie&limit=100&includeAllFields=true&sortBy=orderNumber&sortOrder=asc`, {
         headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
       }),
@@ -811,7 +925,9 @@ export async function getServerSideProps(context) {
       }),
       fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`).catch(() => ({ json: () => ({ success: false }) })),
-      fetch(`${prodUrl}/api/news?limit=200`).catch(() => ({ json: () => ({ success: false }) }))
+      fetch(`${prodUrl}/api/news?limit=200`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${baseUrl}/api/dramas/reviews/recent?limit=10&category=movie`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news/trending?limit=5&category=movie`).catch(() => ({ json: () => ({ success: false }) })),
     ]);
 
     const moviesData = await moviesResponse.json();
@@ -819,6 +935,13 @@ export async function getServerSideProps(context) {
     const commentsData = await commentsResponse.json();
     const rankingData = await rankingResponse.json();
     const allNewsData = await allNewsResponse.json();
+    const reviewsData = await reviewsResponse.json();
+    const trendingData = await trendingResponse.json();
+
+    // Editor's PICK: trending ID 제외
+    const trendingIds = (trendingData.success ? trendingData.data || [] : []).map(n => n._id).join(',');
+    const editorsPickResponse = await fetch(`${prodUrl}/api/news/editors-pick?limit=6&category=movie${trendingIds ? `&exclude=${trendingIds}` : ''}`).catch(() => ({ json: () => ({ success: false }) }));
+    const editorsPickData = await editorsPickResponse.json();
 
     const movieNewsArray = Array.isArray(movieNewsData.data) ? movieNewsData.data : [];
 
@@ -863,6 +986,11 @@ export async function getServerSideProps(context) {
       ? recommendedNews
       : (rankingData.success ? (rankingData.data?.news || []).slice(0, 3).map(n => ({ ...n, coverImage: fixImageUrl(n.coverImage), thumbnailUrl: fixImageUrl(n.thumbnailUrl) })) : []);
 
+    // Trending news
+    const trendingNews = trendingData.success
+      ? (trendingData.data || []).slice(0, 5).map(n => ({ ...n, coverImage: fixImageUrl(n.coverImage), thumbnailUrl: fixImageUrl(n.thumbnailUrl) }))
+      : [];
+
     return {
       props: {
         tvfilms: processedMovies || [],
@@ -877,8 +1005,11 @@ export async function getServerSideProps(context) {
         },
         recentComments: commentsData.success ? (commentsData.data || []).slice(0, 10) : [],
         rankingNews: rankingData.success ? (rankingData.data?.news || []).slice(0, 10).map(n => ({ ...n, coverImage: fixImageUrl(n.coverImage), thumbnailUrl: fixImageUrl(n.thumbnailUrl) })) : [],
+        trendingNews,
         watchNews: watchNews,
         recommendedNews: finalRecommended,
+        recentReviews: reviewsData.success ? (reviewsData.data || []).slice(0, 10) : [],
+        editorsPickNews: editorsPickData.success ? (editorsPickData.data || []).map(n => ({ ...n, coverImage: fixImageUrl(n.coverImage), thumbnailUrl: fixImageUrl(n.thumbnailUrl) })) : [],
       }
     };
   } catch (error) {
@@ -890,8 +1021,11 @@ export async function getServerSideProps(context) {
         newsPagination: { total: 0, page: 1, limit: 12, totalPages: 0, hasNextPage: false, hasPrevPage: false },
         recentComments: [],
         rankingNews: [],
+        trendingNews: [],
         watchNews: [],
         recommendedNews: [],
+        recentReviews: [],
+        editorsPickNews: [],
       }
     };
   }

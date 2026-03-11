@@ -43,8 +43,8 @@ const NewsCardGrid = ({ articles = [], onNavigate }) => {
             {/* Mobile: Rank number - top left */}
             <div className="lg:hidden absolute top-0 left-0 w-8 h-8 flex items-center justify-center">
               <span
-                className="text-white font-black leading-none"
-                style={{ fontFamily: 'Inter, sans-serif', fontSize: '30px', filter: 'drop-shadow(0px 3px 6px rgba(0,0,0,0.12))' }}
+                className="text-white font-black italic leading-none"
+                style={{ fontFamily: 'Inter, sans-serif', fontSize: '30px', fontStyle: 'italic', lineHeight: '30px', letterSpacing: '0.396px', filter: 'drop-shadow(0px 3px 6px rgba(0,0,0,0.12))' }}
               >
                 {index + 2}
               </span>
@@ -72,7 +72,10 @@ const NewsCardGrid = ({ articles = [], onNavigate }) => {
     <button
       className="lg:hidden w-full mt-6 py-4 rounded-full text-sm font-semibold text-[#2D3138] hover:bg-gray-50 transition-colors"
       style={{ border: '0.86px solid #E5E7EB', fontFamily: 'Inter, sans-serif' }}
-      onClick={() => onNavigate('/news')}
+      onClick={() => {
+        sessionStorage.removeItem('rankingActiveTab');
+        onNavigate('/ranking');
+      }}
     >
       More Content
     </button>

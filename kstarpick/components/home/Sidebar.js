@@ -17,14 +17,14 @@ const getTimeAgo = (dateStr) => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-const Sidebar = ({ rankingNews = [], popularArticles = [], recentComments = [], onSearch, onNavigate }) => {
+const Sidebar = ({ rankingNews = [], trendingNews = [], popularArticles = [], recentComments = [], onSearch, onNavigate }) => {
   return (
     <div className="w-full space-y-8">
       {/* Comment Ticker */}
       <CommentTicker comments={recentComments} onNavigate={onNavigate} />
 
       {/* Trending NOW Widget */}
-      <TrendingNow items={rankingNews} onNavigate={onNavigate} />
+      <TrendingNow items={trendingNews.length > 0 ? trendingNews : rankingNews} onNavigate={onNavigate} />
 
       {/* Editor's PICK Widget */}
       {popularArticles.length > 0 && (

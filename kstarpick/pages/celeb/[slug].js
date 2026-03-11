@@ -94,7 +94,7 @@ const getTimeAgo = (dateStr) => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-export default function CelebrityDetailPage({ celebrity = null, recentComments, rankingNews }) {
+export default function CelebrityDetailPage({ celebrity = null, recentComments, rankingNews, trendingNews = [], editorsPickNews = [] }) {
   const router = useRouter();
   const { slug } = router.query;
   
@@ -120,6 +120,7 @@ export default function CelebrityDetailPage({ celebrity = null, recentComments, 
   // 뱃지 설명 모달 상태
   const [showBadgeInfoModal, setShowBadgeInfoModal] = useState(false);
   const [showTodayInfoModal, setShowTodayInfoModal] = useState(false);
+  const [moMvShowAll, setMoMvShowAll] = useState(false);
 
   // 스크롤 이벤트 리스너 추가
   useEffect(() => {
@@ -160,40 +161,32 @@ export default function CelebrityDetailPage({ celebrity = null, recentComments, 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const isBackToCeleb = sessionStorage.getItem('isBackToCeleb');
+    const isBack = sessionStorage.getItem('isBackToCelebDetail') === 'true';
+    const wasBack = sessionStorage.getItem('_navWasBack') === 'true';
+    const savedPath = sessionStorage.getItem('celebDetailScrollPositionPath');
     const savedScrollPosition = sessionStorage.getItem('celebDetailScrollPosition');
+    const currentPath = window.location.pathname;
 
-    if (isBackToCeleb === 'true' && savedScrollPosition) {
+    if (isBack && wasBack && savedScrollPosition && savedPath === currentPath) {
       const scrollPos = parseInt(savedScrollPosition, 10);
 
       const restoreScroll = () => {
-        // body에 직접 스크롤 설정
-        document.body.scrollTop = scrollPos;
-        document.documentElement.scrollTop = scrollPos;
         window.scrollTo(0, scrollPos);
+        document.documentElement.scrollTop = scrollPos;
+        document.body.scrollTop = scrollPos;
       };
 
-      // 여러 시도로 동적 콘텐츠 로딩을 고려
-      setTimeout(restoreScroll, 0);
-      setTimeout(restoreScroll, 50);
-      setTimeout(restoreScroll, 100);
-      setTimeout(restoreScroll, 200);
-      setTimeout(restoreScroll, 300);
-      setTimeout(restoreScroll, 500);
-      setTimeout(restoreScroll, 800);
-
-      requestAnimationFrame(() => {
-        setTimeout(restoreScroll, 100);
-        setTimeout(restoreScroll, 300);
-        setTimeout(restoreScroll, 500);
+      restoreScroll();
+      [50, 150, 300, 500, 800, 1200, 2000].forEach(delay => {
+        setTimeout(restoreScroll, delay);
       });
 
-      // 플래그 제거
-      setTimeout(() => {
-        sessionStorage.removeItem('isBackToCeleb');
-        sessionStorage.removeItem('celebDetailScrollPosition');
-      }, 1000);
+      sessionStorage.removeItem('celebDetailScrollPosition');
+      sessionStorage.removeItem('celebDetailScrollPositionPath');
     }
+
+    // 순방향이든 뒤로가기든 플래그 정리
+    sessionStorage.removeItem('isBackToCelebDetail');
   }, [router.asPath]);
   
   // 이미지 에러 핸들러
@@ -712,1000 +705,637 @@ export default function CelebrityDetailPage({ celebrity = null, recentComments, 
       
       {/* Mobile layout */}
       <div className="lg:hidden">
-      <div className="relative">
-        {/* 배경 이미지 & 오버레이 */}
-        <div className="absolute inset-0 h-[100vh] overflow-hidden">
-          {celebrity.profileImage ? (
-            <>
-              <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-white z-10"></div>
-              <img 
-                src={celebrity.profileImage} 
-                alt="" 
-                className="w-full h-full object-cover object-center scale-110 filter blur-sm"
-                onError={handleImageError}
-              />
-            </>
-          ) : (
-            <div className="w-full h-full bg-gradient-to-b from-[#ff3e8e]/50 to-white"></div>
-          )}
-          
-          {/* 장식 요소 */}
-          <div className="absolute top-0 left-0 w-full h-full overflow-hidden">
-            <div className="absolute top-[20%] left-[10%] w-2 h-2 rounded-full bg-pink-300 animate-float" style={{ animationDelay: '0s' }}></div>
-            <div className="absolute top-[40%] left-[15%] w-3 h-3 rounded-full bg-pink-400 animate-float" style={{ animationDelay: '0.5s' }}></div>
-            <div className="absolute top-[30%] left-[25%] w-2 h-2 rounded-full bg-pink-200 animate-float" style={{ animationDelay: '1s' }}></div>
-            <div className="absolute top-[50%] left-[80%] w-2 h-2 rounded-full bg-pink-400 animate-float" style={{ animationDelay: '1.5s' }}></div>
-            <div className="absolute top-[25%] left-[70%] w-3 h-3 rounded-full bg-pink-300 animate-float" style={{ animationDelay: '2s' }}></div>
-            <div className="absolute top-[60%] left-[60%] w-2 h-2 rounded-full bg-pink-200 animate-float" style={{ animationDelay: '2.5s' }}></div>
-          </div>
-        </div>
-        
-        {/* 메인 콘텐츠 */}
-        <div className="relative z-10 -mt-16 px-4 min-h-screen flex flex-col justify-center">
-          {/* 뒤로가기 버튼 */}
-          <div className="max-w-7xl mx-auto w-full">
-            <Link href="/celeb" className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/20 text-white backdrop-blur-md hover:bg-white/30 transition-all">
-              <ArrowLeft size={16} />
-              <span>Back</span>
-            </Link>
-          </div>
-          
-          {/* 프로필 헤더 */}
-          <div className="max-w-7xl mx-auto mt-8 md:mt-12 mb-8 w-full">
-            <div className="flex flex-col md:flex-row gap-8 items-center md:items-end text-white">
-              {/* 프로필 이미지 */}
-              <div className="relative">
-                <div className="w-40 h-40 md:w-60 md:h-60 rounded-full overflow-hidden border-4 border-white/80 shadow-xl">
-                  <img 
-                    src={celebrity.profileImage} 
-                    alt={celebrity.name}
-                    className="w-full h-full object-cover"
-                    onError={handleImageError}
-                  />
-                </div>
+
+      {/* ===== Mobile Hero Section (Figma 481:10298) ===== */}
+      {/* Container: 430×464 ratio */}
+      <div className="relative w-full" style={{ height: '107.9vw' }}>
+        {/* Profile image: top 0, height 74.1% (344/464) */}
+        <img
+          src={celebrity.profileImage}
+          alt={celebrity.name}
+          className="absolute top-0 left-0 w-full object-cover object-top"
+          style={{ height: '74.1%' }}
+          draggable="false"
+          onError={handleImageError}
+        />
+
+        {/* White fade: top 62.5% (290/464), height 12.9% (60/464) */}
+        <div
+          className="absolute left-0 right-0"
+          style={{
+            top: '62.5%',
+            height: '12.9%',
+            background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 100%)',
+          }}
+        />
+
+        {/* Layer 1: Blur with mask — blur gradually increases from top to bottom */}
+        <div
+          className="absolute left-0 right-0 pointer-events-none"
+          style={{
+            top: '34.5%',
+            height: '65.5%',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 30%, rgba(0,0,0,0.7) 50%, black 70%)',
+            maskImage: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 30%, rgba(0,0,0,0.7) 50%, black 70%)',
+          }}
+        />
+
+        {/* Layer 2: Gradient color overlay + content */}
+        <div
+          className="absolute left-0 right-0 flex flex-col justify-center"
+          style={{
+            top: '34.5%',
+            height: '65.5%',
+            padding: '100px 0 30px 16px',
+            background: 'linear-gradient(0deg, rgba(255,255,255,1) 0%, rgba(196,203,216,1) 22%, rgba(88,97,113,0.88) 47%, rgba(0,7,20,0.33) 82%, rgba(0,7,20,0) 100%)',
+          }}
+        >
+          {/* Frame 258: gap 16px */}
+          <div className="flex flex-col gap-4">
+            {/* Frame 257: gap 10px */}
+            <div className="flex flex-col gap-[10px]">
+              {/* Frame 256: name + agency, no gap */}
+              <div className="flex flex-col">
+                <h1
+                  className="font-bold text-white capitalize"
+                  style={{ fontFamily: 'Inter, sans-serif', fontSize: '22px', lineHeight: '1.5em', letterSpacing: '-0.042em' }}
+                >
+                  {celebrity.name}
+                </h1>
+                {celebrity.agency && (
+                  <span style={{ fontFamily: 'Pretendard, sans-serif', fontWeight: 400, fontSize: '12px', lineHeight: '1.54em', color: '#AFB7C6' }}>
+                    {celebrity.agency}
+                  </span>
+                )}
               </div>
-              
-              {/* 이름 및 기본 정보 */}
-              <div className="text-center md:text-left">
-                <div className="flex flex-col md:flex-row items-center md:items-baseline gap-2 md:gap-4">
-                  <h1 className="text-4xl md:text-6xl font-black tracking-tight text-stroke animate-fadeIn">
-                    {celebrity.name}
-                  </h1>
-                </div>
-                
-                {/* 기본 정보 */}
-                <div className="mt-4 flex flex-wrap justify-center md:justify-start gap-6 text-white/90">
-                  {celebrity.agency && (
-                    <div className="flex items-center gap-2">
-                      <Globe size={18} />
-                      <span>{celebrity.agency}</span>
-                    </div>
-                  )}
 
-                  {celebrity.debutDate && (
-                    <div className="flex items-center gap-2">
-                      <Calendar size={18} />
-                      <span>{formatDate(celebrity.debutDate)}</span>
-                    </div>
-                  )}
-                  
-                  {celebrity.followers > 0 && (
-                    <div className="flex items-center gap-2">
-                      <Users size={18} className="text-pink-200" />
-                      <span>{formatCompactNumber(celebrity.followers)} Followers</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* 스크롤 다운 인디케이터 */}
-          <div className="scroll-indicator">
-            <span className="sr-only">스크롤하여 더 보기</span>
-          </div>
-        </div>
-      </div>
-      
-      {/* 메인 콘텐츠 영역 */}
-      <div className="bg-white py-16">
-        <div className="max-w-7xl mx-auto px-4">
-          {/* 프로필 섹션 - 데이터 그리드 */}
-          <section className="mb-24">
-            <div className="flex items-center mb-6">
-              <h2 className="text-3xl font-bold text-black">
-                Profile Information
-              </h2>
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-10">
-              {/* 왼쪽 컬럼 - 상세 정보 */}
-              <div className="lg:col-span-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                  {/* 정보 아이템들 */}
-                  {celebrity.agency && (
-                    <div className="flex items-start gap-4 p-5 rounded-xl hover:bg-gray-50 transition-colors border border-gray-100">
-                      <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
-                        <img src="/images/icons8-globe-94.png" alt="Agency" className="w-8 h-8" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Agency</p>
-                        <p className="font-bold text-gray-800 text-lg">{celebrity.agency}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {celebrity.debutDate && (
-                    <div className="flex items-start gap-4 p-5 rounded-xl hover:bg-gray-50 transition-colors border border-gray-100">
-                      <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
-                        <img src="/images/icons8-calendar-94.png" alt="Debut Date" className="w-8 h-8" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Debut Date</p>
-                        <p className="font-bold text-gray-800 text-lg">{formatDate(celebrity.debutDate)}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {celebrity.group && (
-                    <div className="flex items-start gap-4 p-5 rounded-xl hover:bg-gray-50 transition-colors border border-gray-100">
-                      <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
-                        <Users size={32} className="text-blue-500" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Group</p>
-                        <p className="font-medium text-gray-800 text-lg">{celebrity.group}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {celebrity.role && (
-                    <div className="flex items-start gap-4 p-5 rounded-xl hover:bg-gray-50 transition-colors border border-gray-100">
-                      <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
-                        <img src="/images/icons8-profile-94.png" alt="Role" className="w-8 h-8" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Role</p>
-                        <p className="font-bold text-gray-800 text-lg">{celebrity.role}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {celebrity.followers > 0 && (
-                    <div className="flex items-start gap-4 p-5 rounded-xl hover:bg-gray-50 transition-colors border border-gray-100">
-                      <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
-                        <Users size={32} className="text-blue-500" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Followers</p>
-                        <p className="font-medium text-gray-800 text-lg">{formatCompactNumber(celebrity.followers)}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                {/* 바이오그래피 */}
-                {celebrity.bio && (
-                  <div className="mt-10">
-                    <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                      <Star size={18} className="text-[#ff3e8e]" />
-                      <span>Biography</span>
-                    </h3>
-                    <div className="prose max-w-none text-gray-600 leading-relaxed bg-gray-50 p-6 rounded-xl border border-gray-100">
-                      <p>{celebrity.bio}</p>
-                    </div>
-                  </div>
+              {/* Frame 270: description + More, gap 4px */}
+              <div className="flex flex-col gap-1 pr-4">
+                <p
+                  className="text-white line-clamp-2"
+                  style={{ fontFamily: 'Pretendard, sans-serif', fontWeight: 400, fontSize: '12px', lineHeight: '1.54em' }}
+                >
+                  {celebrity.biography || celebrity.description || `${celebrity.name} is a popular K-pop celebrity.`}
+                </p>
+                {(celebrity.biography || celebrity.description) && (
+                  <span
+                    className="text-white uppercase font-medium cursor-pointer"
+                    style={{ fontFamily: 'Roboto, sans-serif', fontSize: '12px', lineHeight: '1.17em', letterSpacing: '0.0006em' }}
+                    onClick={() => setSynopsisExpanded && setSynopsisExpanded(true)}
+                  >
+                    More
+                  </span>
                 )}
               </div>
             </div>
-          </section>
-          
-          {/* 뮤직비디오 뱃지 섹션 */}
-          {hasMusicVideos && (
-            <section className="mb-24 -mt-8 md:mt-12">
-              <div className="flex items-center gap-2 mb-6">
-                <h2 className="text-3xl font-bold text-black">
-                  Badges
-                </h2>
-                <button
-                  onClick={() => setShowBadgeInfoModal(true)}
-                  className="text-gray-500 hover:text-gray-700 text-lg cursor-pointer transition-colors"
-                  title="More information"
-                >
-                  ⓘ
-                </button>
-              </div>
 
-              {/* 모달 */}
-              {showBadgeInfoModal && (
-                <div
-                  className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-                  onClick={() => setShowBadgeInfoModal(false)}
-                >
-                  <div
-                    className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl transform transition-all"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <h3 className="text-xl font-bold text-gray-800">Music Video Badges</h3>
-                      <button
-                        onClick={() => setShowBadgeInfoModal(false)}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="18" y1="6" x2="6" y2="18"></line>
-                          <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                      </button>
-                    </div>
-                    <p className="text-gray-600 leading-relaxed">
-                      Check out badges based on music video view counts
-                    </p>
-                    <div className="mt-6 flex justify-end">
-                      <button
-                        onClick={() => setShowBadgeInfoModal(false)}
-                        className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors"
-                      >
-                        Got it
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              <div className="relative px-4 py-12 max-w-6xl mx-auto">
-                {/* 배경 타이틀 텍스트 제거 */}
-                
-                {/* 뱃지 그리드 */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-12 relative z-10">
-                  {(() => {
-                    // 뮤직비디오를 조회수 기준으로 그룹화
-                    const badges = [
-                      { threshold: 5000000000, label: '5B', class: 'badge-5b', count: 0 },
-                      { threshold: 2000000000, label: '2B', class: 'badge-2b', count: 0 },
-                      { threshold: 1000000000, label: '1B', class: 'badge-1b', count: 0 },
-                      { threshold: 900000000, label: '900M', class: 'badge-900m', count: 0 },
-                      { threshold: 700000000, label: '700M', class: 'badge-700m', count: 0 },
-                      { threshold: 500000000, label: '500M', class: 'badge-500m', count: 0 },
-                      { threshold: 300000000, label: '300M', class: 'badge-300m', count: 0 },
-                      { threshold: 200000000, label: '200M', class: 'badge-200m', count: 0 },
-                      { threshold: 100000000, label: '100M', class: 'badge-100m', count: 0 },
-                      { threshold: 90000000, label: '90M', class: 'badge-90m', count: 0 },
-                      { threshold: 80000000, label: '80M', class: 'badge-80m', count: 0 },
-                      { threshold: 70000000, label: '70M', class: 'badge-70m', count: 0 },
-                      { threshold: 60000000, label: '60M', class: 'badge-60m', count: 0 },
-                      { threshold: 50000000, label: '50M', class: 'badge-50m', count: 0 },
-                      { threshold: 40000000, label: '40M', class: 'badge-40m', count: 0 },
-                      { threshold: 30000000, label: '30M', class: 'badge-30m', count: 0 },
-                      { threshold: 20000000, label: '20M', class: 'badge-20m', count: 0 },
-                      { threshold: 10000000, label: '10M', class: 'badge-10m', count: 0 },
-                      { threshold: 5000000, label: '5M', class: 'badge-5m', count: 0 }
-                    ];
-                    
-                    // 각 뱃지별 뮤직비디오 개수 계산
-                    celebrity.musicVideos.forEach(video => {
-                      for (let i = 0; i < badges.length; i++) {
-                        if (video.views >= badges[i].threshold) {
-                          badges[i].count++;
-                          break;
-                        }
-                      }
-                    });
-                    
-                    // 개수가 있는 뱃지만 필터링
-                    return badges
-                      .filter(badge => badge.count > 0)
-                      .map((badge, idx) => {
-                        // 뱃지별 특별 스타일 적용
-                        let badgeStyle = {};
-                        let fontStyle = {};
-                        
-                        // 1000만~1억 미만 범위의 뱃지에 특별 스타일 적용
-                        if (badge.threshold >= 10000000 && badge.threshold < 100000000) {
-                          // 90M, 80M은 이미 스타일이 있으니 70M부터 10M까지 추가 스타일링
-                          if (badge.threshold === 70000000) {
-                            badgeStyle = {
-                              background: 'linear-gradient(135deg, #1a1a1a, #333, #1a1a1a)',
-                              boxShadow: '0 15px 25px rgba(0, 0, 0, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.1)'
-                            };
-                          } else if (badge.threshold === 60000000) {
-                            badgeStyle = {
-                              background: 'linear-gradient(135deg, #222, #383838, #222)',
-                              boxShadow: '0 15px 25px rgba(0, 0, 0, 0.35), inset 0 -4px 0 rgba(0, 0, 0, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.1)'
-                            };
-                          } else if (badge.threshold === 50000000) {
-                            badgeStyle = {
-                              background: 'linear-gradient(135deg, #252525, #3d3d3d, #252525)',
-                              boxShadow: '0 15px 25px rgba(0, 0, 0, 0.35), inset 0 -4px 0 rgba(0, 0, 0, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.1)'
-                            };
-                          } else if (badge.threshold === 40000000) {
-                            badgeStyle = {
-                              background: 'linear-gradient(135deg, #2a2a2a, #444, #2a2a2a)',
-                              boxShadow: '0 15px 20px rgba(0, 0, 0, 0.3), inset 0 -4px 0 rgba(0, 0, 0, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.1)'
-                            };
-                          } else if (badge.threshold === 30000000) {
-                            badgeStyle = {
-                              background: 'linear-gradient(135deg, #303030, #4a4a4a, #303030)',
-                              boxShadow: '0 15px 20px rgba(0, 0, 0, 0.3), inset 0 -4px 0 rgba(0, 0, 0, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.1)'
-                            };
-                          } else if (badge.threshold === 20000000) {
-                            badgeStyle = {
-                              background: 'linear-gradient(135deg, #353535, #505050, #353535)',
-                              boxShadow: '0 15px 20px rgba(0, 0, 0, 0.25), inset 0 -4px 0 rgba(0, 0, 0, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.15)'
-                            };
-                          } else if (badge.threshold === 10000000) {
-                            badgeStyle = {
-                              background: 'linear-gradient(135deg, #3a3a3a, #555, #3a3a3a)',
-                              boxShadow: '0 15px 20px rgba(0, 0, 0, 0.25), inset 0 -4px 0 rgba(0, 0, 0, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.15)'
-                            };
-                            fontStyle = { textShadow: '0 2px 3px rgba(0, 0, 0, 0.6)' };
-                          }
-                        }
-                        
-                        // 10억 이상 뱃지 특별 스타일
-                        if (badge.threshold >= 1000000000) {
-                          // 특별 빛나는 효과와 색상 적용
-                          badgeStyle = {
-                            background: `linear-gradient(135deg, ${badge.threshold >= 5000000000 ? '#843cf6, #2878fe, #843cf6' : 
-                                                                  badge.threshold >= 2000000000 ? '#7a42f4, #3980f5, #7a42f4' : 
-                                                                  '#704cf2, #478bf2, #704cf2'})`,
-                            boxShadow: '0 20px 30px rgba(132, 60, 246, 0.4), inset 0 -4px 0 rgba(0, 0, 0, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.4)',
-                            border: '1px solid rgba(255, 255, 255, 0.3)'
-                          };
-                          fontStyle = { 
-                            color: 'white',
-                            textShadow: '0 0 10px rgba(255, 255, 255, 0.5), 0 2px 4px rgba(0, 0, 0, 0.6)',
-                            fontWeight: '900'
-                          };
-                        }
-                        // 1억~10억 미만 뱃지 특별 스타일
-                        else if (badge.threshold >= 100000000 && badge.threshold < 1000000000) {
-                          if (badge.threshold >= 300000000) {
-                            const intensity = badge.threshold >= 700000000 ? '0.4' : 
-                                           badge.threshold >= 500000000 ? '0.35' : '0.3';
-                            badgeStyle = {
-                              background: `linear-gradient(135deg, #ff3838, #ff5757, #ff3838)`,
-                              boxShadow: `0 15px 25px rgba(255, 56, 56, ${intensity}), inset 0 -4px 0 rgba(0, 0, 0, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.4)`
-                            };
-                            fontStyle = { 
-                              textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)',
-                              fontWeight: badge.threshold >= 500000000 ? '900' : '800'
-                            };
-                          }
-                        }
-                        
-                        return (
-                          <div key={badge.label} className="flex justify-center relative">
-                            <div className={`hexagon-badge ${badge.class}`} style={badgeStyle}>
-                              <div className="badge-content">
-                                <span className="view-count" style={fontStyle}>{badge.label}</span>
-                                <span className="million-text">
-                                  {badge.threshold >= 1000000000 ? 'BILLION VIEWS' :
-                                   badge.threshold >= 1000000 ? 'MILLION VIEWS' : 'THOUSAND VIEWS'}
-                                </span>
-                                <div className="play-icon">
-                                  <Play size={16} strokeWidth={2.5} />
-                                </div>
-                              </div>
-                            </div>
-                            
-                            {/* 뱃지 개수 카운트 */}
-                            <div className="badge-count-bubble">
-                              {badge.count}
-                            </div>
-                          </div>
-                        );
-                      });
-                  })()}
-                </div>
-              </div>
-            </section>
-          )}
-          
-          {/* SNS 팔로워 통계 섹션 */}
-          <section className="mb-24 -mt-8 md:mt-12">
-            <div className="flex items-center gap-2 mb-6">
-              <h2 className="text-3xl font-bold text-black">
-                Today
-              </h2>
-              <button
-                onClick={() => setShowTodayInfoModal(true)}
-                className="text-gray-500 hover:text-gray-700 text-lg cursor-pointer transition-colors"
-                title="More information"
-              >
-                ⓘ
-              </button>
-            </div>
-
-            {/* 모달 */}
-            {showTodayInfoModal && (
+            {/* Likes button — same as PC (Figma 437:7609) */}
+            <div className="flex items-center gap-2">
               <div
-                className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-                onClick={() => setShowTodayInfoModal(false)}
+                className="flex items-center justify-center gap-1 rounded-full cursor-default"
+                style={{ padding: '10px 18px', background: 'rgba(255,255,255,0.9)' }}
               >
-                <div
-                  className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl transform transition-all"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <h3 className="text-xl font-bold text-gray-800">TODAY</h3>
-                    <button
-                      onClick={() => setShowTodayInfoModal(false)}
-                      className="text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                      </svg>
-                    </button>
-                  </div>
-                  <p className="text-gray-600 leading-relaxed">
-                    Current platform subscribers and rankings compared to the previous day ({new Date().toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')})
-                  </p>
-                  <div className="mt-6 flex justify-end">
-                    <button
-                      onClick={() => setShowTodayInfoModal(false)}
-                      className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors"
-                    >
-                      Got it
-                    </button>
-                  </div>
-                </div>
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9 15.75L7.9125 14.7638C3.9 11.1113 1.125 8.58375 1.125 5.5125C1.125 2.985 3.0975 1.0125 5.625 1.0125C7.0575 1.0125 8.4325 1.67625 9 2.73375C9.5675 1.67625 10.9425 1.0125 12.375 1.0125C14.9025 1.0125 16.875 2.985 16.875 5.5125C16.875 8.58375 14.1 11.1113 10.0875 14.7638L9 15.75Z" fill="#000000"/>
+                </svg>
+                <span className="font-semibold text-[12px] tracking-wide" style={{ color: '#111111', fontFamily: 'Inter, sans-serif', lineHeight: '1.25em' }}>
+                  {(() => {
+                    const totalFollowers = Object.values(celebrity.socialMediaFollowers || {}).reduce((sum, v) => sum + (v || 0), 0);
+                    if (totalFollowers >= 1000000) return `${(totalFollowers / 1000000).toFixed(0)}M Likes`;
+                    if (totalFollowers >= 1000) return `${(totalFollowers / 1000).toFixed(0)}K Likes`;
+                    return `${totalFollowers} Likes`;
+                  })()}
+                </span>
               </div>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* YouTube */}
-              {celebrity.socialMediaFollowers?.youtube > 0 && (
-                <a
-                  href={celebrity.socialMedia?.youtube || "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group overflow-hidden rounded-xl transition-all duration-300 relative bg-white"
-                >
-                  
-                  <div className="p-3 relative z-10">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
-                        <img src="/images/icons8-youtube-logo-94.png" alt="YouTube" className="w-4 h-4" />
-                      </div>
-                      <h3 className="text-lg font-bold">YouTube</h3>
-                      <ChevronRight size={16} className="text-gray-400" />
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-baseline">
-                        <div className="text-2xl font-black" style={{color: '#797585'}}>{celebrity.socialMediaFollowers.youtube.toLocaleString()}</div>
-                        {celebrity.socialMediaRankings?.youtube > 0 && (
-                          <div className="ml-3 py-1 px-2 bg-white/50 rounded-full text-sm font-semibold text-gray-700">
-                            Rank <span className="text-red-500">{celebrity.socialMediaRankings.youtube}</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {celebrity.socialMediaChanges?.youtube && (
-                        <div className={`flex items-center gap-2 ${
-                          celebrity.socialMediaChanges.youtube.count > 0 
-                            ? 'text-red-600' 
-                            : celebrity.socialMediaChanges.youtube.count < 0 
-                              ? 'text-blue-600' 
-                              : 'text-gray-500'
-                        }`}>
-                          <div className="flex items-center text-sm font-medium bg-white/50 rounded-full py-1 px-3">
-                            <span className="mr-1">
-                              {celebrity.socialMediaChanges.youtube.count > 0 
-                                ? '▲' 
-                                : celebrity.socialMediaChanges.youtube.count < 0 
-                                  ? '▼' 
-                                  : '⊖'
-                              }
-                            </span>
-                            <span>
-                              {Math.abs(celebrity.socialMediaChanges.youtube.count).toLocaleString()} 
-                            </span>
-                          </div>
-                          <div className="text-sm font-medium">
-                            ({celebrity.socialMediaChanges.youtube.percent.toFixed(2)}%)
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </a>
-              )}
-              
-              {/* Instagram */}
-              {celebrity.socialMediaFollowers?.instagram > 0 && (
-                <a
-                  href={celebrity.socialMedia?.instagram || "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group overflow-hidden rounded-xl transition-all duration-300 relative bg-white"
-                >
-                  
-                  <div className="p-3 relative z-10">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
-                        <img src="/images/icons8-instagram-logo-94.png" alt="Instagram" className="w-4 h-4" />
-                      </div>
-                      <h3 className="text-lg font-bold">Instagram</h3>
-                      <ChevronRight size={16} className="text-gray-400" />
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-baseline">
-                        <div className="text-2xl font-black" style={{color: '#797585'}}>{celebrity.socialMediaFollowers.instagram.toLocaleString()}</div>
-                        {celebrity.socialMediaRankings?.instagram > 0 && (
-                          <div className="ml-3 py-1 px-2 bg-white/50 rounded-full text-sm font-semibold text-gray-700">
-                            Rank <span className="text-pink-500">{celebrity.socialMediaRankings.instagram}</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {celebrity.socialMediaChanges?.instagram && (
-                        <div className={`flex items-center gap-2 ${
-                          celebrity.socialMediaChanges.instagram.count > 0 
-                            ? 'text-red-600' 
-                            : celebrity.socialMediaChanges.instagram.count < 0 
-                              ? 'text-blue-600' 
-                              : 'text-gray-500'
-                        }`}>
-                          <div className="flex items-center text-sm font-medium bg-white/50 rounded-full py-1 px-3">
-                            <span className="mr-1">
-                              {celebrity.socialMediaChanges.instagram.count > 0 
-                                ? '▲' 
-                                : celebrity.socialMediaChanges.instagram.count < 0 
-                                  ? '▼' 
-                                  : '⊖'
-                              }
-                            </span>
-                            <span>
-                              {Math.abs(celebrity.socialMediaChanges.instagram.count).toLocaleString()} 
-                            </span>
-                          </div>
-                          <div className="text-sm font-medium">
-                            ({celebrity.socialMediaChanges.instagram.percent.toFixed(2)}%)
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </a>
-              )}
-              
-              {/* Twitter */}
-              {celebrity.socialMediaFollowers?.twitter > 0 && (
-                <a
-                  href={celebrity.socialMedia?.twitter || "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group overflow-hidden rounded-xl transition-all duration-300 relative bg-white"
-                >
-                  
-                  <div className="p-3 relative z-10">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
-                        <img src="/images/icons8-x-94.png" alt="X" className="w-4 h-4" />
-                      </div>
-                      <h3 className="text-lg font-bold">X</h3>
-                      <ChevronRight size={16} className="text-gray-400" />
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-baseline">
-                        <div className="text-2xl font-black" style={{color: '#797585'}}>{celebrity.socialMediaFollowers.twitter.toLocaleString()}</div>
-                        {celebrity.socialMediaRankings?.twitter > 0 && (
-                          <div className="ml-3 py-1 px-2 bg-white/50 rounded-full text-sm font-semibold text-gray-700">
-                            Rank <span className="text-blue-500">{celebrity.socialMediaRankings.twitter}</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {celebrity.socialMediaChanges?.twitter && (
-                        <div className={`flex items-center gap-2 ${
-                          celebrity.socialMediaChanges.twitter.count > 0 
-                            ? 'text-red-600' 
-                            : celebrity.socialMediaChanges.twitter.count < 0 
-                              ? 'text-blue-600' 
-                              : 'text-gray-500'
-                        }`}>
-                          <div className="flex items-center text-sm font-medium bg-white/50 rounded-full py-1 px-3">
-                            <span className="mr-1">
-                              {celebrity.socialMediaChanges.twitter.count > 0 
-                                ? '▲' 
-                                : celebrity.socialMediaChanges.twitter.count < 0 
-                                  ? '▼' 
-                                  : '⊖'
-                              }
-                            </span>
-                            <span>
-                              {Math.abs(celebrity.socialMediaChanges.twitter.count).toLocaleString()} 
-                            </span>
-                          </div>
-                          <div className="text-sm font-medium">
-                            ({celebrity.socialMediaChanges.twitter.percent.toFixed(2)}%)
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </a>
-              )}
-              
-              {/* Spotify */}
-              {celebrity.socialMediaFollowers?.spotify > 0 && (
-                <a
-                  href={celebrity.socialMedia?.spotify || "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group overflow-hidden rounded-xl transition-all duration-300 relative bg-white"
-                >
-                  
-                  <div className="p-3 relative z-10">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
-                        <img src="/images/icons8-spotify-logo-94.png" alt="Spotify" className="w-4 h-4" />
-                      </div>
-                      <h3 className="text-lg font-bold">Spotify</h3>
-                      <ChevronRight size={16} className="text-gray-400" />
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-baseline">
-                        <div className="text-2xl font-black" style={{color: '#797585'}}>{celebrity.socialMediaFollowers.spotify.toLocaleString()}</div>
-                        {celebrity.socialMediaRankings?.spotify > 0 && (
-                          <div className="ml-3 py-1 px-2 bg-white/50 rounded-full text-sm font-semibold text-gray-700">
-                            Rank <span className="text-green-500">{celebrity.socialMediaRankings.spotify}</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {celebrity.socialMediaChanges?.spotify && (
-                        <div className={`flex items-center gap-2 ${
-                          celebrity.socialMediaChanges.spotify.count > 0 
-                            ? 'text-red-600' 
-                            : celebrity.socialMediaChanges.spotify.count < 0 
-                              ? 'text-blue-600' 
-                              : 'text-gray-500'
-                        }`}>
-                          <div className="flex items-center text-sm font-medium bg-white/50 rounded-full py-1 px-3">
-                            <span className="mr-1">
-                              {celebrity.socialMediaChanges.spotify.count > 0 
-                                ? '▲' 
-                                : celebrity.socialMediaChanges.spotify.count < 0 
-                                  ? '▼' 
-                                  : '⊖'
-                              }
-                            </span>
-                            <span>
-                              {Math.abs(celebrity.socialMediaChanges.spotify.count).toLocaleString()} 
-                            </span>
-                          </div>
-                          <div className="text-sm font-medium">
-                            ({celebrity.socialMediaChanges.spotify.percent.toFixed(2)}%)
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </a>
-              )}
-              
-              {/* TikTok */}
-              {celebrity.socialMediaFollowers?.tiktok > 0 && (
-                <a
-                  href={celebrity.socialMedia?.tiktok || "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group overflow-hidden rounded-xl transition-all duration-300 relative bg-white"
-                >
-                  
-                  <div className="p-3 relative z-10">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm">
-                        <img src="/images/icons8-tiktok-logo-94.png" alt="TikTok" className="w-4 h-4" />
-                      </div>
-                      <h3 className="text-lg font-bold">TikTok</h3>
-                      <ChevronRight size={16} className="text-gray-400" />
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-baseline">
-                        <div className="text-2xl font-black" style={{color: '#797585'}}>{celebrity.socialMediaFollowers.tiktok.toLocaleString()}</div>
-                        {celebrity.socialMediaRankings?.tiktok > 0 && (
-                          <div className="ml-3 py-1 px-2 bg-white/50 rounded-full text-sm font-semibold text-gray-700">
-                            Rank <span className="text-black">{celebrity.socialMediaRankings.tiktok}</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {celebrity.socialMediaChanges?.tiktok && (
-                        <div className={`flex items-center gap-2 ${
-                          celebrity.socialMediaChanges.tiktok.count > 0 
-                            ? 'text-red-600' 
-                            : celebrity.socialMediaChanges.tiktok.count < 0 
-                              ? 'text-blue-600' 
-                              : 'text-gray-500'
-                        }`}>
-                          <div className="flex items-center text-sm font-medium bg-white/50 rounded-full py-1 px-3">
-                            <span className="mr-1">
-                              {celebrity.socialMediaChanges.tiktok.count > 0 
-                                ? '▲' 
-                                : celebrity.socialMediaChanges.tiktok.count < 0 
-                                  ? '▼' 
-                                  : '⊖'
-                              }
-                            </span>
-                            <span>
-                              {Math.abs(celebrity.socialMediaChanges.tiktok.count).toLocaleString()} 
-                            </span>
-                          </div>
-                          <div className="text-sm font-medium">
-                            ({celebrity.socialMediaChanges.tiktok.percent.toFixed(2)}%)
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </a>
-              )}
-              
-              {/* Fallback message if no social media data is available */}
-              {!celebrity.socialMediaFollowers || 
-               Object.values(celebrity.socialMediaFollowers).every(count => count === 0) && (
-                <div className="lg:col-span-2 bg-gray-50 rounded-xl p-8 text-center border border-gray-100">
-                  <div className="text-gray-400 mb-4">
-                    <Users size={32} className="mx-auto" />
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-2">No Social Media Data Available</h3>
-                  <p className="text-gray-500">Social media data for this artist has not been collected yet.</p>
-                </div>
-              )}
             </div>
-          </section>
-          
-          {/* 뮤직비디오 섹션 */}
-          {hasMusicVideos && (
-            <section className="mb-24 -mt-8 md:mt-12 scroll-mt-24" id="musicvideos">
-              <div className="flex items-center mb-6">
-                <h2 className="text-3xl font-bold text-black">
-                  Music Videos
-                </h2>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {celebrity.musicVideos.map((video, index) => (
-                  <div key={index} className="bg-white rounded-lg transition-all duration-300 group relative">
-                    {/* 썸네일 */}
-                    <a
-                      href={video.youtubeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block relative"
+          </div>
+        </div>
+      </div>
+
+      {/* 메인 콘텐츠 영역 */}
+      <div className="bg-white">
+        <div className="px-0">
+          {/* Badges Section — Figma 481:10316 */}
+          {hasMusicVideos && (() => {
+            const badgeThresholds = [
+              { threshold: 5000000000, label: '5B' },
+              { threshold: 2000000000, label: '2B' },
+              { threshold: 1000000000, label: '1B' },
+              { threshold: 500000000, label: '500M' },
+              { threshold: 300000000, label: '300M' },
+              { threshold: 200000000, label: '200M' },
+              { threshold: 100000000, label: '100M' },
+              { threshold: 50000000, label: '50M' },
+              { threshold: 30000000, label: '30M' },
+              { threshold: 10000000, label: '10M' },
+              { threshold: 5000000, label: '5M' },
+            ];
+            badgeThresholds.forEach(b => { b.count = 0; });
+            celebrity.musicVideos.forEach(video => {
+              for (let i = 0; i < badgeThresholds.length; i++) {
+                if (video.views >= badgeThresholds[i].threshold) {
+                  badgeThresholds[i].count++;
+                  break;
+                }
+              }
+            });
+            const earned = badgeThresholds.filter(b => b.count > 0).slice(0, 4);
+            if (earned.length === 0) return null;
+            const cardStyles = [
+              { bg: 'linear-gradient(46deg, #064AEC 8%, #5491F5 51%, #064AEC 90%)', textGrad: 'linear-gradient(158deg, #fff, #A3D0FF)', iconEnd: '#A3D0FF' },
+              { bg: 'linear-gradient(48deg, #3A43FF 4%, #8B61FF 54%, #5F07EC 100%)', textGrad: 'linear-gradient(158deg, #fff, #fff)', iconEnd: '#EFF7FF' },
+              { bg: 'linear-gradient(47deg, #6A06EC 8%, #BA59FF 56%, #A706EC 100%)', textGrad: 'linear-gradient(158deg, #fff, #FFCBFB)', iconEnd: '#FFCBFB' },
+              { bg: 'linear-gradient(46deg, #1A1D22 8%, #4C5156 51%, #1A1D22 90%)', textGrad: 'linear-gradient(158deg, #fff, #999)', iconEnd: '#999999' },
+            ];
+            return (
+              <section style={{ padding: '24px 16px 16px' }}>
+                {/* Header: Badges + info icon */}
+                <div className="flex items-center gap-[2px] mb-4">
+                  <h2 className="font-bold text-[20px] leading-[1.4em] text-black" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '-0.022em' }}>
+                    Badges
+                  </h2>
+                  <button
+                    onClick={() => setShowBadgeInfoModal(true)}
+                    className="cursor-pointer"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="9" cy="9" r="6.75" stroke="#99A1AF" strokeWidth="1.5"/>
+                      <line x1="9" y1="9" x2="9" y2="12" stroke="#99A1AF" strokeWidth="1.5" strokeLinecap="round"/>
+                      <circle cx="9" cy="6.75" r="0.75" fill="#99A1AF"/>
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Badge info modal */}
+                {showBadgeInfoModal && (
+                  <div
+                    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+                    onClick={() => setShowBadgeInfoModal(false)}
+                  >
+                    <div
+                      className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="h-64 overflow-hidden relative rounded-md">
-                        <img
-                          src={video.thumbnails?.medium?.url || video.thumbnails?.default?.url || '/placeholder-video.jpg'}
-                          alt={video.title}
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-md"
-                          onError={handleImageError}
-                        />
+                      <div className="flex items-start justify-between mb-4">
+                        <h3 className="text-xl font-bold text-gray-800">Music Video Badges</h3>
+                        <button onClick={() => setShowBadgeInfoModal(false)} className="text-gray-400 hover:text-gray-600">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+                          </svg>
+                        </button>
                       </div>
-                      
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center rounded-md">
-                        <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transform group-hover:scale-110 transition-transform duration-300">
-                          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center">
-                            <Play size={28} className="text-[#233CFA] ml-1" />
-                          </div>
-                        </div>
+                      <p className="text-gray-600 leading-relaxed">Check out badges based on music video view counts</p>
+                      <div className="mt-6 flex justify-end">
+                        <button onClick={() => setShowBadgeInfoModal(false)} className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors">Got it</button>
                       </div>
+                    </div>
+                  </div>
+                )}
 
-                      {/* 조회수 및 날짜 정보 */}
-                      <div className="absolute bottom-0 left-0 right-0 px-4 py-3 bg-gradient-to-t from-black/80 to-transparent rounded-b-md">
-                        <div className="flex items-center justify-between text-white">
-                          <div className="flex items-center gap-2">
-                            <Eye size={14} />
-                            <span className="text-sm font-medium">{formatCompactNumber(video.views)}</span>
-                          </div>
-
-                          {video.publishedAt && (
-                            <div className="text-xs">
-                              {new Date(video.publishedAt).toLocaleDateString('en-US', {
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric'
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </a>
-                    
-                    {/* 비디오 정보 */}
-                    <div className="p-5">
-                      <a 
-                        href={video.youtubeUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="block"
+                {/* 2x2 Badge grid — Figma Frame 271 */}
+                <div className="grid grid-cols-2 gap-[10px]">
+                  {earned.map((badge, idx) => {
+                    const style = cardStyles[idx % cardStyles.length];
+                    return (
+                      <div
+                        key={badge.label}
+                        className="flex flex-row justify-between"
+                        style={{
+                          background: style.bg,
+                          borderRadius: '12px',
+                          boxShadow: 'inset -1.5px 1.5px 1.2px rgba(255,255,255,0.4), inset 0px -3px 2px rgba(0,0,0,0.37)',
+                          padding: '12px 12px 20px 20px',
+                        }}
                       >
-                        <h3 className="text-lg font-bold text-gray-800 line-clamp-2 mb-2">{video.title}</h3>
-                      </a>
-                      
-                      {video.artists && video.artists.length > 0 && (
-                        <p className="text-gray-500 text-sm mb-4 flex items-center gap-1.5">
-                          <img src="/images/icons8-youtube-logo-94.png" alt="YouTube" className="w-4 h-4" />
-                          <span>{video.artists.join(', ')}</span>
-                        </p>
-                      )}
-                      
-                      <div className="flex items-center justify-between">
-                        {video.likes > 0 && (
-                          <div className="flex items-center gap-1.5 text-gray-500">
-                            <ThumbsUp size={14} />
-                            <span className="text-sm">{formatCompactNumber(video.likes)}</span>
+                        {/* Left: icon + label */}
+                        <div className="flex flex-col gap-[10px] pt-2">
+                          <svg width="22" height="22" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4.3335 13.0007V9.14399C4.3335 4.35566 7.72433 2.39483 11.8735 4.78899L15.221 6.71733L18.5685 8.64566C22.7177 11.0398 22.7177 14.9615 18.5685 17.3557L15.221 19.284L11.8735 21.2123C7.72433 23.6065 4.3335 21.6457 4.3335 16.8573V13.0007Z" fill={`url(#mo_badge_icon_${idx})`}/>
+                            <defs><linearGradient id={`mo_badge_icon_${idx}`} x1="13" y1="3.77" x2="52.84" y2="33.13" gradientUnits="userSpaceOnUse"><stop stopColor="white"/><stop offset="1" stopColor={style.iconEnd}/></linearGradient></defs>
+                          </svg>
+                          <div className="flex flex-col gap-1">
+                            <span
+                              className="font-bold text-[24px] leading-[1.17em]"
+                              style={{
+                                background: style.textGrad,
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                fontFamily: 'Inter, sans-serif',
+                                letterSpacing: '-0.018em',
+                              }}
+                            >
+                              {badge.label}
+                            </span>
+                            <span
+                              className="font-semibold text-[12px] leading-[1.2em]"
+                              style={{
+                                background: style.textGrad,
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                fontFamily: 'Inter, sans-serif',
+                                letterSpacing: '-0.037em',
+                              }}
+                            >
+                              {badge.threshold >= 1000000000 ? 'BILLION VIEWS' : 'MILLION VIEWS'}
+                            </span>
                           </div>
-                        )}
-                        
+                        </div>
+                        {/* Right: count circle */}
+                        <div
+                          className="flex items-center justify-center self-start rounded-full"
+                          style={{ width: '22px', height: '22px', background: 'rgba(255,255,255,0.25)' }}
+                        >
+                          <span className="text-white font-bold text-[12px]" style={{ fontFamily: 'Inter, sans-serif', lineHeight: '1.67em', letterSpacing: '-0.013em' }}>
+                            {badge.count}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })()}
+          
+          {/* Today Section — Figma 481:10365 */}
+          {(() => {
+            const platformConfigs = [
+              { key: 'youtube', label: 'Youtube', icon: '/images/icons8-youtube-logo-94.png' },
+              { key: 'instagram', label: 'Instagram', icon: '/images/icons8-instagram-logo-94.png' },
+              { key: 'twitter', label: 'X', icon: '/images/icons8-x-50.png' },
+              { key: 'spotify', label: 'Spotify', icon: '/images/icons8-spotify-logo-94.png' },
+              { key: 'tiktok', label: 'TikTok', icon: '/images/icons8-tiktok-logo-94.png' },
+            ];
+            const activePlatforms = platformConfigs.filter(p => celebrity.socialMediaFollowers?.[p.key] > 0);
+            if (activePlatforms.length === 0) return null;
+            return (
+              <section style={{ padding: '24px 16px 16px' }}>
+                {/* Header: Today + info icon — gap 2px */}
+                <div className="flex items-center gap-[2px]" style={{ marginBottom: '16px' }}>
+                  <h2 className="font-bold text-[20px] leading-[1.4em] text-black" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '-0.022em' }}>
+                    Today
+                  </h2>
+                  <button
+                    onClick={() => setShowTodayInfoModal(true)}
+                    className="cursor-pointer"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="9" cy="9" r="6.75" stroke="#99A1AF" strokeWidth="1.5"/>
+                      <line x1="9" y1="9" x2="9" y2="12" stroke="#99A1AF" strokeWidth="1.5" strokeLinecap="round"/>
+                      <circle cx="9" cy="6.75" r="0.75" fill="#99A1AF"/>
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Today info modal */}
+                {showTodayInfoModal && (
+                  <div
+                    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+                    onClick={() => setShowTodayInfoModal(false)}
+                  >
+                    <div
+                      className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <h3 className="text-xl font-bold text-gray-800">TODAY</h3>
+                        <button onClick={() => setShowTodayInfoModal(false)} className="text-gray-400 hover:text-gray-600">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+                          </svg>
+                        </button>
+                      </div>
+                      <p className="text-gray-600 leading-relaxed">
+                        Current platform subscribers and rankings compared to the previous day ({new Date().toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')})
+                      </p>
+                      <div className="mt-6 flex justify-end">
+                        <button onClick={() => setShowTodayInfoModal(false)} className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors">Got it</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Platform cards — column, gap 10px */}
+                <div className="flex flex-col gap-[10px]">
+                  {activePlatforms.map((platform) => {
+                    const followers = celebrity.socialMediaFollowers[platform.key];
+                    const changes = celebrity.socialMediaChanges?.[platform.key];
+                    const changeCount = changes?.count ?? null;
+                    const changePercent = changes?.percent ?? null;
+                    const changeColor = changeCount > 0 ? '#EF4444' : changeCount < 0 ? '#3B82F6' : '#99A1AF';
+                    return (
+                      <a
+                        key={platform.key}
+                        href={celebrity.socialMedia?.[platform.key] || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex flex-row items-center rounded-xl"
+                        style={{
+                          padding: '20px 20px 20px 16px',
+                          border: '1.5px solid #E5E7EB',
+                          borderRadius: '12px',
+                        }}
+                      >
+                        {/* Card inner — row, justify space-between, gap 12px */}
+                        <div className="flex flex-row justify-between items-center gap-3 w-full">
+                          {/* Left: icon + name — gap 4px */}
+                          <div className="flex items-center gap-1">
+                            <img src={platform.icon} alt={platform.label} className="w-[26px] h-[26px] object-contain" />
+                            <span className="font-bold text-[15px] leading-[1.2em] text-[#111111]" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '-0.029em' }}>
+                              {platform.label}
+                            </span>
+                          </div>
+                          {/* Right: follower count + change — column, align-end, gap 2px */}
+                          <div className="flex flex-col items-end gap-[2px]">
+                            <span className="font-bold text-[18px] leading-[1.4em] text-[#111111]" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '-0.024em' }}>
+                              {followers.toLocaleString()}
+                            </span>
+                            {changeCount !== null && (
+                              <span className="font-semibold text-[12px] leading-[1.2em]" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '-0.037em', color: changeColor }}>
+                                {changeCount > 0 ? `+${changeCount.toLocaleString()}` : changeCount.toLocaleString()} ({(changePercent || 0).toFixed(2)}%)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </a>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })()}
+          
+          {/* Music Videos Section — Figma 481:10405 */}
+          {hasMusicVideos && (() => {
+            const initialCount = 4;
+            const showAll = moMvShowAll;
+            const videos = showAll ? celebrity.musicVideos : celebrity.musicVideos.slice(0, initialCount);
+            return (
+              <section style={{ paddingBottom: '20px' }} id="musicvideos" className="scroll-mt-24">
+                {/* Header — padding 24px 16px 16px */}
+                <div className="flex items-center justify-between" style={{ padding: '24px 16px 16px' }}>
+                  <h2 className="font-bold text-[18px] leading-[1.333em] text-black" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '-0.017em' }}>
+                    Music Videos
+                  </h2>
+                  <div className="flex items-center gap-1">
+                    <span className="font-bold text-[12px] leading-[1.333em] text-[#2B7FFF]" style={{ fontFamily: 'Inter, sans-serif' }}>
+                      {celebrity.musicVideos.length} Episodes
+                    </span>
+                  </div>
+                </div>
+
+                {/* Video grid — padding 0 16px, column gap 16px */}
+                <div className="flex flex-col gap-4" style={{ padding: '0 16px' }}>
+                  {/* 2열 행들 */}
+                  {Array.from({ length: Math.ceil(videos.length / 2) }).map((_, rowIdx) => (
+                    <div key={rowIdx} className="flex flex-row gap-3">
+                      {videos.slice(rowIdx * 2, rowIdx * 2 + 2).map((video, colIdx) => (
                         <a
+                          key={colIdx}
                           href={video.youtubeUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[#233CFA] hover:underline text-sm font-medium flex items-center gap-1"
+                          className="flex flex-col flex-1 min-w-0"
+                          style={{ gap: '8px' }}
                         >
-                          <span>Watch Video</span>
-                          <ExternalLink size={14} />
+                          {/* Thumbnail — height 109px, rounded 8px */}
+                          <div className="relative w-full overflow-hidden" style={{ height: '109px', borderRadius: '8px', background: '#F3F4F6' }}>
+                            <img
+                              src={video.thumbnails?.medium?.url || video.thumbnails?.default?.url || '/placeholder-video.jpg'}
+                              alt={video.title}
+                              className="w-full h-full object-cover"
+                              style={{ borderRadius: '8px' }}
+                              onError={handleImageError}
+                            />
+                            {/* Play button overlay */}
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="flex items-center justify-center rounded-full" style={{ width: '25px', height: '25px', background: 'rgba(0,0,0,0.5)' }}>
+                                <svg width="18" height="19" viewBox="0 0 18 19" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M6 4.5L14 9.5L6 14.5V4.5Z" fill="white"/>
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                          {/* Text — gap 4px */}
+                          <div className="flex flex-col" style={{ gap: '4px' }}>
+                            <h3
+                              className="font-medium line-clamp-2 text-[#101828]"
+                              style={{ fontFamily: 'Pretendard, sans-serif', fontSize: '15px', lineHeight: '1.375em', letterSpacing: '-0.016em' }}
+                            >
+                              {video.title}
+                            </h3>
+                            <span
+                              className="text-[#99A1AF]"
+                              style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '12px', lineHeight: '1.333em' }}
+                            >
+                              {celebrity.name} • {formatCompactNumber(video.views)} views
+                            </span>
+                          </div>
                         </a>
-                      </div>
+                      ))}
+                      {/* 홀수 개일 때 빈 칸 채우기 */}
+                      {videos.slice(rowIdx * 2, rowIdx * 2 + 2).length === 1 && <div className="flex-1" />}
                     </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+                  ))}
+
+                  {/* See more / Fold 버튼 */}
+                  {celebrity.musicVideos.length > initialCount && (
+                    <button
+                      onClick={() => setMoMvShowAll(!showAll)}
+                      className="flex items-center justify-center w-full"
+                      style={{
+                        padding: '16px',
+                        border: '1px solid #D5D8DF',
+                        borderRadius: '9999px',
+                        fontFamily: 'Inter, sans-serif',
+                        fontWeight: 600,
+                        fontSize: '14px',
+                        lineHeight: '1.229em',
+                        color: '#2D3138',
+                      }}
+                    >
+                      {showAll ? 'Fold' : 'See more'}
+                    </button>
+                  )}
+                </div>
+              </section>
+            );
+          })()}
           
-          {/* 추천 아티스트 섹션 - 뮤직비디오 아래로 이동 */}
-          <section className="mb-24 -mt-8 md:mt-12">
-            <div className="flex items-center mb-6">
-              <h2 className="text-3xl font-bold text-black">
+          {/* 구분선 — 8px thick full-width */}
+          <div className="lg:hidden w-full" style={{ height: '8px', backgroundColor: '#E5E7EB', flexShrink: 0 }}></div>
+
+          {/* 추천 아티스트 섹션 - Figma 481:10470 */}
+          <section className="lg:hidden" style={{ paddingBottom: '20px' }}>
+            {/* Header */}
+            <div style={{ padding: '24px 16px 16px' }}>
+              <h2 style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '18px', color: '#0A0A0A' }}>
                 Recommended Artists
               </h2>
             </div>
 
             {isLoadingRecommended ? (
-              // 로딩 상태
-              <div className="flex overflow-x-auto md:grid md:grid-cols-4 lg:grid-cols-6 gap-8 pb-4 -mx-4 px-4 md:mx-0 md:px-0">
-                {Array.from({ length: 12 }).map((_, idx) => (
-                  <div key={idx} className="text-center animate-pulse flex-shrink-0">
-                    <div className="w-28 h-28 rounded-full overflow-hidden mx-auto mb-4 bg-gray-200"></div>
-                    <div className="h-5 bg-gray-200 rounded w-20 mx-auto mb-2"></div>
-                    <div className="h-4 bg-gray-100 rounded w-16 mx-auto"></div>
+              <div className="flex overflow-x-auto" style={{ padding: '0 16px', gap: '10px' }}>
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <div key={idx} className="flex flex-col items-center flex-shrink-0 animate-pulse" style={{ gap: '10px' }}>
+                    <div className="bg-gray-200" style={{ width: '100px', height: '100px', borderRadius: '130px' }}></div>
+                    <div className="h-4 bg-gray-200 rounded w-16"></div>
+                    <div className="h-3 bg-gray-100 rounded w-12"></div>
                   </div>
                 ))}
               </div>
             ) : recommendedArtists.length === 0 ? (
-              // 데이터 없음
-              <div className="text-center py-12 bg-gray-50 rounded-xl">
-                <p className="text-gray-500">No recommended artists available</p>
+              <div className="text-center py-12">
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#6A7282' }}>No recommended artists available</p>
               </div>
             ) : (
-              // 추천 아티스트 목록 - 모바일: 가로 스크롤, 데스크톱: 그리드
-              <div className="flex overflow-x-auto md:grid md:grid-cols-4 lg:grid-cols-6 gap-8 pb-4 pl-4 md:pl-0 snap-x snap-mandatory md:snap-none">
-                {recommendedArtists.map((artist, index) => (
-                  <Link
-                    href={`/celeb/${artist.slug}`}
-                    key={artist._id}
-                    className="text-center group flex-shrink-0 snap-start"
-                  >
-                    <div className="w-28 h-28 rounded-full overflow-hidden mx-auto mb-4 border-2 border-transparent group-hover:border-[#233CFA] transition-all shadow-sm group-hover:shadow-md">
-                      <img
-                        src={artist.profileImage || "/images/placeholder.jpg"}
-                        alt={artist.name}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                        onError={handleImageError}
-                      />
-                    </div>
-                    <h3 className="font-bold text-gray-800 group-hover:text-[#233CFA] transition-colors">{artist.name}</h3>
-                    <p className="text-xs text-gray-500">
-                      {artist.group ? `${artist.group}` : artist.category === 'solo' ? 'Solo' : 'K-POP'}
-                    </p>
-                  </Link>
-                ))}
+              <div style={{ padding: '0 16px' }}>
+                {/* Horizontal scroll row */}
+                <div className="flex overflow-x-auto scrollbar-hide" style={{ gap: '10px', paddingBottom: '16px' }}>
+                  {recommendedArtists.map((artist) => (
+                    <Link
+                      href={`/celeb/${artist.slug}`}
+                      key={artist._id}
+                      className="flex flex-col items-center flex-shrink-0"
+                      style={{ gap: '10px' }}
+                    >
+                      <div style={{ width: '100px', height: '100px', borderRadius: '130px', overflow: 'hidden' }}>
+                        <img
+                          src={artist.profileImage || "/images/placeholder.jpg"}
+                          alt={artist.name}
+                          className="w-full h-full object-cover"
+                          onError={handleImageError}
+                        />
+                      </div>
+                      <div className="flex flex-col items-center" style={{ gap: '2px' }}>
+                        <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '14px', color: '#0A0A0A', whiteSpace: 'nowrap' }}>
+                          {artist.name}
+                        </span>
+                        <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '12px', color: '#6A7282', whiteSpace: 'nowrap' }}>
+                          {artist.group ? `${artist.group}` : artist.category === 'solo' ? 'Solo' : 'K-POP'}
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+
               </div>
             )}
           </section>
-          
-          {/* 관련 소식 섹션 - 드라마 상세페이지와 동일한 디자인 */}
-          <section className="mb-24 -mt-8 md:mt-12">
-            <div className="mb-8">
-              <div className="flex items-center">
-                {/* Link Icon */}
-                <div className="mr-4 flex-shrink-0">
-                  <img
-                    src="/images/icons8-link-48.png"
-                    alt="Related News"
-                    className="h-12 w-12 object-contain"
-                  />
-                </div>
-                <div>
-                  <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#233CFA' }}>Related Content</span>
-                  <h2 className="text-2xl md:text-3xl font-bold text-gray-800">Related News</h2>
-                </div>
-              </div>
+
+          {/* 구분선 — 8px thick full-width */}
+          <div className="lg:hidden w-full" style={{ height: '8px', backgroundColor: '#E5E7EB', flexShrink: 0 }}></div>
+
+          {/* CommentTicker - 댓글 롤링 */}
+          <div className="lg:hidden" style={{ padding: '16px 16px 4px' }}>
+            <CommentTicker comments={recentComments || []} onNavigate={navigateToPage} />
+          </div>
+
+          {/* Trending NOW */}
+          <div className="lg:hidden" style={{ padding: '24px 16px 12px' }}>
+            <TrendingNow items={trendingNews.length > 0 ? trendingNews : rankingNews || []} onNavigate={navigateToPage} showCard={false} />
+          </div>
+
+          {/* Related News 섹션 — Figma 481:10595 */}
+          <section className="lg:hidden bg-white" style={{ padding: '24px 16px', gap: '24px', display: 'flex', flexDirection: 'column' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <h2 style={{ fontFamily: 'Pretendard, sans-serif', fontWeight: 900, fontSize: '20px', lineHeight: '1.35em', color: '#101828' }}>
+                <span style={{ color: '#2B7FFF' }}>Related</span> News
+              </h2>
             </div>
 
-            {/* 뉴스 카드 그리드 - 드라마 상세페이지와 동일한 디자인 */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {relatedNews && relatedNews.length > 0 ? (
-                relatedNews.map((news, index) => (
-                  <Link
-                    key={index}
-                    href={`/news/${news._id}`}
-                    passHref
-                    onClick={() => {
-                      // 현재 스크롤 위치 저장
-                      if (typeof window !== 'undefined') {
-                        const scrollPosition = document.body.scrollTop || window.pageYOffset || document.documentElement.scrollTop;
-                        sessionStorage.setItem('celebDetailScrollPosition', scrollPosition.toString());
-                        sessionStorage.setItem('isBackToCeleb', 'true');
-                      }
-                    }}
-                  >
-                    <div className="block cursor-pointer">
-                      <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative">
-                        <div className="h-64 overflow-hidden relative rounded-md">
-                          {/* 이미지 */}
+            {relatedNews && relatedNews.length > 0 ? (
+              <>
+                {/* 첫 번째 카드 — 대형 */}
+                <Link
+                  href={`/news/${relatedNews[0]._id}`}
+                  className="flex flex-col"
+                  style={{ gap: '10px' }}
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      const scrollPosition = document.body.scrollTop || window.pageYOffset || document.documentElement.scrollTop;
+                      sessionStorage.setItem('celebDetailScrollPosition', scrollPosition.toString());
+                      sessionStorage.setItem('isBackToCeleb', 'true');
+                    }
+                  }}
+                >
+                  {/* 썸네일 */}
+                  <div className="w-full overflow-hidden" style={{ height: '222px', borderRadius: '14px', background: '#F3F4F6' }}>
+                    <img
+                      src={relatedNews[0].coverImage || relatedNews[0].thumbnail || '/images/placeholder.jpg'}
+                      alt={relatedNews[0].title}
+                      className="w-full h-full object-cover"
+                      onError={handleImageError}
+                    />
+                  </div>
+                  {/* 제목 + 본문 */}
+                  <div className="flex flex-col" style={{ gap: '6px' }}>
+                    <h3 className="line-clamp-2" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '18px', lineHeight: '1.25em', color: '#101828' }}>
+                      {relatedNews[0].title}
+                    </h3>
+                    <p className="line-clamp-2" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '12px', lineHeight: '1.5em', color: '#6A7282' }}>
+                      {relatedNews[0].content && relatedNews[0].content.trim()
+                        ? relatedNews[0].content.replace(/<[^>]*>/g, '').slice(0, 150)
+                        : 'No content available'}
+                    </p>
+                  </div>
+                </Link>
+
+                {/* 나머지 카드들 — 리스트형 (최대 4개, gap 16px) */}
+                {relatedNews.length > 1 && (
+                  <div className="flex flex-col" style={{ gap: '16px' }}>
+                    {relatedNews.slice(1, 5).map((news, index) => (
+                      <Link
+                        key={index}
+                        href={`/news/${news._id}`}
+                        className="flex flex-row"
+                        style={{ gap: '12px' }}
+                        onClick={() => {
+                          if (typeof window !== 'undefined') {
+                            const scrollPosition = document.body.scrollTop || window.pageYOffset || document.documentElement.scrollTop;
+                            sessionStorage.setItem('celebDetailScrollPosition', scrollPosition.toString());
+                            sessionStorage.setItem('isBackToCeleb', 'true');
+                          }
+                        }}
+                      >
+                        {/* 썸네일 */}
+                        <div className="flex-shrink-0 overflow-hidden" style={{ width: '100px', height: '70px', borderRadius: '6px', background: '#F3F4F6' }}>
                           <img
                             src={news.coverImage || news.thumbnail || '/images/placeholder.jpg'}
                             alt={news.title}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = "/images/placeholder.jpg";
-                            }}
+                            className="w-full h-full object-cover"
+                            onError={handleImageError}
                           />
                         </div>
-
-                        <div className="p-4">
-                          <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#006fff] transition-colors">
+                        {/* 텍스트 */}
+                        <div className="flex flex-col flex-1 min-w-0" style={{ gap: '4px' }}>
+                          <span style={{ fontFamily: 'Pretendard, sans-serif', fontWeight: 400, fontSize: '10px', lineHeight: '1.6em', color: '#99A1AF' }}>
+                            {new Date(news.publishedAt || news.createdAt).toLocaleDateString('en-CA')}
+                          </span>
+                          <h3 className="line-clamp-2" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '14px', lineHeight: '1.43em', letterSpacing: '-0.01em', color: '#101828' }}>
                             {news.title}
                           </h3>
-
-                          <p className="text-gray-600 text-xs line-clamp-2 mb-3">
-                            {news.content && news.content.trim()
-                              ? news.content.replace(/<[^>]*>/g, '').slice(0, 120) + '...'
-                              : news.summary
-                                ? news.summary.slice(0, 120) + '...'
-                                : 'No content available'}
-                          </p>
-
-                          <div className="flex justify-between items-end">
-                            {/* 시간 배지 */}
-                            <div className="flex items-center text-gray-500 text-xs">
-                              <Clock size={12} className="mr-1 text-gray-500" />
-                              <span>{new Date(news.publishedAt || news.createdAt).toLocaleDateString()}</span>
-                            </div>
-
-                            {/* Read more 버튼 */}
-                            <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#233CFA' }}>
-                              Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" style={{ color: '#233CFA' }} />
-                            </span>
-                          </div>
                         </div>
-                      </div>
-                    </div>
-                  </Link>
-                ))
-              ) : (
-                <div className="bg-white rounded-xl p-8 text-center border border-gray-100 col-span-full" style={{ boxShadow: 'none' }}>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">No Related News</h3>
-                  <p className="text-gray-500 max-w-md mx-auto">
-                    No news related to this content is currently available.
-                  </p>
-                </div>
-              )}
-            </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#6A7282' }}>No related news available</p>
+              </div>
+            )}
           </section>
+
+          {/* More News — MoreNews 컴포넌트 */}
+          <div className="lg:hidden bg-white py-5 px-4">
+            <MoreNews category="celeb" storageKey="celeb-detail" />
+          </div>
         </div>
       </div>
       </div> {/* end lg:hidden */}
@@ -1805,6 +1435,8 @@ export default function CelebrityDetailPage({ celebrity = null, recentComments, 
                 {(() => {
                   if (!celebrity.musicVideos || celebrity.musicVideos.length === 0) return null;
                   const badgeThresholds = [
+                    { threshold: 5000000000, label: '5B' },
+                    { threshold: 2000000000, label: '2B' },
                     { threshold: 1000000000, label: '1B' },
                     { threshold: 500000000, label: '500M' },
                     { threshold: 300000000, label: '300M' },
@@ -2019,10 +1651,6 @@ export default function CelebrityDetailPage({ celebrity = null, recentComments, 
                       <h2 className="font-black text-[26px]" style={{ fontFamily: 'Pretendard, sans-serif', color: '#111111' }}>
                         Music Videos
                       </h2>
-                      <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(celebrity.name)}`} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-[10px] text-[14px] font-bold py-0.5" style={{ color: '#2B7FFF', fontFamily: 'Inter, sans-serif', letterSpacing: '-0.01em' }}>
-                        See more <ChevronRight size={16} />
-                      </a>
                     </div>
                     {/* Row 1: first 3 videos */}
                     <div
@@ -2194,8 +1822,8 @@ export default function CelebrityDetailPage({ celebrity = null, recentComments, 
                                 </h4>
                               </div>
                               <div style={{ position: 'absolute', top: '291px', width: '100%' }}>
-                                <p className="line-clamp-3" style={{ fontFamily: 'Pretendard', fontWeight: 400, fontSize: '14px', lineHeight: '1.625em', letterSpacing: '-0.01em', color: '#6A7282' }}>
-                                  {news.description || news.summary || ''}
+                                <p className="line-clamp-2" style={{ fontFamily: 'Pretendard', fontWeight: 400, fontSize: '14px', lineHeight: '1.625em', letterSpacing: '-0.01em', color: '#6A7282' }}>
+                                  {news.content ? news.content.replace(/<[^>]*>/g, '').slice(0, 150) : ''}
                                 </p>
                               </div>
                               <div style={{ position: 'absolute', top: '371px' }}>
@@ -2227,8 +1855,8 @@ export default function CelebrityDetailPage({ celebrity = null, recentComments, 
                                   </h4>
                                 </div>
                                 <div style={{ position: 'absolute', top: '291px', width: '100%' }}>
-                                  <p className="line-clamp-3" style={{ fontFamily: 'Pretendard', fontWeight: 400, fontSize: '14px', lineHeight: '1.625em', letterSpacing: '-0.01em', color: '#6A7282' }}>
-                                    {news.description || news.summary || ''}
+                                  <p className="line-clamp-2" style={{ fontFamily: 'Pretendard', fontWeight: 400, fontSize: '14px', lineHeight: '1.625em', letterSpacing: '-0.01em', color: '#6A7282' }}>
+                                    {news.content ? news.content.replace(/<[^>]*>/g, '').slice(0, 150) : ''}
                                   </p>
                                 </div>
                                 <div style={{ position: 'absolute', top: '371px' }}>
@@ -2259,12 +1887,12 @@ export default function CelebrityDetailPage({ celebrity = null, recentComments, 
                 <div ref={sidebarStickyRef} className="sticky" style={{ top: sidebarStickyTop + 'px' }}>
                   <div className="space-y-8">
                     <CommentTicker comments={recentComments || []} onNavigate={navigateToPage} />
-                    <TrendingNow items={rankingNews || []} onNavigate={navigateToPage} />
-                    {rankingNews && rankingNews.length > 0 && (
+                    <TrendingNow items={trendingNews.length > 0 ? trendingNews : rankingNews || []} onNavigate={navigateToPage} />
+                    {(editorsPickNews.length > 0 || (rankingNews && rankingNews.length > 0)) && (
                       <div>
                         <h3 className="font-bold text-[23px] leading-[1.5] text-[#101828] mb-4 pl-1">Editor&apos;s <span className="text-ksp-accent">PICK</span></h3>
                         <div className="bg-white border border-[#F3F4F6] shadow-card rounded-2xl p-4 space-y-6">
-                          {rankingNews.slice(0, 6).map((item) => (
+                          {(editorsPickNews.length > 0 ? editorsPickNews : rankingNews).slice(0, 6).map((item) => (
                             <div
                               key={item._id}
                               className="flex gap-4 cursor-pointer group"
@@ -2313,13 +1941,15 @@ export async function getServerSideProps({ params, req }) {
   try {
     const protocol = req.headers['x-forwarded-proto'] || 'http';
     const baseUrl = `${protocol}://${req.headers.host}`;
-    const prodUrl = process.env.NEXT_PUBLIC_API_URL || baseUrl;
+    const prodUrl = baseUrl;
 
     // Fetch celeb info + sidebar data in parallel
-    const [celebResponse, commentsResponse, rankingResponse] = await Promise.all([
+    const [celebResponse, commentsResponse, rankingResponse, trendingResponse, editorsPickResponse] = await Promise.all([
       fetch(`${prodUrl}/api/celeb/slug/${params.slug}`),
       fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news/trending?limit=5`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news/editors-pick?limit=6`).catch(() => ({ json: () => ({ success: false }) })),
     ]);
 
     // 응답 확인
@@ -2335,19 +1965,27 @@ export async function getServerSideProps({ params, req }) {
     const recentComments = commentsData.success ? (commentsData.data || commentsData.comments || []) : [];
     const rankingNews = rankingData.success ? (rankingData.data?.news || rankingData.data || []) : [];
 
+    const trendingData = await trendingResponse.json();
+    const trendingNews = trendingData.success ? (trendingData.data || []) : [];
+
+    const editorsPickData = await editorsPickResponse.json();
+    const editorsPickNews = editorsPickData.success ? (editorsPickData.data || []) : [];
+
     if (data.success && data.data) {
       return {
         props: {
           celebrity: data.data,
           recentComments,
           rankingNews,
+          trendingNews,
+          editorsPickNews,
         }
       };
     }
 
-    return { props: { celebrity: null, recentComments: [], rankingNews: [] } };
+    return { props: { celebrity: null, recentComments: [], rankingNews: [], trendingNews: [], editorsPickNews: [] } };
   } catch (error) {
     console.error('Error getting celebrity detail info:', error);
-    return { props: { celebrity: null, recentComments: [], rankingNews: [] } };
+    return { props: { celebrity: null, recentComments: [], rankingNews: [], trendingNews: [], editorsPickNews: [] } };
   }
 } 

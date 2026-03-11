@@ -245,27 +245,30 @@ const Header = () => {
                 <div className="flex items-center justify-center w-9 h-9 rounded-full text-[#4A5565]">
                   <Search size={18} strokeWidth={2} />
                 </div>
-                <div className="flex items-center justify-center px-3 py-2 bg-ksp-accent text-white font-bold text-sm rounded-[10px]" style={{ fontFamily: "'Inter', sans-serif" }}>
+                {/* <div className="flex items-center justify-center px-3 py-2 bg-ksp-accent text-white font-bold text-sm rounded-[10px]" style={{ fontFamily: "'Inter', sans-serif" }}>
                   Sign in
-                </div>
+                </div> */}
               </div>
             </div>
             {/* Mobile SSR - single row */}
             <div className="lg:hidden relative flex items-center h-[48px]">
-              <div className="flex-shrink-0">
-                <div className="block cursor-pointer">
+              <div className="flex-shrink-0 pr-3">
+                <div className="block cursor-pointer py-2 pr-1">
                   <img src="/images/k-logo-mobile.svg" alt="KstarPick" width={16} height={17} />
                 </div>
               </div>
-              <nav className="flex items-center gap-3 overflow-x-auto hide-scrollbar pl-3 flex-1 min-w-0 h-full">
-                {navItems.map(item => (
-                  <div key={item.path} className={`relative flex-shrink-0 flex items-center h-full text-[15px] ${item.path === '/' ? 'font-bold text-ksp-accent' : 'font-medium text-[#6A7282]'}`} style={{ letterSpacing: '-0.015em' }}>
-                    {item.label}
-                    {item.path === '/' && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-ksp-accent" />}
-                  </div>
-                ))}
-              </nav>
-              <div className="absolute right-0 top-[5px] w-6 h-[38px] pointer-events-none" style={{ background: 'linear-gradient(270deg, white 0%, transparent 100%)' }} />
+              <div className="relative flex-1 min-w-0">
+                <nav className="flex items-center gap-[12px] h-full overflow-x-auto scrollbar-hide">
+                  {navItems.map(item => (
+                    <div key={item.path} className={`relative flex-shrink-0 flex items-center h-full text-[15px] ${item.path === '/' ? 'font-bold text-ksp-accent' : 'font-medium text-[#6A7282]'}`} style={{ letterSpacing: '-0.015em' }}>
+                      {item.label}
+                      {item.path === '/' && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-ksp-accent" />}
+                    </div>
+                  ))}
+                  <div className="flex-shrink-0 w-[28px]" />
+                </nav>
+                <div className="absolute right-0 top-0 w-10 h-full pointer-events-none" style={{ background: 'linear-gradient(270deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 100%)' }} />
+              </div>
               <button className="p-1 flex-shrink-0 flex items-center justify-center text-[#6A7282] ml-1" aria-label="Search">
                 <Search size={20} strokeWidth={1.67} />
               </button>
@@ -319,52 +322,56 @@ const Header = () => {
               >
                 <Search size={18} strokeWidth={2} />
               </button>
-              <Link
+              {/* <Link
                 href="/auth/signin"
                 className="flex items-center justify-center px-3 py-2 bg-ksp-accent text-white font-bold text-sm rounded-[10px] hover:opacity-90 transition-opacity"
                 style={{ fontFamily: "'Inter', sans-serif", letterSpacing: '-0.01em' }}
               >
                 Sign in
-              </Link>
+              </Link> */}
             </div>
           </div>
 
           {/* === Mobile Layout (below lg) - single row === */}
           <div className="lg:hidden relative flex items-center h-[48px]">
             {/* K Logo */}
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 pr-3">
               <div onClick={(e) => {
                 e.preventDefault();
-                sessionStorage.clear();
-                window.location.href = '/';
-              }} className="block cursor-pointer">
+                sessionStorage.setItem('logoClicked', 'true');
+                window.scrollTo(0, 0);
+                router.push('/');
+              }} className="block cursor-pointer py-2 pr-1">
                 <img src="/images/k-logo-mobile.svg" alt="KstarPick" width={16} height={17} />
               </div>
             </div>
-            {/* Horizontal scrollable tabs */}
-            <nav className="flex items-center gap-3 overflow-x-auto hide-scrollbar pl-3 flex-1 min-w-0 h-full">
-              {navItems.map(item => {
-                const isActive = router.pathname === item.path;
-                return (
-                  <Link
-                    key={item.path}
-                    href={item.path}
-                    className={`relative flex-shrink-0 flex items-center h-full text-[15px] transition-colors ${
-                      isActive
-                        ? 'font-bold text-ksp-accent'
-                        : 'font-medium text-[#6A7282]'
-                    }`}
-                    style={{ fontFamily: "'Inter', 'Pretendard', sans-serif", letterSpacing: '-0.015em' }}
-                    onClick={isActive ? handleSameMenuClick : undefined}
-                  >
-                    {item.label}
-                    {isActive && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-ksp-accent" />}
-                  </Link>
-                );
-              })}
-            </nav>
-            {/* Right edge fade */}
-            <div className="absolute right-[36px] top-[5px] w-6 h-[38px] pointer-events-none" style={{ background: 'linear-gradient(270deg, white 0%, transparent 100%)' }} />
+            {/* Horizontal tabs - scrollable */}
+            <div className="relative flex-1 min-w-0">
+              <nav className="flex items-center gap-[12px] h-full overflow-x-auto scrollbar-hide">
+                {navItems.map(item => {
+                  const isActive = router.pathname === item.path;
+                  return (
+                    <Link
+                      key={item.path}
+                      href={item.path}
+                      className={`relative flex-shrink-0 flex items-center h-full text-[15px] transition-colors ${
+                        isActive
+                          ? 'font-bold text-ksp-accent'
+                          : 'font-medium text-[#6A7282]'
+                      }`}
+                      style={{ fontFamily: "'Inter', 'Pretendard', sans-serif", letterSpacing: '-0.015em' }}
+                      onClick={isActive ? handleSameMenuClick : undefined}
+                    >
+                      {item.label}
+                      {isActive && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-ksp-accent" />}
+                    </Link>
+                  );
+                })}
+                <div className="flex-shrink-0 w-[28px]" />
+              </nav>
+              {/* Fade gradient overlay on right edge */}
+              <div className="absolute right-0 top-0 w-10 h-full pointer-events-none" style={{ background: 'linear-gradient(270deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 100%)' }} />
+            </div>
             {/* Search icon */}
             <button
               onClick={toggleSearch}

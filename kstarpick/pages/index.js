@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import React from 'react';
-import dynamic from 'next/dynamic';
 import { X } from 'lucide-react';
 import MainLayout from '../components/MainLayout';
 import { useRouter } from 'next/router';
@@ -16,20 +15,7 @@ import KpopRankingSection from '../components/home/KpopRankingSection';
 import Sidebar from '../components/home/Sidebar';
 import CommentTicker from '../components/home/CommentTicker';
 import TrendingNow from '../components/home/TrendingNow';
-// Import MoreNews component (also with no SSR to avoid hooks issues with Intersection Observer)
-const MoreNews = dynamic(() => import('../components/MoreNews').then(mod => {
-  const MemoizedMoreNews = React.memo(mod.default, () => true);
-  return { default: MemoizedMoreNews };
-}), {
-  ssr: false,
-  key: "moreNews-component",
-  loading: () => (
-    <div className="py-8 text-center">
-      <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" style={{ borderColor: '#2B7FFF', borderRightColor: 'transparent' }}></div>
-      <p className="mt-2 text-ksp-meta">Loading...</p>
-    </div>
-  )
-});
+import MoreNews from '../components/MoreNews';
 
 function Home({ initialData }) {
   const router = useRouter();
@@ -37,9 +23,12 @@ function Home({ initialData }) {
   // 🚀 서버에서 받은 초기 데이터로 상태 초기화
   const [newsArticles, setNewsArticles] = useState(initialData?.newsArticles || []);
   const [featuredArticles, setFeaturedArticles] = useState(initialData?.featuredArticles || []);
+  const recommendedNews = initialData?.recommendedNews || [];
   const [topSongs, setTopSongs] = useState(initialData?.topSongs || []);
   const [watchNews, setWatchNews] = useState(initialData?.watchNews || []);
   const [rankingNews, setRankingNews] = useState(initialData?.rankingNews || []);
+  const trendingNews = initialData?.trendingNews || [];
+  const editorsPickNews = initialData?.editorsPickNews || [];
   const [moreNews, setMoreNews] = useState(initialData?.moreNews || []);
   const [error, setError] = useState(null);
 
@@ -136,8 +125,6 @@ function Home({ initialData }) {
     return false; // 이벤트 전파 중지
   };
   
-  const [todayRankingNews, setTodayRankingNews] = useState([]);
-
   // 뉴스 데이터가 없으면 빈 배열을 사용 - useMemo로 메모이제이션하여 불필요한 재렌더링 방지
   const articles = useMemo(() => newsArticles || [], [newsArticles]);
   const featured = useMemo(() => featuredArticles || [], [featuredArticles]);
@@ -156,41 +143,7 @@ function Home({ initialData }) {
 
   // 이제 SSR로 데이터를 받으므로 클라이언트 사이드 로딩 불필요
 
-  // 스크롤 위치 복원 - 뉴스 페이지에서 뒤로가기 시
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const isBackToHome = sessionStorage.getItem('isBackToHome');
-    const savedScrollPosition = sessionStorage.getItem('homeScrollPosition');
-
-    if (isBackToHome === 'true' && savedScrollPosition) {
-      const targetScrollPos = parseInt(savedScrollPosition, 10);
-      if (isNaN(targetScrollPos) || targetScrollPos <= 0) {
-        sessionStorage.removeItem('isBackToHome');
-        return;
-      }
-
-      let restored = false;
-      const restoreScroll = () => {
-        if (restored) return;
-        const current = window.scrollY || document.documentElement.scrollTop || 0;
-        if (Math.abs(current - targetScrollPos) < 10) {
-          restored = true;
-          return;
-        }
-        window.scrollTo(0, targetScrollPos);
-        document.documentElement.scrollTop = targetScrollPos;
-        document.body.scrollTop = targetScrollPos;
-      };
-
-      // 홈은 MoreNews dynamic import로 DOM 높이가 늦게 변하므로 여유 있게
-      [50, 150, 400, 800, 1500].forEach(delay => {
-        setTimeout(restoreScroll, delay);
-      });
-
-      sessionStorage.removeItem('isBackToHome');
-    }
-  }, []);
+  // 스크롤 위치 복원은 _app.js handleRouteChangeComplete에서 중앙 처리
 
   // 🔧 무한 새로고침 방지: logoClicked 플래그 강제 제거
   useEffect(() => {
@@ -405,8 +358,8 @@ function Home({ initialData }) {
         if (data.success && data.data.news) {
           const watchNewsFiltered = data.data.news
             .filter(news => news.title && news.title.startsWith('Watch:'))
-            .slice(0, 6);
-          
+            .slice(0, 11);
+
           if (process.env.NODE_ENV === 'development') {
           }
           setWatchNews(watchNewsFiltered);
@@ -458,36 +411,25 @@ function Home({ initialData }) {
     
     try {
       
-      // 오늘 날짜 계산
-      const today = new Date();
-      const threeDaysAgo = new Date();
-      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-      threeDaysAgo.setHours(0, 0, 0, 0);
-
-      // 병렬로 나머지 API 호출
+      // 병렬로 나머지 API 호출 (trending/editors-pick은 SSR에서 이미 로드됨)
       const [
         rankingNewsRes,
-        todayRankingNewsRes,
         moreNewsRes
       ] = await Promise.all([
         fetch(`/api/news?limit=10&sort=viewCount`),
-        fetch(`/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${threeDaysAgo.toISOString()}`),
         fetch(`/api/news?limit=20&sort=createdAt&order=desc`)
       ]);
 
       const [
         rankingNews,
-        todayRankingNews,
         moreNews
       ] = await Promise.all([
         rankingNewsRes.json(),
-        todayRankingNewsRes.json(),
         moreNewsRes.json()
       ]);
 
       // 상태 업데이트
       setRankingNews(rankingNews.success ? rankingNews.data.news || [] : []);
-      setTodayRankingNews(todayRankingNews.success ? todayRankingNews.data.news || [] : []); // today 랭킹 뉴스 설정
       setMoreNews(moreNews.success ? moreNews.data.news || [] : []);
       
     } catch (error) {
@@ -544,8 +486,87 @@ function Home({ initialData }) {
 
               {/* Mobile Trending NOW - below hero */}
               <div className="lg:hidden px-4 py-4">
-                <TrendingNow items={todayRankingNews.length > 0 ? todayRankingNews : rankingNews} onNavigate={navigateToPage} showCard={false} />
+                <TrendingNow items={trendingNews.length > 0 ? trendingNews : rankingNews} onNavigate={navigateToPage} showCard={false} />
               </div>
+
+              {/* Mobile separator */}
+              <div className="lg:hidden h-2 bg-[#F3F4F6]" />
+
+              {/* Mobile Video News - below Trending NOW */}
+              {watchNews && watchNews.length > 0 && (
+                <div className="lg:hidden bg-white" style={{ borderTop: '2px solid #F3F4F6', padding: '24px 16px 16px' }}>
+                  <div className="flex flex-col" style={{ gap: '16px' }}>
+                    {/* Title */}
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-[21px] font-black text-[#101828]" style={{ fontFamily: 'Inter, sans-serif' }}><span className="text-ksp-accent">Video</span> News</h2>
+                      <span className="text-xl">📷</span>
+                    </div>
+
+                    {/* Featured video card */}
+                    <div
+                      className="relative overflow-hidden cursor-pointer group"
+                      style={{ borderRadius: '12px', height: '224px' }}
+                      onClick={() => {
+                        if (watchNews[0].youtubeUrl) {
+                          openYoutubeModal(watchNews[0].youtubeUrl);
+                        } else {
+                          navigateToPage(`/news/${watchNews[0].slug || watchNews[0]._id}`);
+                        }
+                      }}
+                    >
+                      <img
+                        src={watchNews[0].coverImage || watchNews[0].thumbnailUrl || '/images/placeholder.jpg'}
+                        alt={watchNews[0].title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.target.src = '/images/placeholder.jpg'; }}
+                      />
+                      <div className="absolute bottom-0 left-0 right-0" style={{ padding: '12px 12px 0', background: 'linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 100%)', height: '82px' }}>
+                        <div className="flex flex-col" style={{ gap: '4px' }}>
+                          <span className="text-[#2B7FFF] font-bold text-[12px]" style={{ fontFamily: 'Inter' }}>
+                            {watchNews[0].category ? watchNews[0].category.charAt(0).toUpperCase() + watchNews[0].category.slice(1) : 'Pick'}
+                          </span>
+                          <h3 className="text-white font-bold text-[14px] leading-[1.375] line-clamp-2" style={{ fontFamily: 'Inter', letterSpacing: '-0.0107em' }}>
+                            {watchNews[0].title?.replace(/^Watch:\s*/i, '') || watchNews[0].title}
+                          </h3>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 2x2 Video grid */}
+                    {watchNews.length > 1 && (
+                      <div className="grid grid-cols-2" style={{ gap: '12px', rowGap: '16px' }}>
+                        {watchNews.slice(1, 5).map((news) => (
+                          <div
+                            key={news._id}
+                            className="flex flex-col cursor-pointer"
+                            style={{ gap: '8px' }}
+                            onClick={() => {
+                              if (news.youtubeUrl) {
+                                openYoutubeModal(news.youtubeUrl);
+                              } else {
+                                navigateToPage(`/news/${news.slug || news._id}`);
+                              }
+                            }}
+                          >
+                            <div className="relative overflow-hidden" style={{ borderRadius: '12px', height: '268px', background: '#E5E7EB' }}>
+                              <img
+                                src={news.coverImage || news.thumbnailUrl || '/images/placeholder.jpg'}
+                                alt={news.title}
+                                className="w-full h-full object-cover"
+                                onError={(e) => { e.target.src = '/images/placeholder.jpg'; }}
+                              />
+                            </div>
+                            <p className="font-bold text-[13px] leading-[1.23] line-clamp-2 text-[#0A0A0A]" style={{ fontFamily: 'Inter' }}>
+                              {news.title?.replace(/^Watch:\s*/i, '') || news.title}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                  </div>
+                </div>
+              )}
 
               {/* Mobile separator */}
               <div className="lg:hidden h-2 bg-[#F3F4F6]" />
@@ -557,10 +578,6 @@ function Home({ initialData }) {
                     <h2 className="text-[21px] lg:text-[26px] font-black"><span style={{ color: '#2B7FFF' }}>Latest</span> <span style={{ color: '#101828' }}>News</span></h2>
                     <span className="text-xl lg:text-2xl">🔥</span>
                   </div>
-                  <button onClick={() => navigateToPage('/news')} className="flex items-center gap-[10px] text-[12px] lg:text-[14px] font-bold hover:underline" style={{ color: '#2B7FFF', letterSpacing: '-0.0107em' }}>
-                    See more
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="#2B7FFF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </button>
                 </div>
                 <ArticleCardGrid
                   articles={articles.slice(5, 8)}
@@ -578,13 +595,9 @@ function Home({ initialData }) {
                     <h2 className="text-[21px] lg:text-[26px] font-black"><span style={{ color: '#2B7FFF' }}>Recommended</span> <span style={{ color: '#101828' }}>News</span></h2>
                     <span className="text-xl lg:text-2xl">💓</span>
                   </div>
-                  <button onClick={() => navigateToPage('/news')} className="flex items-center gap-[10px] text-[12px] lg:text-[14px] font-bold hover:underline" style={{ color: '#2B7FFF', letterSpacing: '-0.0107em' }}>
-                    See more
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="#2B7FFF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </button>
                 </div>
                 <ArticleCardGrid
-                  articles={featured.length >= 3 ? featured.slice(0, 3) : articles.slice(8, 11)}
+                  articles={recommendedNews.length >= 3 ? recommendedNews.slice(0, 3) : articles.slice(8, 11)}
                   onNavigate={navigateToPage}
                 />
               </div>
@@ -592,8 +605,8 @@ function Home({ initialData }) {
               {/* Mobile separator */}
               <div className="lg:hidden h-2 bg-[#F3F4F6]" />
 
-              {/* Watch News - Featured video + list */}
-              {watchNews && watchNews.length > 0 && (
+              {/* Watch News - Featured video + list (uses items 5+ to avoid overlap with Video News) */}
+              {watchNews && watchNews.length > 5 && (
                 <>
                 <div className="bg-white border-0 lg:border-[1.5px] border-ksp-border rounded-none lg:rounded-xl py-5 lg:py-8 px-4 lg:px-6 mb-0 lg:mb-8">
                   <div className="flex items-center justify-between mb-5 lg:mb-7">
@@ -601,13 +614,9 @@ function Home({ initialData }) {
                       <h2 className="text-[21px] lg:text-[26px] font-black"><span style={{ color: '#2B7FFF' }}>Watch</span> <span style={{ color: '#101828' }}>News</span></h2>
                       <span className="text-xl lg:text-2xl">👀</span>
                     </div>
-                    <button onClick={() => navigateToPage('/news')} className="flex items-center gap-[10px] text-[12px] lg:text-[14px] font-bold hover:underline" style={{ color: '#2B7FFF', letterSpacing: '-0.0107em' }}>
-                      See more
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="#2B7FFF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    </button>
                   </div>
                   <WatchNewsSection
-                    articles={watchNews}
+                    articles={watchNews.slice(5)}
                     onNavigate={navigateToPage}
                     onPlayVideo={openYoutubeModal}
                   />
@@ -626,10 +635,6 @@ function Home({ initialData }) {
                       <h2 className="text-[21px] lg:text-[26px] font-black"><span style={{ color: '#2B7FFF' }}>K-POP</span> <span style={{ color: '#101828' }}>Ranking</span></h2>
                       <span className="text-xl lg:text-2xl">⭐</span>
                     </div>
-                    <button onClick={() => navigateToPage('/music')} className="flex items-center gap-[10px] text-[12px] lg:text-[14px] font-bold hover:underline" style={{ color: '#2B7FFF', letterSpacing: '-0.0107em' }}>
-                      See more
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="#2B7FFF" strokeWidth="1.33" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    </button>
                   </div>
                   <KpopRankingSection
                     songs={topSongs}
@@ -643,12 +648,10 @@ function Home({ initialData }) {
 
               {/* MoreNews - Infinite Scroll */}
               <div className="bg-white border-0 lg:border-[1.5px] border-ksp-border rounded-none lg:rounded-xl py-5 lg:py-8 px-4 lg:px-6">
-                {loadedMoreNews && (
-                  <MoreNews
-                    initialNews={initialMoreNews}
-                    key="more-news-permanent-instance"
-                  />
-                )}
+                <MoreNews
+                  initialNews={initialMoreNews}
+                  key="more-news-permanent-instance"
+                />
               </div>
             </div>
 
@@ -656,8 +659,9 @@ function Home({ initialData }) {
             <div className="hidden lg:block w-[500px] flex-shrink-0">
               <div ref={sidebarStickyRef} className="sticky" style={{ top: sidebarStickyTop + 'px' }}>
                 <Sidebar
-                  rankingNews={todayRankingNews.length > 0 ? todayRankingNews : rankingNews}
-                  popularArticles={rankingNews}
+                  rankingNews={rankingNews}
+                  trendingNews={trendingNews}
+                  popularArticles={editorsPickNews.length > 0 ? editorsPickNews : rankingNews}
                   recentComments={initialData?.recentComments || []}
                   onSearch={(q) => router.push(`/search?q=${encodeURIComponent(q)}`)}
                   onNavigate={navigateToPage}
@@ -701,13 +705,12 @@ function Home({ initialData }) {
   );
 }
 // 캐시 문제 해결을 위해 서버 사이드 렌더링으로 임시 변경
-export async function getServerSideProps() {
+export async function getServerSideProps(context) {
   try {
-    // 서버 URL 설정
-    const serverUrl = process.env.NODE_ENV === 'production'
-      ? 'https://kstarpick.com'
-      : 'http://localhost:3000';
-    const prodUrl = process.env.NEXT_PUBLIC_API_URL || serverUrl;
+    // 서버 URL 설정 (context.req.headers.host를 사용하여 현재 서버에 API 호출)
+    const protocol = context.req.headers['x-forwarded-proto'] || 'http';
+    const baseUrl = `${protocol}://${context.req.headers.host}`;
+    const prodUrl = baseUrl;
 
     console.log('🚀 Static Generation으로 홈페이지 데이터 로딩 시작');
 
@@ -720,31 +723,48 @@ export async function getServerSideProps() {
     const [
       mainNewsRes,
       featuredNewsRes,
+      recommendedNewsRes,
+      trendingNewsRes,
+      , // editors-pick은 trending 결과 후 호출
       musicRes,
       watchNewsRes,
       recentCommentsRes
     ] = await Promise.all([
       fetch(`${prodUrl}/api/news?limit=20`),
       fetch(`${prodUrl}/api/news?featured=true&limit=20&createdAfter=${sevenDaysAgo.toISOString()}`),
+      fetch(`${prodUrl}/api/news/related?limit=6`),
+      fetch(`${prodUrl}/api/news/trending?limit=5`).catch(() => ({ json: () => ({ success: false }) })),
+      null, // editors-pick은 trending 결과 후 호출
       fetch(`${prodUrl}/api/music/popular?limit=5`),
       fetch(`${prodUrl}/api/music/popular?limit=5`), // 임시로 중복 호출 (Watch News는 클라이언트에서)
-      fetch(`${serverUrl}/api/comments/recent?limit=10`)
+      fetch(`${prodUrl}/api/comments/recent?limit=10`)
     ]);
 
     // 응답을 JSON으로 파싱
     const [
       mainNews,
       featuredNews,
+      recommendedNews,
+      trendingNewsData,
+      ,
       music,
       watchNewsInitial,
       recentComments
     ] = await Promise.all([
       mainNewsRes.json(),
       featuredNewsRes.json(),
+      recommendedNewsRes.json(),
+      trendingNewsRes.json(),
+      Promise.resolve(null),
       musicRes.json(),
       watchNewsRes.json(),
       recentCommentsRes.json()
     ]);
+
+    // Editor's PICK: trending ID 제외하여 호출
+    const trendingIds = (trendingNewsData.success ? trendingNewsData.data || [] : []).map(n => n._id).join(',');
+    const editorsPickRes = await fetch(`${prodUrl}/api/news/editors-pick?limit=6${trendingIds ? `&exclude=${trendingIds}` : ''}`).catch(() => ({ json: () => ({ success: false }) }));
+    const editorsPickData = await editorsPickRes.json();
 
     // Watch News는 클라이언트에서 처리 (하이드레이션 에러 방지)
     const watchNews = { success: true, data: { news: [] } };
@@ -769,6 +789,9 @@ export async function getServerSideProps() {
     const initialData = {
       newsArticles: processNews(mainNews.success ? mainNews.data.news?.slice(0, 20) : []),
       featuredArticles: processNews(featuredNews.success ? featuredNews.data.news?.slice(0, 20) : []),
+      recommendedNews: processNews(recommendedNews.success ? recommendedNews.data?.slice(0, 6) : []),
+      trendingNews: processNews(trendingNewsData.success ? trendingNewsData.data?.slice(0, 5) : []),
+      editorsPickNews: processNews(editorsPickData.success ? editorsPickData.data?.slice(0, 6) : []),
       watchNews: watchNews.success ? watchNews.data.news?.slice(0, 6) || [] : [], // Watch News 추가
       popularNews: {
         drama: [], // 클라이언트에서 로드
@@ -805,6 +828,9 @@ export async function getServerSideProps() {
         initialData: {
           newsArticles: [],
           featuredArticles: [],
+          recommendedNews: [],
+          trendingNews: [],
+          editorsPickNews: [],
           watchNews: [],
           popularNews: { drama: [], movie: [], kpop: [], celeb: [] },
           rankingNews: [],

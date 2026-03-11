@@ -9,7 +9,7 @@ import Seo from '../../components/Seo';
 import StructuredData from '../../components/StructuredData';
 import Analytics from '../../components/Analytics';
 import { generateNewsArticleJsonLd, generateMetaTags, generateKeywords } from '../../utils/seoHelpers';
-import { Heart, Share2, Calendar, Clock, User, ChevronRight, ArrowUp, Send, X, Smile } from 'lucide-react';
+import { Heart, Share2, Clock, ChevronRight, ArrowUp, Send, X, Smile } from 'lucide-react';
 import Cookies from 'js-cookie';
 import { connectToDatabase } from "../../utils/mongodb";
 import { ObjectId } from 'mongodb';
@@ -1164,7 +1164,7 @@ const getAvatarByUser = (userId, userName) => {
   return selectedAvatar;
 };
 
-export default function NewsDetail({ newsArticle, relatedArticles, recentComments = [], rankingNews = [] }) {
+export default function NewsDetail({ newsArticle, relatedArticles, recentComments = [], rankingNews = [], trendingNews = [], editorsPickNews = [] }) {
   const router = useRouter();
   // All hooks must be called unconditionally at the top level
   const [liked, setLiked] = useState(false);
@@ -1195,8 +1195,12 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
   });
   const [userReaction, setUserReaction] = useState(null);
   const [showShareMenu, setShowShareMenu] = useState(false);
+  const [showCopiedToast, setShowCopiedToast] = useState(false);
+  const [isCopiedToastHiding, setIsCopiedToastHiding] = useState(false);
   const [showMoreNewsSection, setShowMoreNewsSection] = useState(false);
   const [isMoreNewsSectionHiding, setIsMoreNewsSectionHiding] = useState(false);
+  const [commentSort, setCommentSort] = useState('latest');
+  const [visibleCommentCount, setVisibleCommentCount] = useState(5);
 
   const previousPathRef = useRef(null);
 
@@ -1391,7 +1395,7 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
     }, 500);
 
     // Related News 섹션 위치 확인
-    const relatedSection = document.getElementById('related-news-section');
+    const relatedSection = document.getElementById('explore-category-section');
 
     if (relatedSection) {
       const scrollContainer = document.body;
@@ -1434,31 +1438,18 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
     if (isBackNavigation && savedScrollPosition) {
       const scrollPos = parseInt(savedScrollPosition, 10);
 
-      // 스크롤 복원 함수
       const restoreScroll = () => {
         window.scrollTo(0, scrollPos);
         document.documentElement.scrollTop = scrollPos;
         document.body.scrollTop = scrollPos;
       };
 
-      // 1차: 즉시 복원 시도
       restoreScroll();
-
-      // 2차: DOM 렌더링 직후 (RAF 2번 중첩으로 레이아웃 재계산 대기)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          restoreScroll();
-        });
+      [100, 300, 800].forEach(delay => {
+        setTimeout(restoreScroll, delay);
       });
 
-      // 3차: 이미지 로딩 등을 고려한 지연 복원
-      setTimeout(() => restoreScroll(), 100);
-
-      // 최종: 확실한 복원 및 플래그 제거
-      setTimeout(() => {
-        restoreScroll();
-        sessionStorage.removeItem('isBackToNewsDetail');
-      }, 300);
+      sessionStorage.removeItem('isBackToNewsDetail');
     }
 
   }, [router]);
@@ -1842,13 +1833,38 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
     setShowShareMenu(false);
   };
 
-  const handleCopyLink = () => {
+  const handleCopyLink = async () => {
     if (typeof window === 'undefined') return;
     const shareUrl = `https://www.kstarpick.com/news/${newsArticle?.slug || newsArticle?._id}`;
-    navigator.clipboard.writeText(shareUrl);
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        // Fallback for mobile / non-secure context
+        const textArea = document.createElement('textarea');
+        textArea.value = shareUrl;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+    } catch (err) {
+      console.error('Copy failed:', err);
+    }
     setIsLinkCopied(true);
     setTimeout(() => setIsLinkCopied(false), 2000);
     setShowShareMenu(false);
+    // Show floating toast
+    setShowCopiedToast(true);
+    setIsCopiedToastHiding(false);
+    setTimeout(() => {
+      setIsCopiedToastHiding(true);
+      setTimeout(() => setShowCopiedToast(false), 500);
+    }, 2000);
   };
 
   return (
@@ -1907,6 +1923,10 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
           }
+          .ranking-number-stroke {
+            -webkit-text-stroke-width: 1px;
+            -webkit-text-stroke-color: #1D1D1D;
+          }
         `}} />
       </Head>
       <Seo 
@@ -1964,96 +1984,60 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
           // Actual content
           <>
             {/* Mobile Layout */}
-            <div className="lg:hidden">
-            {/* Hero Header Section - 높이 동적 변경 */}
-            <div 
-              className="relative w-full overflow-hidden"
-              style={{ height: `${headerHeight}vh` }}
-            >
-              {/* 단일 이미지 컨테이너 */}
-              <div className="absolute inset-0">
-                <img 
-                  src={newsArticle.coverImage || '/images/placeholder.jpg'} 
-                  alt={newsArticle.title}
-                  className="w-full h-full object-cover"
-                  style={{ objectPosition: 'center 20%' }}
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "/images/placeholder.jpg";
-                  }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-transparent"></div>
+            <div className="lg:hidden" style={{ paddingTop: '48px', overflowX: 'hidden' }}>
+
+            {/* Section 2: Article Meta */}
+            <div className="flex flex-col" style={{ padding: '24px 16px 0', gap: '8px' }}>
+              <div className="flex flex-col" style={{ gap: '4px' }}>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '14px', lineHeight: '1.14em', color: '#2B7FFF' }}>
+                  {(newsArticle.category || 'K-pop').toUpperCase()}
+                </span>
+                <h1 style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '22px', lineHeight: '1.375em', letterSpacing: '-0.0117em', color: '#111111', margin: 0 }}>
+                  {newsArticle.title}
+                </h1>
               </div>
-              
-              <div className="absolute inset-0 flex items-end">
-                <div className="container mx-auto px-4 pb-8 md:pb-12 w-full">
-                  <div className="max-w-4xl">
-                    <h1 className={`text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-4 leading-tight transition-all duration-300 ${headerHeight < 40 ? 'opacity-70 scale-90' : 'opacity-100 scale-100'}`} style={{ transformOrigin: 'left bottom' }}>
-                      {newsArticle.title}
-                    </h1>
-                    <div className={`bg-black/30 backdrop-blur-md p-3 rounded-xl border border-white/10 mt-auto transition-all duration-300 ${headerHeight < 40 ? 'opacity-70 scale-95' : 'opacity-100 scale-100'}`} style={{ transformOrigin: 'left bottom' }}>
-                      <div className="flex flex-wrap justify-between items-center text-white text-sm">
-                        <div className="flex items-center flex-wrap gap-3 w-full md:w-auto justify-between md:justify-start">
-                          <div className="flex items-center px-3 py-1 rounded-full" style={{ backgroundColor: '#233CFA' }}>
-                            <span className="font-medium capitalize">{newsArticle.category || 'K-pop'}</span>
-                          </div>
-
-                          <div className="flex items-center">
-                            <Calendar size={16} className="mr-2 text-[#009efc]" />
-                            <span className="font-medium">{
-                              (() => {
-                                const date = new Date(newsArticle.createdAt);
-                                const year = date.getFullYear().toString().slice(-2);
-                                const month = (date.getMonth() + 1).toString().padStart(2, '0');
-                                const day = date.getDate().toString().padStart(2, '0');
-                                return `${year}.${month}.${day}`;
-                              })()
-                            }</span>
-                          </div>
-
-                          <div className="flex items-center bg-white/20 px-3 py-1 rounded-full md:hidden">
-                            <User size={16} className="mr-2 text-[#009efc]" />
-                            <span className="font-medium">By {newsArticle.author?.name || 'Admin'}</span>
-                          </div>
-
-                          <button
-                            onClick={() => setShowShareMenu(!showShareMenu)}
-                            className="flex md:hidden items-center justify-center bg-white/20 hover:bg-white/30 active:bg-white/40 p-2 rounded-full transition-all duration-200"
-                          >
-                            <Share2 size={16} className="text-[#009efc]" />
-                          </button>
-                        </div>
-
-                        <div className="hidden md:flex items-center gap-4">
-                          <div className="flex items-center bg-white/20 px-3 py-1 rounded-full">
-                            <User size={16} className="mr-2 text-[#009efc]" />
-                            <span className="font-medium">By {newsArticle.author?.name || 'Admin'}</span>
-                          </div>
-
-                          <button
-                            onClick={() => setShowShareMenu(!showShareMenu)}
-                            className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-all duration-200"
-                          >
-                            <Share2 size={16} className="text-[#009efc]" />
-                            <span className="font-medium">Share</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+              <div className="flex justify-between items-end">
+                <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '12px', lineHeight: '1.33em', letterSpacing: '-0.0333em', color: '#99A1AF' }}>
+                  {(() => {
+                    const date = new Date(newsArticle.createdAt);
+                    const year = date.getFullYear();
+                    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                    const day = date.getDate().toString().padStart(2, '0');
+                    const hours = date.getHours().toString().padStart(2, '0');
+                    const minutes = date.getMinutes().toString().padStart(2, '0');
+                    return `${year}.${month}.${day} ${hours}:${minutes}`;
+                  })()}
+                </span>
+                <div className="flex items-center" style={{ gap: '12px', height: '18px' }}>
+                  <button onClick={handleShareFacebook} className="hover:opacity-70 transition-opacity" title="Share to Facebook">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#99A1AF"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                  </button>
+                  <button onClick={handleShareTwitter} className="hover:opacity-70 transition-opacity" title="Share to X">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#99A1AF"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                  </button>
+                  <button onClick={handleCopyLink} className="hover:opacity-70 transition-opacity" title="Copy link">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#99A1AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  </button>
                 </div>
               </div>
             </div>
 
-            <div className="container mx-auto px-2 sm:px-4 py-8 sm:py-12">
-              <div className="flex flex-col lg:flex-row gap-3 lg:gap-8">
-                {/* Main Content */}
-                <div className="lg:w-2/3">
-                  <div className="bg-white rounded-xl p-3 sm:p-6 md:p-10 mb-4">
-                    {/* Article content */}
-                    <div className="prose prose-lg max-w-none">
-                      <DirectRiddleContent content={newsArticle.content} />
-                    </div>
+            {/* Cover Image */}
+            <div style={{ padding: '20px 16px 0' }}>
+              <img
+                src={newsArticle.coverImage || '/images/placeholder.jpg'}
+                alt={newsArticle.title}
+                className="w-full rounded-lg object-cover"
+                style={{ maxHeight: '260px' }}
+                onError={(e) => { e.target.onerror = null; e.target.src = "/images/placeholder.jpg"; }}
+              />
+            </div>
+
+            {/* Section 3: Article Body */}
+            <div className="flex flex-col" style={{ padding: '24px 16px 42px', gap: '20px' }}>
+              <div className="article-content" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '16px', lineHeight: '1.73em', letterSpacing: '-0.027em', color: '#333333' }}>
+                <DirectRiddleContent content={newsArticle.content} />
+              </div>
                     
                     {/* Riddle 전용 CSS 스타일 - 매우 강력한 버전 */}
                     <style dangerouslySetInnerHTML={{__html: `
@@ -2173,389 +2157,461 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                       }
                     `}} />
                     
-                    {/* Tags */}
-                    {newsArticle.tags && newsArticle.tags.length > 0 && (
-                      <TagsSection tags={newsArticle.tags} />
-                    )}
+            </div> {/* end Section 3: Article Body */}
 
-                    {/* Reactions Section */}
-                    <div className="mt-10 pt-6 border-t border-gray-100">
-                      <div className="flex flex-nowrap gap-2 sm:gap-8 justify-center items-center">
-                      {[
-                        { key: 'like', label: 'Like', image: '/images/icons8-like-50.png' },
-                        { key: 'congratulations', label: 'Congratulations', image: '/images/icons8-partying-face-50.png' },
-                        { key: 'surprised', label: 'Surprised', image: '/images/icons8-surprised-50.png' },
-                        { key: 'sad', label: 'Sad', image: '/images/icons8-sleepy-face-emoji-50.png' }
-                      ].map(({ key, label, image }) => (
-                        <button
-                          key={key}
-                          onClick={async () => {
-                            const isCancel = userReaction === key;
-                            const newUserReaction = isCancel ? null : key;
-                            const previousReaction = userReaction || null;
+            {/* Section 4: Related Tags */}
+            {newsArticle.tags && newsArticle.tags.length > 0 && (
+              <div className="flex flex-col" style={{ padding: '0 16px', gap: '10px' }}>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '14px', lineHeight: '20px', letterSpacing: '-0.15px', color: '#333333', textTransform: 'capitalize' }}>
+                  Related Tags
+                </span>
+                <div className="flex flex-wrap" style={{ gap: '6px' }}>
+                  {newsArticle.tags.map((tag, idx) => (
+                    <span
+                      key={idx}
+                      style={{
+                        backgroundColor: 'rgba(153, 161, 175, 0.15)',
+                        borderRadius: '60px',
+                        padding: '3px 8px',
+                        fontFamily: 'Inter, sans-serif',
+                        fontWeight: 600,
+                        fontSize: '10px',
+                        lineHeight: '1.5em',
+                        letterSpacing: '0.12px',
+                        color: '#99A1AF',
+                      }}
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
-                            // Optimistic UI update
-                            const newReactions = { ...reactions };
-                            if (previousReaction) {
-                              newReactions[previousReaction] = Math.max(0, newReactions[previousReaction] - 1);
-                            }
-                            if (!isCancel) {
-                              newReactions[key] = (newReactions[key] || 0) + 1;
-                            }
-                            setReactions(newReactions);
-                            setUserReaction(newUserReaction);
+            {/* Section 5: Like it / Not for me */}
+            <div className="flex justify-center" style={{ padding: '36px 16px', gap: '10px' }}>
+              {[
+                { key: 'like', label: 'Like it!', icon: '/images/like-thumb-blue.svg', borderColor: '#2B7FFF', textColor: '#2B7FFF', iconPosition: 'left' },
+                { key: 'dislike', label: 'Not for me', icon: '/images/notforme-thumb-gray.svg', borderColor: '#A7A7A7', textColor: '#7D7F85', iconPosition: 'right' }
+              ].map(({ key, label, icon, borderColor, textColor, iconPosition }) => (
+                <button
+                  key={key}
+                  onClick={async () => {
+                    const isCancel = userReaction === key;
+                    const newUserReaction = isCancel ? null : key;
+                    const previousReaction = userReaction || null;
 
-                            // 쿠키에 유저 선택만 저장
-                            if (typeof window !== 'undefined' && newsArticle?._id) {
-                              const userReactionsFromCookie = Cookies.get('newsReactions');
-                              const userReactionsMap = userReactionsFromCookie ? JSON.parse(userReactionsFromCookie) : {};
-                              if (newUserReaction) {
-                                userReactionsMap[newsArticle._id] = newUserReaction;
-                              } else {
-                                delete userReactionsMap[newsArticle._id];
-                              }
-                              Cookies.set('newsReactions', JSON.stringify(userReactionsMap), { expires: 365 });
-                            }
+                    const newReactions = { ...reactions };
+                    if (previousReaction) {
+                      newReactions[previousReaction] = Math.max(0, newReactions[previousReaction] - 1);
+                    }
+                    if (!isCancel) {
+                      newReactions[key] = (newReactions[key] || 0) + 1;
+                    }
+                    setReactions(newReactions);
+                    setUserReaction(newUserReaction);
 
-                            // DB에 저장
-                            try {
-                              const res = await fetch('/api/news/reactions', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  newsId: newsArticle._id,
-                                  reactionType: isCancel ? null : key,
-                                  previousReaction
-                                })
-                              });
-                              const data = await res.json();
-                              if (data.reactions) {
-                                setReactions(data.reactions);
-                              }
-                            } catch (err) {
-                              console.error('Reaction API error:', err);
-                            }
-                          }}
-                          className={`flex flex-col items-center gap-1 sm:gap-2 px-3 sm:px-8 py-2 sm:py-4 rounded-lg transition-all duration-200 hover:scale-105 ${
-                            userReaction === key
-                              ? 'bg-[#009efc]/10'
-                              : 'bg-transparent hover:bg-gray-50'
-                          }`}
-                        >
-                          <img
-                            src={image}
-                            alt={label}
-                            className="w-9 h-9 sm:w-10 sm:h-10 object-contain"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
-                          />
-                          <div className="text-center">
-                            <div className={`text-xs font-medium whitespace-nowrap ${userReaction === key ? 'text-[#233CFA]' : 'text-gray-700'}`}>{label}</div>
-                            <div className={`text-sm font-bold ${userReaction === key ? 'text-[#233CFA]' : 'text-gray-900'}`}>{reactions[key]}</div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
+                    if (typeof window !== 'undefined' && newsArticle?._id) {
+                      const userReactionsFromCookie = Cookies.get('newsReactions');
+                      const userReactionsMap = userReactionsFromCookie ? JSON.parse(userReactionsFromCookie) : {};
+                      if (newUserReaction) {
+                        userReactionsMap[newsArticle._id] = newUserReaction;
+                      } else {
+                        delete userReactionsMap[newsArticle._id];
+                      }
+                      Cookies.set('newsReactions', JSON.stringify(userReactionsMap), { expires: 365 });
+                    }
+
+                    try {
+                      const res = await fetch('/api/news/reactions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          newsId: newsArticle._id,
+                          reactionType: isCancel ? null : key,
+                          previousReaction
+                        })
+                      });
+                      const data = await res.json();
+                      if (data.reactions) {
+                        setReactions(data.reactions);
+                      }
+                    } catch (err) {
+                      console.error('Reaction API error:', err);
+                    }
+                  }}
+                  style={{
+                    position: 'relative',
+                    flex: 1,
+                    maxWidth: '194px',
+                    height: '71px',
+                    backgroundColor: userReaction === key ? (key === 'like' ? 'rgba(43,127,255,0.05)' : 'rgba(125,127,133,0.05)') : '#FFFFFF',
+                    border: `1px solid ${userReaction === key ? borderColor : borderColor}`,
+                    borderRadius: '10px',
+                    overflow: 'hidden',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {/* Decorative thumb icon */}
+                  <img
+                    src={icon}
+                    alt=""
+                    style={{
+                      position: 'absolute',
+                      top: iconPosition === 'left' ? '8px' : '-18px',
+                      [iconPosition === 'left' ? 'left' : 'right']: '-14px',
+                      width: iconPosition === 'left' ? '70px' : '65px',
+                      height: iconPosition === 'left' ? '83px' : '80px',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                  {/* Text content */}
+                  <div style={{
+                    position: 'absolute',
+                    top: '28px',
+                    left: iconPosition === 'left' ? '57px' : '36px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '9px',
+                  }}>
+                    <span style={{
+                      fontFamily: 'Inter, sans-serif',
+                      fontWeight: 900,
+                      fontSize: '16px',
+                      lineHeight: '1em',
+                      color: textColor,
+                    }}>
+                      {reactions[key] || 0}
+                    </span>
+                    <span style={{
+                      fontFamily: 'Inter, sans-serif',
+                      fontWeight: 600,
+                      fontSize: '16px',
+                      lineHeight: '1em',
+                      color: textColor,
+                    }}>
+                      {label}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Section 7: Comments */}
+            <div style={{ padding: '32px 0 24px' }}>
+              <div style={{ padding: '16px 0 8px', borderTop: '8px solid #F2F3F6', borderBottom: '8px solid #F2F3F6' }}>
+                {/* Header: Comments count + sort */}
+                <div className="flex items-center justify-between" style={{ padding: '0 16px 12px' }}>
+                  <div className="flex items-center" style={{ gap: '6px' }}>
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '18px', lineHeight: '27px', letterSpacing: '-0.44px', color: '#1E2939' }}>
+                      Comments <span style={{ color: '#2B7FFF' }}>{localComments.length}</span>
+                    </span>
+                  </div>
+                  <div className="flex" style={{ gap: '4px' }}>
+                    {['latest', 'popular'].map((sort) => (
+                      <button
+                        key={sort}
+                        onClick={() => setCommentSort(sort)}
+                        style={{
+                          border: `1px solid ${commentSort === sort ? '#1E2939' : '#D1D5DC'}`,
+                          borderRadius: '4px',
+                          padding: '5px 9px',
+                          fontFamily: 'Pretendard, sans-serif',
+                          fontWeight: 500,
+                          fontSize: '12px',
+                          lineHeight: '16px',
+                          color: commentSort === sort ? '#1E2939' : '#99A1AF',
+                          backgroundColor: 'transparent',
+                        }}
+                      >
+                        {sort === 'latest' ? 'Latest' : 'Popular'}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                  {/* Comments Section */}
-                  <div className="rounded-xl p-3 sm:p-6 md:p-10 mb-8 bg-white border border-gray-200 shadow-sm relative overflow-hidden">
-
-                    <h3 className="text-xl md:text-2xl font-bold text-black mb-6 flex items-center">
-                      <img src="/images/icons8-messaging-48.png" alt="Comments" className="mr-2 w-5 h-5" />
-                      <span className="text-black">
-                        Comments ({localComments.length})
-                      </span>
-                    </h3>
-                    
-                    {/* Comment Form */}
-                    <form onSubmit={handleCommentSubmit} className="mb-5 relative">
-                      <div className="bg-white rounded-xl border border-purple-100 overflow-hidden shadow-sm">
-                        <textarea 
-                          className={`w-full px-4 py-3 bg-transparent focus:outline-none resize-none transition-all duration-300 ${textareaFocused ? 'h-[80px] md:h-[100px]' : 'h-[40px]'}`}
-                          placeholder="Write your comment here..."
-                          value={newComment}
-                          onChange={handleCommentChange}
-                          onFocus={() => setTextareaFocused(true)}
-                          style={{ minHeight: 'unset' }}
-                        ></textarea>
-                        
-                        {textareaFocused && (
-                          <div className="flex items-center justify-between bg-gray-50 p-3 border-t border-purple-100/60">
-                            <div className="flex items-center text-gray-500 relative">
-                              <Smile 
-                                size={18} 
-                                className="mr-2 cursor-pointer hover:text-[#ff3e8e] transition-colors" 
-                                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                              />
-                              <span className="text-xs">Add emoji</span>
-                              
-                              {showEmojiPicker && (
-                                <div className="absolute bottom-full left-0 mb-1 bg-white p-2 rounded-lg shadow-md z-50 flex gap-2 flex-wrap border border-purple-100" style={{ width: '200px' }}>
-                                  {['😊', '👍', '❤️', '🔥', '👏', '😂', '🎉', '👀', '🙏', '😍'].map(emoji => (
-                                    <button
-                                      key={emoji}
-                                      type="button"
-                                      className="w-8 h-8 text-xl hover:bg-purple-50 rounded flex items-center justify-center"
-                                      onClick={() => {
-                                        setNewComment(prev => prev + ' ' + emoji);
-                                        setShowEmojiPicker(false);
-                                      }}
-                                    >
-                                      {emoji}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
+                {/* Comment Input Area */}
+                <div style={{ padding: '12px 16px' }}>
+                  <form onSubmit={handleCommentSubmit}>
+                    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #D1D5DC', borderRadius: '10px', padding: '13px 13px 1px' }}>
+                      <textarea
+                        className="w-full focus:outline-none resize-none"
+                        placeholder="Write your comment here"
+                        value={newComment}
+                        onChange={handleCommentChange}
+                        onFocus={() => setTextareaFocused(true)}
+                        style={{
+                          fontFamily: 'Inter, sans-serif',
+                          fontWeight: 400,
+                          fontSize: '14px',
+                          lineHeight: '20px',
+                          letterSpacing: '-0.15px',
+                          color: '#333',
+                          minHeight: '40px',
+                          border: 'none',
+                          background: 'transparent',
+                        }}
+                      />
+                      <div className="flex items-center justify-between" style={{ padding: '8px 0' }}>
+                        <button
+                          type="button"
+                          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                          style={{ position: 'relative' }}
+                        >
+                          <Smile size={20} color="#99A1AF" />
+                          {showEmojiPicker && (
+                            <div className="absolute bottom-full left-0 mb-1 bg-white p-2 rounded-lg shadow-md z-50 flex gap-2 flex-wrap border border-gray-200" style={{ width: '200px' }}>
+                              {['😊', '👍', '❤️', '🔥', '👏', '😂', '🎉', '👀', '🙏', '😍'].map(emoji => (
+                                <button
+                                  key={emoji}
+                                  type="button"
+                                  className="w-8 h-8 text-xl hover:bg-gray-50 rounded flex items-center justify-center"
+                                  onClick={() => {
+                                    setNewComment(prev => prev + ' ' + emoji);
+                                    setShowEmojiPicker(false);
+                                  }}
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
                             </div>
-                            
-                            <button
-                              type="submit"
-                              disabled={!newComment.trim() || submittingComment}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 rounded-lg transition-all text-sm md:text-base ${
-                                !newComment.trim() || submittingComment
-                                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                  : 'text-white hover:shadow-md'
-                              }`}
-                              style={!newComment.trim() || submittingComment ? {} : { backgroundColor: '#233CFA' }}
-                            >
-                              {submittingComment ? 'Posting...' : 'Post Comment'}
-                              <Send size={14} className={`md:w-4 md:h-4 ${submittingComment ? 'animate-pulse' : ''}`} />
-                            </button>
-                          </div>
-                        )}
+                          )}
+                        </button>
+                        <div className="flex items-center" style={{ gap: '8px' }}>
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '12px', lineHeight: '16px', color: '#99A1AF' }}>
+                            {newComment.length}/300
+                          </span>
+                          <button
+                            type="submit"
+                            disabled={!newComment.trim() || submittingComment}
+                            style={{
+                              backgroundColor: !newComment.trim() || submittingComment ? '#D1D5DC' : '#233CFA',
+                              borderRadius: '4px',
+                              padding: '6px 9px',
+                              fontFamily: 'Inter, sans-serif',
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              lineHeight: '16px',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              cursor: !newComment.trim() || submittingComment ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            {submittingComment ? '...' : 'Post'}
+                          </button>
+                        </div>
                       </div>
-                    </form>
-                    
-                    {/* Comments List */}
-                    <div className="space-y-6">
-                      {localComments.length > 0 ? (
-                        localComments.map((comment, index) => {
-                          const colors = getColorFromNickname(comment.author);
-                          return (
-                          <div key={comment.id || index} className="flex gap-3 pb-6 border-b border-purple-100/40 last:border-0">
-                            {/* Avatar */}
-                            <div className="shrink-0">
-                              <div className="w-7 h-7 rounded-full bg-white overflow-hidden flex items-center justify-center">
+                    </div>
+                  </form>
+                </div>
+
+                {/* Comments List */}
+                <div className="flex flex-col">
+                  {localComments.length > 0 ? (
+                    [...localComments].sort((a, b) => {
+                      if (commentSort === 'popular') return ((b.likes || 0) - (a.likes || 0));
+                      return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
+                    }).slice(0, visibleCommentCount || 5).map((comment, index) => {
+                      const colors = getColorFromNickname(comment.author);
+                      return (
+                        <div
+                          key={comment.id || index}
+                          className="flex flex-col"
+                          style={{
+                            padding: index === 0 ? '20px 16px' : '12px 16px',
+                            gap: index === 0 ? '12px' : '4px',
+                            borderBottom: '1px solid #F3F4F6',
+                            backgroundColor: index === 0 ? 'rgba(242, 244, 254, 0.5)' : '#FFFFFF',
+                          }}
+                        >
+                          {/* Comment header: avatar + name + date + menu */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center" style={{ gap: '8px' }}>
+                              <div style={{ width: '40px', height: '40px', borderRadius: '100px', overflow: 'hidden', flexShrink: 0, border: '1px solid #E9EBEF' }}>
                                 <img
                                   src={comment.avatar}
                                   alt={comment.author}
-                                  className="w-full h-full object-contain"
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                   onError={(e) => {
                                     e.target.onerror = null;
                                     e.target.style.display = 'none';
-                                    // Add gradient background and initial
                                     const parentNode = e.target.parentNode;
-                                    parentNode.classList.add('overflow-hidden');
                                     const gradientDiv = document.createElement('div');
-                                    gradientDiv.className = "w-full h-full flex items-center justify-center";
-                                    gradientDiv.style.background = `linear-gradient(135deg, ${colors.main} 0%, ${colors.secondary} 100%)`;
-
+                                    gradientDiv.className = "flex items-center justify-center";
+                                    gradientDiv.style.cssText = `width:100%;height:100%;background:linear-gradient(135deg, ${colors.main} 0%, ${colors.secondary} 100%)`;
                                     const initial = document.createElement('span');
                                     initial.textContent = comment.author.charAt(0).toUpperCase();
-                                    initial.className = 'text-white font-bold text-xs';
-
+                                    initial.className = 'text-white font-bold text-sm';
                                     gradientDiv.appendChild(initial);
                                     parentNode.appendChild(gradientDiv);
                                   }}
                                 />
                               </div>
-                            </div>
-
-                            {/* Comment Content */}
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="font-semibold text-black">{comment.author}</span>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-gray-400 text-xs">
-                                    {comment.timestamp 
-                                      ? formatCommentDate(new Date(comment.timestamp))
-                                      : comment.date}
-                                  </span>
-                                  
-                                  {/* Delete button (only shown to comment author or admin) */}
-                                  {session && (session.user.role === 'admin' || session.user.id === comment.authorId) && (
-                                    <button 
-                                      onClick={() => handleDeleteComment(comment.id)}
-                                      className="text-gray-400 hover:text-red-500 transition-colors"
-                                    >
-                                      <X size={14} />
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              <div className="bg-white rounded-lg p-3 shadow-sm border border-purple-100/30">
-                                <p className="text-gray-700">{comment.text}</p>
+                              <div className="flex flex-col" style={{ gap: '2px' }}>
+                                <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '14px', lineHeight: '20px', letterSpacing: '-0.15px', color: '#101828' }}>
+                                  {comment.author}
+                                </span>
+                                <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '12px', lineHeight: '16px', letterSpacing: '-0.4px', color: '#99A1AF' }}>
+                                  {comment.timestamp ? formatCommentDate(new Date(comment.timestamp)) : comment.date}
+                                </span>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Sidebar */}
-                <div className="lg:w-1/3">
-                  {/* Related News - 드라마 페이지와 동일한 디자인 */}
-                  <div id="related-news-section" className="bg-white rounded-xl px-0 py-3 mb-8 mt-0 md:mt-12">
-                    <div className="mb-6">
-                      <div className="flex items-center">
-                        {/* Link Icon */}
-                        <div className="mr-4 flex-shrink-0">
-                          <img
-                            src="/images/icons8-link-48.png"
-                            alt="Related News"
-                            className="h-12 w-12 object-contain"
-                          />
-                        </div>
-                        <div>
-                          <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#233CFA' }}>Related Content</span>
-                          <h2 className="text-2xl md:text-3xl font-bold text-gray-800">Related News</h2>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      {(() => {
-                        const filtered = relatedArticles.filter(news => {
-                          const isDifferentById = news._id !== newsArticle._id;
-                          const isDifferentBySlug = news.slug !== newsArticle.slug;
-                          return isDifferentById && isDifferentBySlug;
-                        });
-
-                        const displayedNews = relatedArticles && relatedArticles.length > 0
-                          ? filtered.slice(0, 6)
-                          : [];
-
-                        return displayedNews.length > 0 ? (
-                          displayedNews.map((news, idx) => (
-                          <Link href={`/news/${news.slug || news._id || news.id}`} key={news._id || news.id || `related-${idx}`}>
-                            <div className="block bg-white overflow-hidden py-3 cursor-pointer">
-                              <div className="flex gap-1">
-                                {/* Thumbnail */}
-                                <div className="w-40 h-32 flex-shrink-0 relative rounded-md overflow-hidden">
-                                  <img
-                                    src={news.coverImage || '/images/placeholder.jpg'}
-                                    alt={news.title}
-                                    className="w-full h-full object-cover rounded-md"
-                                    onError={(e) => {
-                                      e.target.onerror = null;
-                                      e.target.src = "/images/placeholder.jpg";
-                                    }}
-                                  />
-                                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-                                </div>
-
-                                {/* Content */}
-                                <div className="flex-1 pt-0 pr-3 pb-0 pl-3 flex flex-col justify-between h-32">
-                                  <div>
-                                    <h3 className="text-base md:text-lg font-semibold line-clamp-3 text-gray-800 mt-2">
-                                      {news.title}
-                                    </h3>
-                                  </div>
-                                  <div className="flex items-center text-gray-500 text-xs mt-2">
-                                    <Clock size={12} className="mr-1" />
-                                    {new Date(news.createdAt).toLocaleDateString('en-CA')}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </Link>
-                          ))
-                        ) : (
-                          <div className="text-center p-8 bg-gray-50 rounded-lg">
-                            <p className="text-gray-500">No related articles found</p>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* More News Section */}
-              <div className="mb-24">
-                <div className="mb-8">
-                  <div className="flex items-center">
-                    {/* Copy Icon */}
-                    <div className="mr-4 flex-shrink-0">
-                      <img
-                        src="/images/icons8-copy-48.png"
-                        alt="More News"
-                        className="h-12 w-12 object-contain"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-sm font-semibold tracking-wider uppercase mb-1 block" style={{ color: '#233CFA' }}>More Content</span>
-                      <h2 className="text-2xl md:text-3xl font-bold text-gray-800">More K-POP News</h2>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                  {relatedArticles && relatedArticles.length > 0 ? (
-                    // 현재 뉴스와 Related News 섹션에 표시된 뉴스 제외
-                    relatedArticles
-                      .filter(news => news._id !== newsArticle._id && news.slug !== newsArticle.slug && !relatedNewsIds.includes(news._id))
-                      .slice(0, 6)
-                      .map((news, index) => (
-                      <Link key={index} href={`/news/${news.slug || news._id}`} className="group">
-                        <div className="bg-white rounded-lg overflow-hidden transition-all duration-300 group relative cursor-pointer">
-                          <div className="h-64 overflow-hidden relative rounded-md">
-                            <img
-                              src={news.coverImage || '/images/placeholder.jpg'}
-                              alt={news.title}
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-md"
-                              onError={(e) => {
-                                e.target.onerror = null;
-                                e.target.src = "/images/placeholder.jpg";
-                              }}
-                            />
-
-                            {/* 반투명 그라디언트 오버레이 */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+                            {session && (session.user.role === 'admin' || session.user.id === comment.authorId) && (
+                              <button onClick={() => handleDeleteComment(comment.id)} style={{ color: '#D1D5DC' }}>
+                                <X size={20} />
+                              </button>
+                            )}
                           </div>
 
-                          <div className="p-4">
-                            <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#233CFA] transition-colors">
-                              {news.title}
-                            </h3>
+                          {/* Comment text */}
+                          <p style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '14px', lineHeight: '19.25px', letterSpacing: '-0.15px', color: '#333333', margin: 0 }}>
+                            {comment.text}
+                          </p>
 
-                            <p className="text-gray-600 text-xs line-clamp-2 mb-3">
-                              {news.content
-                                ? news.content.replace(/<[^>]*>/g, '')
-                                : news.summary || ''}
-                            </p>
-
-                            <div className="flex justify-between items-end">
-                              {/* 시간 배지 */}
-                              <div className="flex items-center text-gray-500 text-xs">
-                                <Clock size={12} className="mr-1 text-gray-500" />
-                                <span>{new Date(news.createdAt || news.date).toLocaleDateString('en-CA')}</span>
-                              </div>
-
-                              {/* Read more 버튼 */}
-                              <span className="inline-flex items-center text-xs font-medium hover:underline cursor-pointer group" style={{ color: '#233CFA' }}>
-                                Read more <ChevronRight size={14} className="ml-1 group-hover:animate-pulse" style={{ color: '#233CFA' }} />
-                              </span>
+                          {/* Comment footer: likes/dislikes */}
+                          <div className="flex items-center justify-end">
+                            <div className="flex items-center" style={{ gap: '20px' }}>
+                              <button className="flex items-center" style={{ gap: '2px' }} onClick={() => handleCommentReaction(comment.id, 'like')}>
+                                <img src="/images/comment-like.svg" alt="like" style={{ width: '16px', height: '16px', opacity: comment.userReaction === 'like' ? 1 : 0.5 }} />
+                                <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: '12px', lineHeight: '20px', letterSpacing: '-0.15px', color: comment.userReaction === 'like' ? '#2B7FFF' : '#99A1AF' }}>
+                                  {comment.likes || 0}
+                                </span>
+                              </button>
+                              <button className="flex items-center" style={{ gap: '2px' }} onClick={() => handleCommentReaction(comment.id, 'dislike')}>
+                                <img src="/images/comment-dislike.svg" alt="dislike" style={{ width: '16px', height: '16px', opacity: comment.userReaction === 'dislike' ? 1 : 0.5 }} />
+                                <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: '12px', lineHeight: '20px', letterSpacing: '-0.15px', color: comment.userReaction === 'dislike' ? '#2B7FFF' : '#99A1AF' }}>
+                                  {comment.dislikes || 0}
+                                </span>
+                              </button>
                             </div>
                           </div>
                         </div>
-                      </Link>
-                    ))
-                  ) : (
-                    <div className="col-span-3 text-center py-10 text-gray-500">
-                      No related articles available
-                    </div>
-                  )}
+                      );
+                    })
+                  ) : null}
                 </div>
+
+                {/* Show more / Collapse comments */}
+                {localComments.length > 5 && (
+                  <div className="flex justify-end" style={{ padding: '16px' }}>
+                    {visibleCommentCount < localComments.length ? (
+                      <button
+                        onClick={() => setVisibleCommentCount(visibleCommentCount + 5)}
+                        className="flex items-center" style={{ gap: '4px' }}
+                      >
+                        <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '14px', lineHeight: '20px', letterSpacing: '-0.15px', color: '#101828', textTransform: 'capitalize' }}>
+                          Show More Comments
+                        </span>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="#99A1AF" strokeWidth="1.14"/></svg>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setVisibleCommentCount(5)}
+                        className="flex items-center" style={{ gap: '4px' }}
+                      >
+                        <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '14px', lineHeight: '20px', letterSpacing: '-0.15px', color: '#101828', textTransform: 'capitalize' }}>
+                          Collapse Comments
+                        </span>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M12 10L8 6L4 10" stroke="#99A1AF" strokeWidth="1.14"/></svg>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
+
+            {/* Section 8: Explore CELEB */}
+            <div id="explore-category-section" className="flex flex-col" style={{ padding: '25px 16px 0', gap: '16px' }}>
+              <div className="flex items-center justify-between">
+                <h2 style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '18px', lineHeight: '1.56em', letterSpacing: '-0.024em', color: '#101828', margin: 0 }}><span style={{ color: '#2B7FFF' }}>Related</span> News</h2>
+              </div>
+              <div className="flex flex-col" style={{ gap: '16px' }}>
+                {(() => {
+                  const filtered = relatedArticles.filter(news => news._id !== newsArticle._id && news.slug !== newsArticle.slug);
+                  const displayedNews = filtered.slice(0, 5);
+                  return displayedNews.map((news, idx) => (
+                    <Link href={`/news/${news.slug || news._id || news.id}`} key={news._id || news.id || `celeb-${idx}`}>
+                      <div className="flex items-center gap-[10px] cursor-pointer">
+                        <div className="w-[78px] h-[78px] flex-shrink-0 rounded-[10px] overflow-hidden bg-[#F3F4F6]">
+                          <img
+                            src={news.coverImage || '/images/placeholder.jpg'}
+                            alt={news.title}
+                            className="w-full h-full object-cover"
+                            onError={(e) => { e.target.onerror = null; e.target.src = "/images/placeholder.jpg"; }}
+                          />
+                        </div>
+                        <div className="flex-1 flex flex-col" style={{ gap: '10px' }}>
+                          <h3 className="line-clamp-2" style={{ fontFamily: 'Pretendard, Inter, sans-serif', fontWeight: 500, fontSize: '14px', lineHeight: '1.25em', letterSpacing: '-0.0107em', color: '#333333', margin: 0 }}>
+                            {news.title}
+                          </h3>
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '12px', lineHeight: '1.33em', letterSpacing: '-0.0333em', color: '#99A1AF' }}>
+                            {(() => { const d = new Date(news.createdAt); return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}. ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })()}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  ));
+                })()}
+              </div>
+            </div>
+
+            <div className="h-2 bg-[#F3F4F6] mt-5" />
+
+            {/* Section 9: Today's Ranking news */}
+            <div className="flex flex-col" style={{ padding: '24px 16px 20px', gap: '16px' }}>
+              <div className="flex items-center justify-between">
+                <h2 style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '18px', lineHeight: '1.56em', letterSpacing: '-0.024em', color: '#101828', margin: 0 }}>Today&apos;s <span style={{ color: '#2B7FFF' }}>Ranking news</span></h2>
+              </div>
+              <div className="grid grid-cols-2 gap-2" style={{ overflow: 'hidden' }}>
+                {(rankingNews || []).slice(0, 4).map((news, idx) => (
+                  <Link key={news._id || idx} href={`/news/${news.slug || news._id}`}>
+                    <div className="relative flex flex-col cursor-pointer" style={{ gap: '8px' }}>
+                      <div className="relative w-full rounded-[10px] overflow-hidden bg-[#F3F4F6]" style={{ height: '146px' }}>
+                        <img
+                          src={news.coverImage || '/images/placeholder.jpg'}
+                          alt={news.title}
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.target.onerror = null; e.target.src = "/images/placeholder.jpg"; }}
+                        />
+                        <span className="absolute bottom-0 left-0 ranking-number-stroke" style={{
+                          color: '#FFFFFF',
+                          textShadow: '0 4px 10px rgba(0, 0, 0, 0.40)',
+                          fontFamily: 'Inter, sans-serif',
+                          fontSize: '40px',
+                          fontStyle: 'italic',
+                          fontWeight: 900,
+                          lineHeight: '48px',
+                          letterSpacing: '0.352px',
+                          padding: '0 8px 4px',
+                        }}>
+                          {idx + 1}
+                        </span>
+                      </div>
+                      <div className="flex flex-col" style={{ gap: '6px' }}>
+                        <h3 className="line-clamp-2" style={{ fontFamily: 'Pretendard, Inter, sans-serif', fontWeight: 500, fontSize: '14px', lineHeight: '1.25em', letterSpacing: '-0.0107em', color: '#101828', margin: 0, height: '35px' }}>
+                          {news.title}
+                        </h3>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            <div className="h-2 bg-[#F3F4F6] mt-5" />
+
+            {/* Section 10: Trending NOW */}
+            <div style={{ padding: '24px 16px 12px' }}>
+              <TrendingNow items={trendingNews.length > 0 ? trendingNews : rankingNews || []} onNavigate={navigateToPage} showCard={false} />
+            </div>
+
+            <div className="h-2 bg-[#F3F4F6]" />
+
+            {/* Section 11: More News */}
+            <div style={{ padding: '12px 16px 24px' }}>
+              <MoreNews category={newsArticle.category || 'celeb'} storageKey="news-detail-mobile" />
+            </div>
+
             </div> {/* end lg:hidden (Mobile Layout) */}
 
             {/* PC Layout */}
@@ -2593,12 +2649,21 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                               <button onClick={handleShareTwitter} className="hover:opacity-70 transition-opacity" title="Share to X">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="#99A1AF"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                               </button>
-                              <button onClick={() => { if (typeof navigator !== 'undefined' && navigator.clipboard) { navigator.clipboard.writeText(`https://www.kstarpick.com/news/${newsArticle.slug || newsArticle._id}`); } }} className="hover:opacity-70 transition-opacity" title="Copy link">
+                              <button onClick={handleCopyLink} className="hover:opacity-70 transition-opacity" title="Copy link">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#99A1AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                               </button>
                             </div>
                           </div>
                         </div>
+
+                        {/* Cover Image */}
+                        <img
+                          src={newsArticle.coverImage || '/images/placeholder.jpg'}
+                          alt={newsArticle.title}
+                          className="w-full rounded-lg object-cover"
+                          style={{ maxHeight: '480px' }}
+                          onError={(e) => { e.target.onerror = null; e.target.src = "/images/placeholder.jpg"; }}
+                        />
 
                         {/* Article Body Content */}
                         <div className="flex flex-col" style={{ gap: '24px' }}>
@@ -2763,9 +2828,9 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                           {/* Sort tabs */}
                           <div style={{ padding: '16px 0 17px', borderBottom: '1px solid #F3F4F6' }}>
                             <div className="flex items-center" style={{ gap: '8px' }}>
-                              <button style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '14px', lineHeight: '1.36em', letterSpacing: '-0.021em', color: '#111111' }}>Latest</button>
+                              <button onClick={() => setCommentSort('latest')} style={{ fontFamily: 'Inter', fontWeight: commentSort === 'latest' ? 700 : 400, fontSize: '14px', lineHeight: '1.36em', letterSpacing: '-0.021em', color: commentSort === 'latest' ? '#111111' : '#99A1AF' }}>Latest</button>
                               <div style={{ width: '3px', height: '3px', borderRadius: '1.5px', background: '#99A1AF' }} />
-                              <button style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '14px', lineHeight: '1.36em', letterSpacing: '-0.021em', color: '#99A1AF' }}>Popular</button>
+                              <button onClick={() => setCommentSort('popular')} style={{ fontFamily: 'Inter', fontWeight: commentSort === 'popular' ? 700 : 400, fontSize: '14px', lineHeight: '1.36em', letterSpacing: '-0.021em', color: commentSort === 'popular' ? '#111111' : '#99A1AF' }}>Popular</button>
                             </div>
                           </div>
 
@@ -2774,7 +2839,10 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                             {localComments.length > 0 ? (
                               <>
                                 <div style={{ background: 'rgba(242, 244, 254, 0.5)' }}>
-                                  {localComments.slice(0, 4).map((comment, index) => {
+                                  {[...localComments].sort((a, b) => {
+                                    if (commentSort === 'popular') return ((b.likes || 0) + (b.dislikes || 0)) - ((a.likes || 0) + (a.dislikes || 0));
+                                    return new Date(b.timestamp) - new Date(a.timestamp);
+                                  }).slice(0, 4).map((comment, index) => {
                                     const colors = getColorFromNickname(comment.author);
                                     return (
                                       <div key={comment.id || index} className="flex flex-col" style={{ padding: '16px 25px', borderBottom: '1px solid #F3F4F6', gap: '8px' }}>
@@ -2919,12 +2987,12 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                     <div ref={pcSidebarRef} className="sticky" style={{ top: pcSidebarTop + 'px' }}>
                       <div className="w-full space-y-8">
                         <CommentTicker comments={recentComments || []} onNavigate={navigateToPage} />
-                        <TrendingNow items={rankingNews || []} onNavigate={navigateToPage} />
-                        {rankingNews && rankingNews.length > 0 && (
+                        <TrendingNow items={trendingNews.length > 0 ? trendingNews : rankingNews || []} onNavigate={navigateToPage} />
+                        {(editorsPickNews.length > 0 || (rankingNews && rankingNews.length > 0)) && (
                           <div>
                             <h3 className="font-bold text-[23px] leading-[1.5] text-[#101828] mb-4 pl-1">Editor&apos;s <span className="text-ksp-accent">PICK</span></h3>
                             <div className="bg-white border border-[#F3F4F6] shadow-card rounded-2xl p-4 space-y-6">
-                              {rankingNews.slice(0, 5).map((item) => (
+                              {(editorsPickNews.length > 0 ? editorsPickNews : rankingNews).slice(0, 6).map((item) => (
                                 <div
                                   key={item._id}
                                   className="flex gap-4 cursor-pointer group"
@@ -3053,10 +3121,12 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
         </>
       )}
 
-      {/* 링크 복사 완료 토스트 */}
-      {isLinkCopied && (
-        <div className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-8 py-4 rounded-lg shadow-lg z-50 animate-fade-in whitespace-nowrap text-base">
-          Link copied to clipboard!
+      {/* URL Copied 토스트 팝업 */}
+      {showCopiedToast && (
+        <div className={`fixed top-6 left-0 right-0 z-50 flex justify-center px-4 ${isCopiedToastHiding ? 'animate-slide-up-hide' : 'animate-slide-down-show'}`}>
+          <div className="py-2.5 px-5 rounded-full shadow-2xl border-2" style={{ backgroundColor: '#332c49', borderColor: '#233CFA' }}>
+            <p className="text-sm font-bold text-white whitespace-nowrap">URL Copied</p>
+          </div>
         </div>
       )}
 
@@ -3126,6 +3196,38 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
           animation: slide-down-smooth 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
 
+        /* URL Copied 토스트 - 위에서 슬라이드 다운 */
+        @keyframes slide-down-show {
+          from {
+            transform: translateY(-100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+
+        /* URL Copied 토스트 - 위로 슬라이드 업 (사라짐) */
+        @keyframes slide-up-hide {
+          from {
+            transform: translateY(0);
+            opacity: 1;
+          }
+          to {
+            transform: translateY(-100%);
+            opacity: 0;
+          }
+        }
+
+        .animate-slide-down-show {
+          animation: slide-down-show 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .animate-slide-up-hide {
+          animation: slide-up-hide 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
         /* PC 중앙 페이드 인 애니메이션 */
         @keyframes fade-in-center {
           from {
@@ -3184,14 +3286,20 @@ export async function getServerSideProps({ params, req }) {
           const baseUrl = `${protocol}://${req.headers.host}`;
           let recentComments = [];
           let rankingNews = [];
+          let trendingNews = [];
+          let editorsPickNews = [];
           try {
-            const sidebarProdUrl = process.env.NEXT_PUBLIC_API_URL;
-            const [commentsRes, rankingRes] = await Promise.all([
+            const articleCategory = newsArticle.category || '';
+            const [commentsRes, rankingRes, trendingRes, editorsPickRes] = await Promise.all([
               fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
-              fetch(`${sidebarProdUrl || baseUrl}/api/news?limit=10&sort=viewCount`).catch(() => null),
+              fetch(`${baseUrl}/api/news?limit=10&sort=viewCount`).catch(() => null),
+              fetch(`${baseUrl}/api/news/trending?limit=5${articleCategory ? `&category=${articleCategory}` : ''}`).catch(() => null),
+              fetch(`${baseUrl}/api/news/editors-pick?limit=6${articleCategory ? `&category=${articleCategory}` : ''}`).catch(() => null),
             ]);
             if (commentsRes) { const cd = await commentsRes.json(); recentComments = cd.success ? (cd.data || cd.comments || []) : []; }
             if (rankingRes) { const rd = await rankingRes.json(); rankingNews = rd.success ? (rd.data?.news || rd.data || []) : []; }
+            if (trendingRes) { const td = await trendingRes.json(); trendingNews = td.success ? (td.data || []) : []; }
+            if (editorsPickRes) { const ep = await editorsPickRes.json(); editorsPickNews = ep.success ? (ep.data || []) : []; }
           } catch (e) {}
           return {
             props: {
@@ -3199,6 +3307,8 @@ export async function getServerSideProps({ params, req }) {
               relatedArticles,
               recentComments,
               rankingNews,
+              trendingNews,
+              editorsPickNews,
             }
           };
         }
@@ -3218,13 +3328,18 @@ export async function getServerSideProps({ params, req }) {
             let relatedArticles = [];
             let recentComments = [];
             let rankingNews = [];
+            let trendingNews = [];
+            let editorsPickNews = [];
             try {
               const protocol = req.headers['x-forwarded-proto'] || 'http';
               const baseUrl = `${protocol}://${req.headers.host}`;
-              const [relRes, commentsRes, rankingRes] = await Promise.all([
-                fetch(`${prodUrl}/api/news?limit=12&category=${article.category || ''}`).catch(() => null),
+              const artCat = article.category || '';
+              const [relRes, commentsRes, rankingRes, trendingRes, editorsPickRes] = await Promise.all([
+                fetch(`${baseUrl}/api/news?limit=12&category=${artCat}`).catch(() => null),
                 fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
-                fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`).catch(() => null),
+                fetch(`${baseUrl}/api/news?limit=10&sort=viewCount`).catch(() => null),
+                fetch(`${baseUrl}/api/news/trending?limit=5${artCat ? `&category=${artCat}` : ''}`).catch(() => null),
+                fetch(`${baseUrl}/api/news/editors-pick?limit=6${artCat ? `&category=${artCat}` : ''}`).catch(() => null),
               ]);
               if (relRes && relRes.ok) {
                 const relData = await relRes.json();
@@ -3234,6 +3349,8 @@ export async function getServerSideProps({ params, req }) {
               }
               if (commentsRes) { const cd = await commentsRes.json(); recentComments = cd.success ? (cd.data || cd.comments || []) : []; }
               if (rankingRes) { const rd = await rankingRes.json(); rankingNews = rd.success ? (rd.data?.news || rd.data || []) : []; }
+              if (trendingRes) { const td = await trendingRes.json(); trendingNews = td.success ? (td.data || []) : []; }
+              if (editorsPickRes) { const ep = await editorsPickRes.json(); editorsPickNews = ep.success ? (ep.data || []) : []; }
             } catch (e) {}
             return {
               props: {
@@ -3241,6 +3358,8 @@ export async function getServerSideProps({ params, req }) {
                 relatedArticles,
                 recentComments,
                 rankingNews,
+                trendingNews,
+                editorsPickNews,
               }
             };
           }
@@ -3289,13 +3408,20 @@ export async function getServerSideProps({ params, req }) {
               const baseUrl = `${protocol}://${req.headers.host}`;
               let recentComments = [];
               let rankingNews = [];
+              let trendingNews = [];
+              let editorsPickNews = [];
               try {
-                const [commentsRes, rankingRes] = await Promise.all([
+                const artCat2 = article.category || '';
+                const [commentsRes, rankingRes, trendingRes, editorsPickRes] = await Promise.all([
                   fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
-                  fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`).catch(() => null),
+                  fetch(`${baseUrl}/api/news?limit=10&sort=viewCount`).catch(() => null),
+                  fetch(`${baseUrl}/api/news/trending?limit=5${artCat2 ? `&category=${artCat2}` : ''}`).catch(() => null),
+                  fetch(`${baseUrl}/api/news/editors-pick?limit=6${artCat2 ? `&category=${artCat2}` : ''}`).catch(() => null),
                 ]);
                 if (commentsRes) { const cd = await commentsRes.json(); recentComments = cd.success ? (cd.data || cd.comments || []) : []; }
                 if (rankingRes) { const rd = await rankingRes.json(); rankingNews = rd.success ? (rd.data?.news || rd.data || []) : []; }
+                if (trendingRes) { const td = await trendingRes.json(); trendingNews = td.success ? (td.data || []) : []; }
+                if (editorsPickRes) { const ep = await editorsPickRes.json(); editorsPickNews = ep.success ? (ep.data || []) : []; }
               } catch (e) {}
               // related articles from production
               let relatedArticles = [];
@@ -3314,6 +3440,8 @@ export async function getServerSideProps({ params, req }) {
                   relatedArticles,
                   recentComments,
                   rankingNews,
+                  trendingNews,
+                  editorsPickNews,
                 }
               };
             }
@@ -3465,14 +3593,18 @@ export async function getServerSideProps({ params, req }) {
     // Sidebar data fetch
     const protocol = req.headers['x-forwarded-proto'] || 'http';
     const baseUrl = `${protocol}://${req.headers.host}`;
-    const prodUrl = process.env.NEXT_PUBLIC_API_URL || baseUrl;
+    const prodUrl = baseUrl;
 
     let recentComments = [];
     let rankingNews = [];
+    let trendingNews = [];
+    let editorsPickNews = [];
     try {
-      const [commentsRes, rankingRes] = await Promise.all([
+      const newsCat = processedNewsArticle.category || '';
+      const [commentsRes, rankingRes, trendingRes] = await Promise.all([
         fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
         fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`).catch(() => null),
+        fetch(`${prodUrl}/api/news/trending?limit=5${newsCat ? `&category=${newsCat}` : ''}`).catch(() => null),
       ]);
       if (commentsRes) {
         const cd = await commentsRes.json();
@@ -3481,6 +3613,17 @@ export async function getServerSideProps({ params, req }) {
       if (rankingRes) {
         const rd = await rankingRes.json();
         rankingNews = rd.success ? (rd.data?.news || rd.data || []) : [];
+      }
+      if (trendingRes) {
+        const td = await trendingRes.json();
+        trendingNews = td.success ? (td.data || []) : [];
+      }
+      // Editor's PICK: trending ID 제외
+      const trendingIdStr = trendingNews.map(n => n._id).join(',');
+      const editorsPickRes = await fetch(`${prodUrl}/api/news/editors-pick?limit=6${newsCat ? `&category=${newsCat}` : ''}${trendingIdStr ? `&exclude=${trendingIdStr}` : ''}`).catch(() => null);
+      if (editorsPickRes) {
+        const ep = await editorsPickRes.json();
+        editorsPickNews = ep.success ? (ep.data || []) : [];
       }
     } catch (e) {
       console.error('[News Detail] Sidebar data fetch error:', e.message);
@@ -3492,6 +3635,8 @@ export async function getServerSideProps({ params, req }) {
         relatedArticles: processedRelatedArticles,
         recentComments,
         rankingNews,
+        trendingNews,
+        editorsPickNews,
       }
     };
   } catch (error) {

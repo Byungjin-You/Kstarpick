@@ -95,7 +95,7 @@ export default async function handler(req, res) {
         previousPosition: previousPosition,
         coverImage: music.coverImage || '',
         dailyViews: dailyViews,
-        totalViews: ensureNumber(music.views),
+        totalViews: ensureNumber(music.totalViews || music.views),
         releaseDate: music.releaseDate,
         slug: music.slug || '',
         youtubeUrl: music.musicVideo || '',
