@@ -971,9 +971,9 @@ export async function getServerSideProps(context) {
       return movie;
     });
 
-    // Watch News: filter from all news (movie category only)
+    // Watch News: 'Watch:' 제목 또는 유튜브 임베드 포함 기사 (카테고리 무관)
     const watchNews = allNewsData.success && allNewsData.data?.news
-      ? allNewsData.data.news.filter(n => n.title && n.title.startsWith('Watch:') && n.category === 'movie').slice(0, 6).map(n => ({ ...n, coverImage: fixImageUrl(n.coverImage), thumbnailUrl: fixImageUrl(n.thumbnailUrl) }))
+      ? allNewsData.data.news.filter(n => n.title && (n.title.startsWith('Watch:') || (n.content && n.content.includes('youtube')))).slice(0, 6).map(n => ({ ...n, coverImage: fixImageUrl(n.coverImage), thumbnailUrl: fixImageUrl(n.thumbnailUrl) }))
       : [];
 
     // Recommended News: featured movie news

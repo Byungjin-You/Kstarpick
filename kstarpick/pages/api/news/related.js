@@ -92,7 +92,30 @@ export default async function handler(req, res) {
       }
     }
 
-    // --- Tier 3: Global popular news ---
+    // --- Tier 3: Recent popular news (last 7 days) ---
+    if (results.length < limit) {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const allExcludeIds = [...excludeIds, ...results.map(r => r._id)];
+      const recentPopular = await collection
+        .find({
+          _id: { $nin: allExcludeIds },
+          createdAt: { $gte: sevenDaysAgo },
+        })
+        .sort({ viewCount: -1 })
+        .limit(limit - results.length)
+        .project(FIELDS)
+        .toArray();
+
+      for (const item of recentPopular) {
+        if (!usedIds.has(item._id.toString())) {
+          usedIds.add(item._id.toString());
+          results.push(item);
+        }
+      }
+    }
+
+    // --- Tier 4: Global popular news (fallback) ---
     if (results.length < limit) {
       const allExcludeIds = [...excludeIds, ...results.map(r => r._id)];
       const popularNews = await collection
