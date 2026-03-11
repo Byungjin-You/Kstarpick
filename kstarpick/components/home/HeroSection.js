@@ -97,7 +97,7 @@ const HeroSection = ({ article, onNavigate, children }) => {
             </p>
 
             {/* Meta */}
-            <div className="flex items-center text-[14px] lg:text-sm font-medium" style={{ color: '#99A1AF', fontFamily: 'Inter, sans-serif' }}>
+            <div className="flex items-center text-[14px] lg:text-sm font-normal lg:font-medium" style={{ color: '#99A1AF', fontFamily: 'Inter, sans-serif', lineHeight: '16px' }}>
               <span>{timeAgo}</span>
               <span className="mx-2 text-[12px]">·</span>
               <span>{categoryLabel}</span>
@@ -107,7 +107,7 @@ const HeroSection = ({ article, onNavigate, children }) => {
 
         {/* Sub-cards (4-card grid below hero) */}
         {children && (
-          <div className="px-4 pb-3 pt-2 lg:px-6 lg:pb-6">
+          <div className="px-4 pb-3 pt-6 lg:px-6 lg:pb-6">
             {children}
           </div>
         )}

@@ -52,12 +52,12 @@ const NewsCardGrid = ({ articles = [], onNavigate }) => {
           </div>
 
           {/* Title */}
-          <h3 className="font-medium lg:font-bold text-[15px] lg:text-lg leading-[1.375] lg:leading-[1.56] text-[#101828] line-clamp-2 mb-1 lg:mb-2 group-hover:text-ksp-accent transition-colors" style={{ letterSpacing: '-0.015em' }}>
+          <h3 className="font-medium lg:font-bold text-[15px] lg:text-lg leading-[1.375] lg:leading-[1.56] text-[#101828] line-clamp-2 mb-1 lg:mb-2 group-hover:text-ksp-accent transition-colors" style={{ fontFamily: 'Pretendard, Inter, sans-serif', letterSpacing: '-0.015625em' }}>
             {article.title}
           </h3>
 
           {/* Time - mobile: relative, desktop: absolute date */}
-          <span className="text-xs" style={{ color: '#99A1AF', fontFamily: 'Inter, sans-serif' }}>
+          <span className="text-xs" style={{ color: '#99A1AF', fontFamily: 'Inter, sans-serif', lineHeight: '16px' }}>
             <span className="lg:hidden">{getTimeAgo(article.createdAt || article.publishedAt)}</span>
             <span className="hidden lg:inline">
               {new Date(article.createdAt || article.publishedAt).toLocaleDateString('en-US', {

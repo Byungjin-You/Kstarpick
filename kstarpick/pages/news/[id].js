@@ -2085,8 +2085,9 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                         max-height: none !important;
                       }
 
-                      /* 인라인 스타일보다 우선하는 CSS */
-                      iframe[style*="height"] {
+                      /* 인라인 스타일보다 우선하는 CSS - Riddle only */
+                      .riddle2-wrapper iframe[style*="height"],
+                      [data-rid-id] iframe[style*="height"] {
                         height: 1000px !important;
                         min-height: 1000px !important;
                       }
@@ -2096,6 +2097,15 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                         height: 1000px !important;
                         min-height: 1000px !important;
                         max-height: none !important;
+                      }
+
+                      /* YouTube embed 반응형 */
+                      .article-content iframe[src*="youtube.com"] {
+                        max-width: 100% !important;
+                      }
+                      .article-content div[style*="padding-bottom"] {
+                        max-width: 100% !important;
+                        overflow: hidden !important;
                       }
 
                       /* Twitter blockquote - prose 기본 스타일 완전 오버라이드 */

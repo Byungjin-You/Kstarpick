@@ -44,7 +44,7 @@ const WatchNewsSection = ({ articles = [], onNavigate, onPlayVideo }) => {
           className="absolute bottom-0 left-0 right-0 flex flex-col justify-end p-4 lg:p-6"
           style={{ height: '114px', background: 'linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%)' }}
         >
-          <h3 className="font-bold text-[16px] lg:text-xl leading-[1.4] lg:leading-[1.6] text-white line-clamp-2" style={{ letterSpacing: '0.0035em' }}>
+          <h3 className="font-bold text-[14px] lg:text-xl leading-[1.375] lg:leading-[1.6] text-white line-clamp-2" style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '-0.0107em' }}>
             {featured.title?.replace(/^Watch:\s*/i, '') || featured.title}
           </h3>
         </div>
@@ -93,8 +93,8 @@ const WatchNewsSection = ({ articles = [], onNavigate, onPlayVideo }) => {
             {/* Content */}
             <div className="flex-1 min-w-0 flex flex-col justify-center gap-2">
               <h4
-                className="font-medium lg:font-bold text-[15px] lg:text-base leading-[1.375] text-[#0A0A0A] lg:text-[#101828] line-clamp-2 group-hover:text-ksp-accent transition-colors"
-                style={{ letterSpacing: '-0.0195em' }}
+                className="font-bold text-[#101828] lg:text-base lg:leading-[1.375] line-clamp-2 group-hover:text-ksp-accent transition-colors"
+                style={{ fontFamily: 'Inter, sans-serif', fontSize: '16px', lineHeight: '20px', letterSpacing: '-0.21px' }}
               >
                 {item.title?.replace(/^Watch:\s*/i, '') || item.title}
               </h4>
