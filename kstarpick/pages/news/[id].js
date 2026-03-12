@@ -2464,11 +2464,6 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                                 </span>
                               </div>
                             </div>
-                            {session && (session.user.role === 'admin' || session.user.id === comment.authorId) && (
-                              <button onClick={() => handleDeleteComment(comment.id)} style={{ color: '#D1D5DC' }}>
-                                <X size={20} />
-                              </button>
-                            )}
                           </div>
 
                           {/* Comment text */}

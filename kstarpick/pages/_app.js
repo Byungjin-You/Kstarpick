@@ -242,28 +242,35 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
                 setTimeout(restoreScroll, delay);
               });
 
+              // MoreNews 렌더링 완료 이벤트 수신 시 스크롤 재복원
+              const onMoreNewsRestored = () => {
+                restoreScroll();
+                // 렌더링 직후 몇 프레임 뒤에도 재시도 (이미지 로드 등)
+                [50, 200, 500].forEach(d => setTimeout(restoreScroll, d));
+              };
+              window.addEventListener('moreNewsRestored', onMoreNewsRestored);
+              setTimeout(() => window.removeEventListener('moreNewsRestored', onMoreNewsRestored), 10000);
+
               // DOM 높이가 변할 때마다 스크롤 복원 시도
-              // (MoreNews 등 동적 컴포넌트가 렌더링되면서 높이가 점진적으로 증가)
               let lastHeight = document.documentElement.scrollHeight;
               let stableCount = 0;
               const ro = new ResizeObserver(() => {
                 const currentHeight = document.documentElement.scrollHeight;
                 const currentScroll = window.scrollY || document.documentElement.scrollTop;
-                // 높이가 변했으면 복원 재시도
                 if (currentHeight !== lastHeight) {
                   lastHeight = currentHeight;
                   stableCount = 0;
                   restoreScroll();
                 } else {
                   stableCount++;
-                  // 높이 변화가 3회 연속 없으면 완료로 판단
-                  if (stableCount >= 3 || Math.abs(currentScroll - scrollPos) < 10) {
+                  // 높이 변화가 5회 연속 없으면 완료로 판단 (3→5로 상향)
+                  if (stableCount >= 5 || Math.abs(currentScroll - scrollPos) < 10) {
                     ro.disconnect();
                   }
                 }
               });
               ro.observe(document.body);
-              setTimeout(() => ro.disconnect(), 8000);
+              setTimeout(() => ro.disconnect(), 10000);
             }
           }
         }

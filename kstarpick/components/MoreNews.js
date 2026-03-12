@@ -142,15 +142,56 @@ const MoreNews = ({ initialNews = [], category = '', storageKey = '' }) => {
         console.error('[MoreNews] 세션 스토리지 복원 오류:', e);
       }
 
-      // 데이터 복원 후 잠시 뒤 플래그 해제 (무한스크롤 로딩 재개)
-      // 프로덕션 서버에서 DOM 렌더링이 느릴 수 있으므로 충분한 시간 확보
-      setTimeout(() => {
-        restoringScrollRef.current = false;
-        setIsRestoring(false);
-      }, 2000);
+      // DOM 렌더링 완료를 감지해서 복원 플래그 해제
+      // timeout 대신 ResizeObserver로 높이가 안정될 때까지 대기
+      const waitForRender = () => {
+        let lastHeight = 0;
+        let stableFrames = 0;
+        let rafId = null;
+        let timeoutId = null;
+
+        const finishRestore = () => {
+          restoringScrollRef.current = false;
+          setIsRestoring(false);
+          // _app.js의 스크롤 복원이 다시 시도하도록 이벤트 발행
+          window.dispatchEvent(new CustomEvent('moreNewsRestored'));
+        };
+
+        const checkStable = () => {
+          const currentHeight = document.documentElement.scrollHeight;
+          if (currentHeight === lastHeight && currentHeight > 0) {
+            stableFrames++;
+            // 5프레임 연속 높이 변화 없으면 렌더링 완료로 판단
+            if (stableFrames >= 5) {
+              finishRestore();
+              return;
+            }
+          } else {
+            stableFrames = 0;
+            lastHeight = currentHeight;
+          }
+          rafId = requestAnimationFrame(checkStable);
+        };
+
+        // 다음 프레임부터 체크 시작
+        rafId = requestAnimationFrame(checkStable);
+
+        // 안전장치: 최대 5초 후 강제 해제
+        timeoutId = setTimeout(() => {
+          if (rafId) cancelAnimationFrame(rafId);
+          finishRestore();
+        }, 5000);
+
+        return () => {
+          if (rafId) cancelAnimationFrame(rafId);
+          if (timeoutId) clearTimeout(timeoutId);
+        };
+      };
+
+      const cleanup = waitForRender();
 
       // 뒤로가기일 경우에는 여기서 함수 종료
-      return;
+      return cleanup;
     }
     
     // 새로고침 처리
@@ -280,8 +321,9 @@ const MoreNews = ({ initialNews = [], category = '', storageKey = '' }) => {
         }
       };
       
-      // 스크롤 복원 후 충분한 지연을 두고 스크롤 위치 확인 (프로덕션 대응)
-      const checkTimer = setTimeout(checkScrollAfterRestore, 2500);
+      // 복원 완료 직후 + 약간의 지연 후 체크
+      checkScrollAfterRestore();
+      const checkTimer = setTimeout(checkScrollAfterRestore, 500);
       
       return () => {
         clearTimeout(checkTimer);
