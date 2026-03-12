@@ -756,7 +756,7 @@ export async function getServerSideProps(context) {
         coverImage: fixImageUrl(n.coverImage) || '/images/news/default-news.jpg',
         thumbnailUrl: fixImageUrl(n.thumbnailUrl) || null,
         viewCount: Math.round((n.viewCount || 0) * dataMultiplier * getVariance(n._id)),
-      }));
+      })).sort((a, b) => b.viewCount - a.viewCount);
     };
 
     return {

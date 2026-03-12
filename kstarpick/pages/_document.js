@@ -55,6 +55,18 @@ export default function Document() {
         <meta name="msapplication-TileImage" content="/images/favicon/icons8-popular-3d-fluency-144.png" />
         <link rel="manifest" href="/site.webmanifest" />
 
+        {/* Web Fonts - Inter, Noto Sans KR, Poppins, Pretendard */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+KR:wght@400;500;700&family=Poppins:wght@400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+        <link
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"
+          rel="stylesheet"
+        />
+
         {/* Structured Data for Google Search - Organization Logo */}
         <script
           type="application/ld+json"
