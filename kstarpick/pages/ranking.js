@@ -682,9 +682,8 @@ export async function getServerSideProps(context) {
     const baseUrl = server;
 
     // Date calculations
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-    threeDaysAgo.setHours(0, 0, 0, 0);
+    const twoDaysAgo = new Date();
+    twoDaysAgo.setHours(twoDaysAgo.getHours() - 48);
 
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
@@ -703,9 +702,9 @@ export async function getServerSideProps(context) {
     } catch (e) { /* fallback to 1 */ }
 
     const [todayResponse, weekResponse, monthResponse, commentsResponse, rankingResponse, trendingResponse, editorsPickResponse] = await Promise.all([
-      fetch(`${server}/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${threeDaysAgo.toISOString()}`),
-      fetch(`${server}/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${weekAgo.toISOString()}`),
-      fetch(`${server}/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${monthAgo.toISOString()}`),
+      fetch(`${server}/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${twoDaysAgo.toISOString()}`),
+      fetch(`${server}/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${weekAgo.toISOString()}&createdBefore=${twoDaysAgo.toISOString()}`),
+      fetch(`${server}/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${monthAgo.toISOString()}&createdBefore=${weekAgo.toISOString()}`),
       fetch(`${server}/api/comments/recent?limit=10`),
       fetch(`${server}/api/news?limit=10&sort=viewCount`),
       fetch(`${server}/api/news/trending?limit=5`).catch(() => ({ json: () => ({ success: false }) })),
@@ -738,13 +737,25 @@ export async function getServerSideProps(context) {
       return url;
     };
 
+    // _id 기반 결정적 해시로 기사마다 다른 변동폭 생성 (±20%)
+    const getVariance = (id) => {
+      if (!id) return 1;
+      const str = id.toString();
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+      }
+      return 0.8 + (Math.abs(hash) % 41) / 100; // 0.80 ~ 1.20
+    };
+
     const fixNewsImages = (news) => {
       if (!news) return [];
       return news.map(n => ({
         ...n,
         coverImage: fixImageUrl(n.coverImage) || '/images/news/default-news.jpg',
         thumbnailUrl: fixImageUrl(n.thumbnailUrl) || null,
-        viewCount: Math.round((n.viewCount || 0) * dataMultiplier),
+        viewCount: Math.round((n.viewCount || 0) * dataMultiplier * getVariance(n._id)),
       }));
     };
 

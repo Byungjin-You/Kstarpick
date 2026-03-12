@@ -143,10 +143,11 @@ const MoreNews = ({ initialNews = [], category = '', storageKey = '' }) => {
       }
 
       // 데이터 복원 후 잠시 뒤 플래그 해제 (무한스크롤 로딩 재개)
+      // 프로덕션 서버에서 DOM 렌더링이 느릴 수 있으므로 충분한 시간 확보
       setTimeout(() => {
         restoringScrollRef.current = false;
         setIsRestoring(false);
-      }, 500);
+      }, 2000);
 
       // 뒤로가기일 경우에는 여기서 함수 종료
       return;
@@ -279,8 +280,8 @@ const MoreNews = ({ initialNews = [], category = '', storageKey = '' }) => {
         }
       };
       
-      // 스크롤 복원 후 약간의 지연을 두고 스크롤 위치 확인
-      const checkTimer = setTimeout(checkScrollAfterRestore, 500);
+      // 스크롤 복원 후 충분한 지연을 두고 스크롤 위치 확인 (프로덕션 대응)
+      const checkTimer = setTimeout(checkScrollAfterRestore, 2500);
       
       return () => {
         clearTimeout(checkTimer);
