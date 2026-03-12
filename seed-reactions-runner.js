@@ -12,8 +12,11 @@ const { MongoClient } = require('mongodb');
 const fs = require('fs');
 const path = require('path');
 
-// Load env
-const envPath = path.resolve(__dirname, 'kstarpick', '.env.local');
+// Load env (로컬: kstarpick/.env.local, 서버: .env.local)
+let envPath = path.resolve(__dirname, 'kstarpick', '.env.local');
+if (!fs.existsSync(envPath)) {
+  envPath = path.resolve(__dirname, '.env.local');
+}
 if (fs.existsSync(envPath)) {
   const lines = fs.readFileSync(envPath, 'utf8').split('\n');
   for (const line of lines) {
