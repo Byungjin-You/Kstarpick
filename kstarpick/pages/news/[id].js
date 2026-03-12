@@ -1902,6 +1902,10 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
             <meta name="robots" content="index, follow" />
             
             <link rel="canonical" href={`https://www.kstarpick.com/news/${newsArticle.slug || newsArticle._id}`} />
+            {/* 커버 이미지 프리로드 — HTML 파싱 시점에 즉시 다운로드 시작 */}
+            {newsArticle.coverImage && (
+              <link rel="preload" as="image" href={newsArticle.coverImage} fetchpriority="high" />
+            )}
           </>
         ) : (
           <>
@@ -2022,13 +2026,18 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
 
             {/* Cover Image */}
             <div style={{ padding: '20px 16px 0' }}>
-              <img
-                src={newsArticle.coverImage || '/images/placeholder.jpg'}
-                alt={newsArticle.title}
-                className="w-full rounded-lg object-cover"
-                style={{ maxHeight: '260px' }}
-                onError={(e) => { e.target.onerror = null; e.target.src = "/images/placeholder.jpg"; }}
-              />
+              <div className="w-full rounded-lg overflow-hidden bg-gray-100" style={{ maxHeight: '260px' }}>
+                <img
+                  src={newsArticle.coverImage || '/images/placeholder.jpg'}
+                  alt={newsArticle.title}
+                  className="w-full object-cover"
+                  style={{ maxHeight: '260px' }}
+                  fetchpriority="high"
+                  decoding="sync"
+                  loading="eager"
+                  onError={(e) => { e.target.onerror = null; e.target.src = "/images/placeholder.jpg"; }}
+                />
+              </div>
             </div>
 
             {/* Section 3: Article Body */}
@@ -2660,13 +2669,18 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                         </div>
 
                         {/* Cover Image */}
-                        <img
-                          src={newsArticle.coverImage || '/images/placeholder.jpg'}
-                          alt={newsArticle.title}
-                          className="w-full rounded-lg object-cover"
-                          style={{ maxHeight: '480px' }}
-                          onError={(e) => { e.target.onerror = null; e.target.src = "/images/placeholder.jpg"; }}
-                        />
+                        <div className="w-full rounded-lg overflow-hidden bg-gray-100" style={{ maxHeight: '480px' }}>
+                          <img
+                            src={newsArticle.coverImage || '/images/placeholder.jpg'}
+                            alt={newsArticle.title}
+                            className="w-full object-cover"
+                            style={{ maxHeight: '480px' }}
+                            fetchpriority="high"
+                            decoding="sync"
+                            loading="eager"
+                            onError={(e) => { e.target.onerror = null; e.target.src = "/images/placeholder.jpg"; }}
+                          />
+                        </div>
 
                         {/* Article Body Content */}
                         <div className="flex flex-col" style={{ gap: '24px' }}>

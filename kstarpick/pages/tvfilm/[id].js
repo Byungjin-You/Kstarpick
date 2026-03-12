@@ -1735,10 +1735,6 @@ export default function TVFilmDetail({ tvfilm, relatedNews, recentComments, rank
                 <X className="w-6 h-6" />
               </button>
               
-              <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent">
-                <h3 className="text-white text-lg font-medium">{currentTVFilm.title}</h3>
-                <p className="text-white/70 text-sm">{trailerTitle}</p>
-              </div>
             </div>
           </div>
         )}

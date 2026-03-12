@@ -4,6 +4,7 @@ import { SessionProvider } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Analytics from '../components/Analytics';
 import GlobalLoading from '../components/GlobalLoading';
 
@@ -32,6 +33,17 @@ function useHasMounted() {
 
 function MyApp({ Component, pageProps: { session, ...pageProps } }) {
   const hasMounted = useHasMounted();
+  // React Query client — useState로 생성하여 SSR 안전 + 리렌더 시 재생성 방지
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 1000 * 60 * 30,
+        gcTime: 1000 * 60 * 60,
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+      },
+    },
+  }));
   const router = useRouter();
   
   // 스크롤 관리 - 브라우저 기본 동작 비활성화
@@ -45,14 +57,14 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
 
     // 페이지별 스크롤 저장 설정 맵
     const pageScrollConfig = {
-      '/': { key: 'homeScrollPosition' },
-      '/drama': { key: 'dramaScrollPosition', flag: 'isBackToDrama' },
+      '/': { key: 'homeScrollPosition', hasMoreNews: true },
+      '/drama': { key: 'dramaScrollPosition', flag: 'isBackToDrama', hasMoreNews: true },
       '/drama/[id]': { key: 'dramaDetailScrollPosition', flag: 'isBackToDramaDetail' },
-      '/tvfilm': { key: 'tvfilmScrollPosition', flag: 'isBackToTvfilm' },
-      '/music': { key: 'musicScrollPosition', flag: 'isBackToMusic' },
-      '/celeb': { key: 'celebScrollPosition', flag: 'isBackToCeleb' },
+      '/tvfilm': { key: 'tvfilmScrollPosition', flag: 'isBackToTvfilm', hasMoreNews: true },
+      '/music': { key: 'musicScrollPosition', flag: 'isBackToMusic', hasMoreNews: true },
+      '/celeb': { key: 'celebScrollPosition', flag: 'isBackToCeleb', hasMoreNews: true },
       '/celeb/[slug]': { key: 'celebDetailScrollPosition', flag: 'isBackToCelebDetail' },
-      '/ranking': { key: 'rankingScrollPosition', flag: 'isBackToRanking' },
+      '/ranking': { key: 'rankingScrollPosition', flag: 'isBackToRanking', hasMoreNews: true },
       '/search': { key: 'searchScrollPosition', flag: 'isBackToSearch' },
     };
 
@@ -73,7 +85,14 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
     let isScrollSavePaused = false;
 
     const getScrollPosition = () => {
-      return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      // 브라우저/디바이스마다 실제 스크롤 요소가 다름 — 가장 큰 값이 진짜
+      return Math.max(
+        document.body.scrollTop,
+        window.scrollY || 0,
+        window.pageYOffset || 0,
+        document.documentElement.scrollTop,
+        (document.scrollingElement || {}).scrollTop || 0
+      );
     };
 
     const savePageScroll = () => {
@@ -186,9 +205,9 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
 
       // 뉴스 페이지로 이동하는 경우에만 즉시 스크롤 리셋 (단, 뒤로가기는 제외)
       if (url.startsWith('/news/') && !isActuallyBack) {
-        window.scrollTo(0, 0);
-        document.documentElement.scrollTop = 0;
         document.body.scrollTop = 0;
+        document.documentElement.scrollTop = 0;
+        window.scrollTo(0, 0);
       }
 
       // 로고 클릭 플래그가 있으면 제거 (한 번만 사용)
@@ -211,14 +230,15 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
 
       if (!wasBack) {
         // 순방향 이동: 최상단으로 스크롤
-        window.scrollTo(0, 0);
-        document.documentElement.scrollTop = 0;
+        // body가 실제 스크롤 요소이므로 body.scrollTop을 먼저 설정
         document.body.scrollTop = 0;
+        document.documentElement.scrollTop = 0;
+        window.scrollTo(0, 0);
 
         requestAnimationFrame(() => {
-          window.scrollTo(0, 0);
-          document.documentElement.scrollTop = 0;
           document.body.scrollTop = 0;
+          document.documentElement.scrollTop = 0;
+          window.scrollTo(0, 0);
         });
       } else {
         // 뒤로가기: 중앙에서 직접 스크롤 복원
@@ -233,48 +253,18 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
             const scrollPos = parseInt(savedPos, 10);
             if (!isNaN(scrollPos)) {
               const restoreScroll = () => {
-                window.scrollTo(0, scrollPos);
-                document.documentElement.scrollTop = scrollPos;
                 document.body.scrollTop = scrollPos;
+                document.documentElement.scrollTop = scrollPos;
+                window.scrollTo(0, scrollPos);
               };
               restoreScroll();
-              [100, 300, 800].forEach(delay => {
-                setTimeout(restoreScroll, delay);
-              });
-
-              // MoreNews 렌더링 완료 이벤트 수신 시 스크롤 재복원
-              const onMoreNewsRestored = () => {
-                restoreScroll();
-                // 렌더링 직후 몇 프레임 뒤에도 재시도 (이미지 로드 등)
-                [50, 200, 500].forEach(d => setTimeout(restoreScroll, d));
-              };
-              window.addEventListener('moreNewsRestored', onMoreNewsRestored);
-              setTimeout(() => window.removeEventListener('moreNewsRestored', onMoreNewsRestored), 10000);
-
-              // DOM 높이가 변할 때마다 스크롤 복원 시도
-              let lastHeight = document.documentElement.scrollHeight;
-              let stableCount = 0;
-              const ro = new ResizeObserver(() => {
-                const currentHeight = document.documentElement.scrollHeight;
-                const currentScroll = window.scrollY || document.documentElement.scrollTop;
-                if (currentHeight !== lastHeight) {
-                  lastHeight = currentHeight;
-                  stableCount = 0;
-                  restoreScroll();
-                } else {
-                  stableCount++;
-                  // 높이 변화가 5회 연속 없으면 완료로 판단 (3→5로 상향)
-                  if (stableCount >= 5 || Math.abs(currentScroll - scrollPos) < 10) {
-                    ro.disconnect();
-                  }
-                }
-              });
-              ro.observe(document.body);
-              setTimeout(() => ro.disconnect(), 10000);
+              requestAnimationFrame(restoreScroll);
+              // 콘텐츠 로드 후 1회 재시도 (More News 캐시 데이터 렌더링 대기)
+              setTimeout(restoreScroll, 300);
             }
           }
         }
-      }
+      } // end else (wasBack)
 
       // 플래그 리셋
       hasScrollSaved = false;
@@ -282,6 +272,42 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
 
     router.events.on('routeChangeStart', handleRouteChangeStart);
     router.events.on('routeChangeComplete', handleRouteChangeComplete);
+
+    // 모바일 풀 리로드 뒤로가기 감지 (routeChangeComplete가 안 실행되는 경우)
+    // Performance API로 back_forward 감지
+    let isFullReloadBack = false;
+    try {
+      const nav = performance.getEntriesByType('navigation');
+      if (nav.length > 0 && nav[0].type === 'back_forward') isFullReloadBack = true;
+    } catch (e) {}
+    if (!isFullReloadBack && sessionStorage.getItem('_navWasBack') === 'true') {
+      isFullReloadBack = true;
+    }
+
+    if (isFullReloadBack) {
+      const logoClicked = sessionStorage.getItem('logoClicked') === 'true';
+      if (!logoClicked) {
+        isScrollSavePaused = true;
+        const config = getScrollConfig(window.location.pathname);
+        if (config) {
+          const savedPos = sessionStorage.getItem(config.key);
+          if (savedPos) {
+            const scrollPos = parseInt(savedPos, 10);
+            if (!isNaN(scrollPos) && scrollPos > 0) {
+              const restoreScroll = () => {
+                document.body.scrollTop = scrollPos;
+                document.documentElement.scrollTop = scrollPos;
+                window.scrollTo(0, scrollPos);
+              };
+              restoreScroll();
+              requestAnimationFrame(restoreScroll);
+              setTimeout(restoreScroll, 300);
+              setTimeout(() => { isScrollSavePaused = false; }, 1000);
+            }
+          }
+        }
+      }
+    }
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
@@ -306,7 +332,12 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
     let initialScrollY = 0;
 
     const getScrollY = () => {
-      return window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      return Math.max(
+        document.body.scrollTop,
+        window.scrollY || 0,
+        window.pageYOffset || 0,
+        document.documentElement.scrollTop
+      );
     };
 
     const handleTouchStart = (e) => {
@@ -561,18 +592,20 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       </Head>
       <Analytics />
       <GlobalLoading />
-      <SessionProvider session={session}>
-        {/* 항상 Component를 렌더링하여 SSR에서 Head 메타 태그가 포함되도록 함 */}
-        {!hasMounted && (
-          <div className="min-h-screen bg-white flex items-center justify-center" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}>
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4" style={{ borderColor: '#233CFA' }}></div>
-              <p className="text-gray-500 text-sm">Loading...</p>
+      <QueryClientProvider client={queryClient}>
+        <SessionProvider session={session}>
+          {/* 항상 Component를 렌더링하여 SSR에서 Head 메타 태그가 포함되도록 함 */}
+          {!hasMounted && (
+            <div className="min-h-screen bg-white flex items-center justify-center" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}>
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4" style={{ borderColor: '#233CFA' }}></div>
+                <p className="text-gray-500 text-sm">Loading...</p>
+              </div>
             </div>
-          </div>
-        )}
-        <Component {...pageProps} />
-      </SessionProvider>
+          )}
+          <Component {...pageProps} />
+        </SessionProvider>
+      </QueryClientProvider>
     </Fragment>
   );
 }
