@@ -121,6 +121,25 @@ set -e
 cd /doohub/service/kstarpick
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📋 kstarpick/ → 루트로 소스 동기화 중..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+# git은 kstarpick/ 서브디렉토리를 업데이트하지만, 빌드는 루트의 pages/를 사용
+# 따라서 kstarpick/의 소스 파일을 루트로 복사
+for dir in pages components lib models utils styles public scripts; do
+  if [ -d "kstarpick/$dir" ]; then
+    cp -r "kstarpick/$dir/"* "$dir/" 2>/dev/null || true
+  fi
+done
+# 설정 파일도 동기화
+for f in next.config.js tailwind.config.js postcss.config.js jsconfig.json; do
+  if [ -f "kstarpick/$f" ]; then
+    cp "kstarpick/$f" "$f" 2>/dev/null || true
+  fi
+done
+echo "✅ 소스 동기화 완료"
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📦 의존성 설치 중..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 npm install --legacy-peer-deps
