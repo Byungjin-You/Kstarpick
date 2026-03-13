@@ -75,206 +75,154 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       // 동적 라우트
       if (path.startsWith('/drama/') && path !== '/drama') return pageScrollConfig['/drama/[id]'];
       if (path.startsWith('/celeb/') && path !== '/celeb') return pageScrollConfig['/celeb/[slug]'];
+      // 뉴스 상세: 슬러그별 개별 키
+      if (path.startsWith('/news/') && path !== '/news') {
+        const slug = path.split('/news/')[1];
+        return { key: 'newsScroll_' + slug };
+      }
       return null;
     };
 
-    // 스크롤 위치를 주기적으로 저장 (throttle 적용)
-    let lastSavedScroll = 0;
+    // === 스크롤 저장/복원 (단순화) ===
+    // 원칙: handleScroll이 100ms마다 현재 페이지 스크롤을 sessionStorage에 저장.
+    //        routeChangeStart에서는 저장하지 않음 (popstate URL 변경 문제 회피).
+    //        routeChangeComplete에서 뒤로가기면 복원, 순방향이면 최상단.
     let scrollSaveTimer = null;
-    // 뒤로가기 전환 중 스크롤 저장 일시 중지 (복원 중 덮어쓰기 방지)
-    let isScrollSavePaused = false;
+    let isScrollSavePaused = false; // 복원 중 덮어쓰기 방지
+    let isNavigatingBack = false;
 
-    const getScrollPosition = () => {
-      // 브라우저/디바이스마다 실제 스크롤 요소가 다름 — 가장 큰 값이 진짜
-      return Math.max(
-        document.body.scrollTop,
-        window.scrollY || 0,
-        window.pageYOffset || 0,
-        document.documentElement.scrollTop,
-        (document.scrollingElement || {}).scrollTop || 0
-      );
-    };
-
-    const savePageScroll = () => {
-      // routeChangeStart가 이미 정확한 값을 저장한 경우(hasScrollSaved) 또는
-      // 뒤로가기 전환 중(isScrollSavePaused)에는 덮어쓰기 방지
-      if (isScrollSavePaused || hasScrollSaved) return;
-      const currentScroll = getScrollPosition();
-      if (Math.abs(currentScroll - lastSavedScroll) > 10) {
-        lastSavedScroll = currentScroll;
-        // router.pathname 대신 window.location.pathname 사용 (클로저 stale 방지)
-        const config = getScrollConfig(window.location.pathname);
-        if (config) {
-          sessionStorage.setItem(config.key, currentScroll.toString());
-          sessionStorage.setItem(config.key + 'Path', window.location.pathname);
-        }
-      }
-    };
+    const getScrollPosition = () => Math.max(
+      window.scrollY || 0,
+      document.documentElement.scrollTop,
+      document.body.scrollTop
+    );
 
     const handleScroll = () => {
-      // throttle: 100ms마다 저장
       if (scrollSaveTimer) return;
       scrollSaveTimer = setTimeout(() => {
-        savePageScroll();
         scrollSaveTimer = null;
+        if (isScrollSavePaused) return;
+        const pos = getScrollPosition();
+        const config = getScrollConfig(window.location.pathname);
+        if (config) {
+          sessionStorage.setItem(config.key, pos.toString());
+        }
       }, 100);
     };
-
-    // 스크롤 이벤트 리스너
+    // body가 스크롤 컨테이너인 경우 window/document scroll 이벤트가 안 발생함
+    // window, document, body 모두에 리스너 등록
     window.addEventListener('scroll', handleScroll, { passive: true });
+    document.addEventListener('scroll', handleScroll, { passive: true });
+    document.body.addEventListener('scroll', handleScroll, { passive: true });
 
-    // 뒤로가기 플래그 추적
-    let isNavigatingBack = false;
-    // 중복 저장 방지 플래그
-    let hasScrollSaved = false;
-
-    // popstate 이벤트로 뒤로가기 감지
+    // 뒤로가기 감지
     const handlePopState = () => {
       isNavigatingBack = true;
-      // sessionStorage에도 즉시 저장 (routeChangeStart보다 늦게 실행될 수 있으므로)
       sessionStorage.setItem('_navWasBack', 'true');
-      setTimeout(() => {
-        isNavigatingBack = false;
-      }, 2000);
+      setTimeout(() => { isNavigatingBack = false; }, 2000);
     };
     window.addEventListener('popstate', handlePopState);
 
-    // Next.js beforePopState: popstate보다 먼저 실행되어 플래그 확실히 설정
     router.beforePopState(() => {
       isNavigatingBack = true;
       sessionStorage.setItem('_navWasBack', 'true');
-      return true; // 네비게이션 허용
+      return true;
     });
 
     const handleRouteChangeStart = (url) => {
-      const currentScroll = getScrollPosition();
+      const isActuallyBack = isNavigatingBack;
 
-      // 뒤로가기 감지: 뉴스→뉴스 이동 시 저장된 스크롤이 있으면 뒤로가기
-      const targetNewsSlugTemp = url.startsWith('/news/') ? url.split('/news/')[1] : null;
-      const hasStoredScroll = targetNewsSlugTemp && sessionStorage.getItem(`newsScroll_${targetNewsSlugTemp}`) !== null;
-      const isActuallyBack = isNavigatingBack || hasStoredScroll;
+      // 페이지 전환 시작 → 스크롤 저장 즉시 차단
+      // (scrollTo(0,0)이 scroll 이벤트를 발생시켜 저장값을 0으로 덮어쓰는 것 방지)
+      isScrollSavePaused = true;
 
-      // 로고 클릭 확인
-      const isLogoClick = sessionStorage.getItem('logoClicked') === 'true';
-
-      // 페이지별 스크롤 위치 저장 (맵 기반 통합 + 동적 라우트 지원)
-      // 주의: 뒤로가기 시 window.location.pathname은 이미 목적지로 바뀌어 있음
-      // router.pathname/asPath는 아직 현재(떠나는) 페이지 정보를 유지
-      const currentPath = router.asPath.split('?')[0]; // 쿼리 제거
-      const config = pageScrollConfig[router.pathname] || getScrollConfig(currentPath);
-      if (config && !isLogoClick && !hasScrollSaved) {
-        sessionStorage.setItem(config.key, currentScroll.toString());
-        // 동적 라우트는 URL 경로도 저장 (같은 페이지인지 확인용)
-        sessionStorage.setItem(config.key + 'Path', currentPath);
-        // 다른 페이지로 이동할 때 뒤로가기 플래그 설정
-        if (config.flag) {
-          sessionStorage.setItem(config.flag, 'true');
-        }
-        hasScrollSaved = true;
-      }
-
-      // 뒤로가기 여부를 sessionStorage에 저장 (페이지 useEffect에서 확인용)
+      // 뒤로가기 플래그
       if (isActuallyBack) {
         sessionStorage.setItem('_navWasBack', 'true');
       } else {
         sessionStorage.removeItem('_navWasBack');
-      }
-
-      // 뉴스 페이지에서 홈으로 돌아가는 경우 (뒤로가기 전용)
-      if (url === '/' && router.pathname.startsWith('/news/') && !isLogoClick) {
-        sessionStorage.setItem('isBackToHome', 'true');
-      }
-
-      // 뉴스 페이지에서 다른 뉴스 페이지로 이동하는 경우 (뒤로가기 제외)
-      const newsToNews = router.pathname.startsWith('/news/') && url.startsWith('/news/');
-      if (newsToNews && currentScroll > 0 && !isActuallyBack) {
-        // 현재 뉴스 슬러그 추출 - router.asPath 사용 (window.location은 아직 업데이트 안됨)
-        const currentNewsSlug = router.asPath.split('/news/')[1];
-        // 목적지 뉴스 슬러그 추출
-        const targetNewsSlug = url.split('/news/')[1];
-
-        if (currentNewsSlug && targetNewsSlug !== currentNewsSlug) {
-          // 현재 뉴스의 스크롤 위치 저장
-          sessionStorage.setItem(`newsScroll_${currentNewsSlug}`, currentScroll.toString());
-          sessionStorage.setItem('isBackToNewsDetail', 'true');
-
-          // Forward 이동이므로 목적지 뉴스의 이전 스크롤 위치는 삭제 (처음부터 시작)
-          sessionStorage.removeItem(`newsScroll_${targetNewsSlug}`);
+        // 순방향 이동: 뉴스 페이지로 갈 때 즉시 스크롤 리셋
+        if (url.startsWith('/news/')) {
+          window.scrollTo(0, 0);
+          document.body.scrollTop = 0;
+          document.documentElement.scrollTop = 0;
+        }
+        // 순방향 진입 시 랭킹 탭 초기화 (뒤로가기가 아닌 경우에만)
+        if (url === '/ranking') {
+          sessionStorage.removeItem('rankingActiveTab');
         }
       }
 
-      // 뉴스 페이지로 이동하는 경우에만 즉시 스크롤 리셋 (단, 뒤로가기는 제외)
-      if (url.startsWith('/news/') && !isActuallyBack) {
-        document.body.scrollTop = 0;
-        document.documentElement.scrollTop = 0;
-        window.scrollTo(0, 0);
-      }
-
-      // 로고 클릭 플래그가 있으면 제거 (한 번만 사용)
-      if (isLogoClick) {
+      // 로고 클릭 처리
+      if (sessionStorage.getItem('logoClicked') === 'true') {
         sessionStorage.removeItem('logoClicked');
-      }
-
-      // 전환 중 스크롤 저장 차단 (config 없는 페이지에서도)
-      hasScrollSaved = true;
-
-      // 뒤로가기 시 전환 중 스크롤 저장 즉시 차단
-      if (isActuallyBack) {
-        isScrollSavePaused = true;
       }
     };
 
+    const restoreScrollWithRetry = (scrollPos) => {
+      const doRestore = () => {
+        window.scrollTo(0, scrollPos);
+        document.documentElement.scrollTop = scrollPos;
+        document.body.scrollTop = scrollPos;
+      };
+
+      doRestore();
+      requestAnimationFrame(doRestore);
+
+      // 모바일: 콘텐츠가 렌더링될 때까지 반복 시도 (최대 3초)
+      let count = 0;
+      const interval = setInterval(() => {
+        count++;
+        const pageH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+        doRestore();
+        if (pageH > scrollPos || count >= 20) {
+          doRestore();
+          clearInterval(interval);
+          // 복원 완료 후 저장 재개
+          setTimeout(() => { isScrollSavePaused = false; }, 500);
+        }
+      }, 150);
+      setTimeout(() => { clearInterval(interval); isScrollSavePaused = false; }, 3000);
+    };
+
     const handleRouteChangeComplete = () => {
-      // sessionStorage 기반 뒤로가기 감지 (클로저 변수 대신 — HMR에 안전)
       const wasBack = sessionStorage.getItem('_navWasBack') === 'true';
 
       if (!wasBack) {
-        // 순방향 이동: 최상단으로 스크롤
-        // body가 실제 스크롤 요소이므로 body.scrollTop을 먼저 설정
+        // 순방향: 최상단 (body가 스크롤 컨테이너이므로 body도 리셋)
+        window.scrollTo(0, 0);
         document.body.scrollTop = 0;
         document.documentElement.scrollTop = 0;
-        window.scrollTo(0, 0);
-
         requestAnimationFrame(() => {
+          window.scrollTo(0, 0);
           document.body.scrollTop = 0;
           document.documentElement.scrollTop = 0;
-          window.scrollTo(0, 0);
         });
+        isScrollSavePaused = false;
       } else {
-        // 뒤로가기: 중앙에서 직접 스크롤 복원
-        isScrollSavePaused = true;
-        setTimeout(() => { isScrollSavePaused = false; }, 3000);
-
-        // 현재 페이지의 저장된 스크롤 위치 복원
+        // 뒤로가기: 저장된 위치 복원
         const config = getScrollConfig(window.location.pathname);
         if (config) {
-          const savedPos = sessionStorage.getItem(config.key);
-          if (savedPos) {
-            const scrollPos = parseInt(savedPos, 10);
-            if (!isNaN(scrollPos)) {
-              const restoreScroll = () => {
-                document.body.scrollTop = scrollPos;
-                document.documentElement.scrollTop = scrollPos;
-                window.scrollTo(0, scrollPos);
-              };
-              restoreScroll();
-              requestAnimationFrame(restoreScroll);
-              // 콘텐츠 로드 후 1회 재시도 (More News 캐시 데이터 렌더링 대기)
-              setTimeout(restoreScroll, 300);
-            }
+          const saved = parseInt(sessionStorage.getItem(config.key) || '0', 10);
+          if (saved > 0) {
+            restoreScrollWithRetry(saved);
+          } else {
+            // 최상단이었으면 그냥 최상단
+            window.scrollTo(0, 0);
+            document.body.scrollTop = 0;
+            document.documentElement.scrollTop = 0;
+            isScrollSavePaused = false;
           }
+        } else {
+          isScrollSavePaused = false;
         }
-      } // end else (wasBack)
-
-      // 플래그 리셋
-      hasScrollSaved = false;
+      }
     };
 
     router.events.on('routeChangeStart', handleRouteChangeStart);
     router.events.on('routeChangeComplete', handleRouteChangeComplete);
 
-    // 모바일 풀 리로드 뒤로가기 감지 (routeChangeComplete가 안 실행되는 경우)
-    // Performance API로 back_forward 감지
+    // 풀 리로드 뒤로가기 감지 (모바일에서 bfcache 미사용 시)
     let isFullReloadBack = false;
     try {
       const nav = performance.getEntriesByType('navigation');
@@ -284,33 +232,21 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       isFullReloadBack = true;
     }
 
-    if (isFullReloadBack) {
-      const logoClicked = sessionStorage.getItem('logoClicked') === 'true';
-      if (!logoClicked) {
-        isScrollSavePaused = true;
-        const config = getScrollConfig(window.location.pathname);
-        if (config) {
-          const savedPos = sessionStorage.getItem(config.key);
-          if (savedPos) {
-            const scrollPos = parseInt(savedPos, 10);
-            if (!isNaN(scrollPos) && scrollPos > 0) {
-              const restoreScroll = () => {
-                document.body.scrollTop = scrollPos;
-                document.documentElement.scrollTop = scrollPos;
-                window.scrollTo(0, scrollPos);
-              };
-              restoreScroll();
-              requestAnimationFrame(restoreScroll);
-              setTimeout(restoreScroll, 300);
-              setTimeout(() => { isScrollSavePaused = false; }, 1000);
-            }
-          }
+    if (isFullReloadBack && sessionStorage.getItem('logoClicked') !== 'true') {
+      const config = getScrollConfig(window.location.pathname);
+      if (config) {
+        const saved = parseInt(sessionStorage.getItem(config.key) || '0', 10);
+        if (saved > 0) {
+          isScrollSavePaused = true;
+          restoreScrollWithRetry(saved);
         }
       }
     }
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
+      document.removeEventListener('scroll', handleScroll);
+      document.body?.removeEventListener('scroll', handleScroll);
       window.removeEventListener('popstate', handlePopState);
       if (scrollSaveTimer) clearTimeout(scrollSaveTimer);
       router.events.off('routeChangeStart', handleRouteChangeStart);

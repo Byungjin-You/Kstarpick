@@ -52,26 +52,28 @@ export default function Ranking({ todayNews = [], weekNews = [], monthNews = [],
   const [sidebarStickyTop, setSidebarStickyTop] = useState(92);
 
   // 스크롤 복원은 _app.js handleRouteChangeComplete에서 중앙 처리
+  const mountedRef = useRef(false);
 
-  // 뒤로가기 시 탭 복원 (클라이언트에서만)
+  // 탭 복원 + 데이터 연결 (하나의 useEffect로 통합)
   useEffect(() => {
-    const saved = sessionStorage.getItem('rankingActiveTab');
-    const isBack = sessionStorage.getItem('isBackToRanking');
-    if (isBack === 'true' && saved) {
-      setActiveTab(saved);
+    // 최초 마운트: sessionStorage에서 탭 복원 (순방향 진입 시 _app.js가 이미 삭제함)
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      const saved = sessionStorage.getItem('rankingActiveTab');
+      if (saved && saved !== activeTab) {
+        setActiveTab(saved);
+        return; // 탭 변경 후 재실행되므로 여기서 중단
+      }
     }
-    // 복원 후 플래그 제거 (다음 직접 진입 시 today로 시작)
-    sessionStorage.removeItem('isBackToRanking');
-  }, []);
 
-  // Tab change
-  useEffect(() => {
+    // 탭에 따른 데이터 설정
     switch (activeTab) {
       case 'today': setNewsItems(todayNews); break;
       case 'week': setNewsItems(weekNews); break;
       case 'month': setNewsItems(monthNews); break;
       default: setNewsItems(todayNews);
     }
+    sessionStorage.setItem('rankingActiveTab', activeTab);
   }, [activeTab, todayNews, weekNews, monthNews]);
 
   // Sidebar sticky calculation
@@ -81,11 +83,6 @@ export default function Ranking({ todayNews = [], weekNews = [], monthNews = [],
   }, []);
 
   const navigateToPage = (path) => {
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('rankingScrollPosition', window.scrollY.toString());
-      sessionStorage.setItem('rankingActiveTab', activeTab);
-      sessionStorage.setItem('isBackToRanking', 'true');
-    }
     router.push(path);
   };
 
