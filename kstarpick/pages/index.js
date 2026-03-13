@@ -698,6 +698,9 @@ export async function getServerSideProps(context) {
     const editorsPickData = await editorsPickRes.json();
 
     // Watch News: API에서 이미 title=Watch: 필터링 완료
+    console.log('[SSR DEBUG] watchNewsInitial:', JSON.stringify({ success: watchNewsInitial.success, hasData: !!watchNewsInitial.data, newsCount: watchNewsInitial.data?.news?.length }));
+    console.log('[SSR DEBUG] rankingNewsData:', JSON.stringify({ success: rankingNewsData.success, hasData: !!rankingNewsData.data, newsCount: rankingNewsData.data?.news?.length }));
+    console.log('[SSR DEBUG] moreNewsData:', JSON.stringify({ success: moreNewsData.success, hasData: !!moreNewsData.data, newsCount: moreNewsData.data?.news?.length }));
     const watchNewsFiltered = watchNewsInitial.success && watchNewsInitial.data?.news
       ? watchNewsInitial.data.news.slice(0, 11)
       : [];
