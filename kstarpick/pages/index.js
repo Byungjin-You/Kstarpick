@@ -712,7 +712,7 @@ export async function getServerSideProps(context) {
       }
       return url;
     };
-    const processNews = (articles) => (articles || []).map(n => ({
+    const processNews = (articles) => (articles || []).map(({ content, ...n }) => ({
       ...n,
       coverImage: fixImageUrl(n.coverImage) || '/images/news/default-news.jpg',
       thumbnailUrl: fixImageUrl(n.thumbnailUrl)
