@@ -752,10 +752,10 @@ export async function getServerSideProps(context) {
       });
     }
 
+    initialData._ssrDebug = _debug;
     return {
       props: {
-        initialData,
-        _debug
+        initialData
       }
     };
   } catch (error) {
