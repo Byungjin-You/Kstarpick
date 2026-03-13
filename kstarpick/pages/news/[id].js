@@ -3485,172 +3485,94 @@ export async function getServerSideProps({ params, req, res }) {
       };
     }
     
-    // 뉴스를 찾은 경우 조회수 업데이트 (viewCount 필드가 없으면 생성)
-    await db.collection('news').updateOne(
+    // 뉴스를 찾은 경우 조회수 업데이트 (비동기 — 응답 차단 안 함)
+    db.collection('news').updateOne(
       { _id: newsArticle._id },
       { $inc: { viewCount: 1 } }
-    );
+    ).catch(() => {});
     
-    // 🚀 성능 최적화: 관련 뉴스 검색 간소화 (한 번의 쿼리로 처리)
-    const relatedArticles = await db.collection('news')
-      .find({ 
-        $and: [
-          { _id: { $ne: newsArticle._id } },
-          {
-            $or: [
+    // 🚀 성능 최적화: related + OG image + sidebar 모두 병렬 실행
+    const protocol = req.headers['x-forwarded-proto'] || 'http';
+    const baseUrl = `${protocol}://${req.headers.host}`;
+    const newsCat = newsArticle.category || '';
+    const threeDaysAgo3 = new Date(); threeDaysAgo3.setDate(threeDaysAgo3.getDate() - 3); threeDaysAgo3.setHours(0,0,0,0);
+    const thumbUrl = newsArticle.thumbnailUrl || newsArticle.coverImage || '';
+    const hashMatch = thumbUrl.match(/hash=([a-f0-9]+)/);
+
+    const [relatedArticles, ogImageRecord, commentsRes, rankingRes, trendingRes, editorsPickRes] = await Promise.all([
+      // 1) 관련 뉴스 (DB 직접 쿼리)
+      db.collection('news')
+        .find({
+          $and: [
+            { _id: { $ne: newsArticle._id } },
+            { $or: [
               { category: newsArticle.category },
-              ...(newsArticle.tags && newsArticle.tags.length > 0 
+              ...(newsArticle.tags && newsArticle.tags.length > 0
                 ? [{ tags: { $in: newsArticle.tags } }]
                 : [])
-            ]
-          }
-        ]
-      })
-      .sort({ createdAt: -1 })
-      .limit(12) // 12개로 제한
-      .project({ // 필요한 필드만 선택
-        _id: 1,
-        slug: 1,
-        title: 1,
-        coverImage: 1,
-        thumbnailUrl: 1,
-        category: 1,
-        createdAt: 1,
-        summary: 1,
-        content: 1
-      })
-      .toArray();
-    
-    // 관련 뉴스가 부족한 경우 최신 뉴스로 보완 (한 번의 추가 쿼리)
+            ]}
+          ]
+        })
+        .sort({ createdAt: -1 })
+        .limit(12)
+        .project({ _id: 1, slug: 1, title: 1, coverImage: 1, thumbnailUrl: 1, category: 1, createdAt: 1, summary: 1 })
+        .toArray(),
+      // 2) OG 이미지 해시 조회
+      hashMatch
+        ? db.collection('image_hashes').findOne({ hash: hashMatch[1] }).catch(() => null)
+        : Promise.resolve(null),
+      // 3~6) 사이드바 API (병렬)
+      fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
+      fetch(`${baseUrl}/api/news?limit=10&sort=viewCount&order=desc&createdAfter=${threeDaysAgo3.toISOString()}&${listFields}`).catch(() => null),
+      fetch(`${baseUrl}/api/news/trending?limit=5${newsCat ? `&category=${newsCat}` : ''}`).catch(() => null),
+      fetch(`${baseUrl}/api/news/editors-pick?limit=6${newsCat ? `&category=${newsCat}` : ''}`).catch(() => null),
+    ]);
+
+    // 관련 뉴스가 부족한 경우 최신 뉴스로 보완
     let finalRelatedArticles = relatedArticles;
     if (relatedArticles.length < 6) {
       const additionalArticles = await db.collection('news')
-        .find({ 
-          _id: { 
-            $nin: [
-              newsArticle._id,
-              ...relatedArticles.map(a => a._id)
-            ]
-          }
-        })
+        .find({ _id: { $nin: [newsArticle._id, ...relatedArticles.map(a => a._id)] } })
         .sort({ createdAt: -1 })
         .limit(6 - relatedArticles.length)
-        .project({
-          _id: 1,
-          slug: 1,
-          title: 1,
-          coverImage: 1,
-          thumbnailUrl: 1,
-          category: 1,
-          createdAt: 1,
-          summary: 1,
-          content: 1
-        })
+        .project({ _id: 1, slug: 1, title: 1, coverImage: 1, thumbnailUrl: 1, category: 1, createdAt: 1, summary: 1 })
         .toArray();
-        
       finalRelatedArticles = [...relatedArticles, ...additionalArticles];
     }
-    
-    // OG 이미지용 원본 URL 조회 (프록시 해시 → 원본 URL 변환)
-    let ogImageUrl = null;
-    const thumbUrl = newsArticle.thumbnailUrl || newsArticle.coverImage || '';
-    if (thumbUrl.includes('hash-image') || thumbUrl.includes('hash=')) {
-      try {
-        const hashMatch = thumbUrl.match(/hash=([a-f0-9]+)/);
-        if (hashMatch) {
-          const imageRecord = await db.collection('image_hashes').findOne({ hash: hashMatch[1] });
-          if (imageRecord && imageRecord.url) {
-            ogImageUrl = imageRecord.url;
-          }
-        }
-      } catch (e) {
-        console.error('OG image hash lookup failed:', e.message);
-      }
+
+    // OG 이미지 URL
+    const ogImageUrl = (ogImageRecord && ogImageRecord.url) || null;
+
+    // 사이드바 JSON 파싱
+    let recentComments = [], rankingNews = [], trendingNews = [], editorsPickNews = [];
+    try {
+      if (commentsRes) { const cd = await commentsRes.json(); recentComments = cd.success ? (cd.data || cd.comments || []) : []; }
+      if (rankingRes) { const rd = await rankingRes.json(); rankingNews = rd.success ? (rd.data?.news || rd.data || []) : []; }
+      if (trendingRes) { const td = await trendingRes.json(); trendingNews = td.success ? (td.data || []) : []; }
+      if (editorsPickRes) { const ep = await editorsPickRes.json(); editorsPickNews = ep.success ? (ep.data || []) : []; }
+    } catch (e) {
+      console.error('[News Detail] Sidebar data parse error:', e.message);
     }
 
-    // 🚀 성능 최적화: 데이터 변환 최적화
+    // 데이터 변환
     const processedNewsArticle = {
       ...newsArticle,
       _id: newsArticle._id.toString(),
-      createdAt: newsArticle.createdAt 
-        ? (newsArticle.createdAt instanceof Date 
-           ? newsArticle.createdAt.toISOString() 
-           : newsArticle.createdAt) 
-        : null,
-      updatedAt: newsArticle.updatedAt 
-        ? (newsArticle.updatedAt instanceof Date 
-           ? newsArticle.updatedAt.toISOString() 
-           : newsArticle.updatedAt) 
-        : null,
-      publishedAt: newsArticle.publishedAt 
-        ? (newsArticle.publishedAt instanceof Date 
-           ? newsArticle.publishedAt.toISOString() 
-           : newsArticle.publishedAt) 
-        : null,
-      // thumbnailUrl이 없으면 coverImage를 사용
+      createdAt: newsArticle.createdAt ? (newsArticle.createdAt instanceof Date ? newsArticle.createdAt.toISOString() : newsArticle.createdAt) : null,
+      updatedAt: newsArticle.updatedAt ? (newsArticle.updatedAt instanceof Date ? newsArticle.updatedAt.toISOString() : newsArticle.updatedAt) : null,
+      publishedAt: newsArticle.publishedAt ? (newsArticle.publishedAt instanceof Date ? newsArticle.publishedAt.toISOString() : newsArticle.publishedAt) : null,
       thumbnailUrl: newsArticle.thumbnailUrl || newsArticle.coverImage,
-      // OG 메타태그용 원본 이미지 URL (프록시 대신 직접 URL)
       ogImageUrl: ogImageUrl || null
     };
 
-    // 현재 뉴스를 명시적으로 제외 (slug와 _id 모두 체크)
-    const filteredRelatedArticles = finalRelatedArticles.filter(article => {
-      const isDifferentById = article._id.toString() !== newsArticle._id.toString();
-      const isDifferentBySlug = !article.slug || !newsArticle.slug || article.slug !== newsArticle.slug;
-      return isDifferentById && isDifferentBySlug;
-    });
-
-    const processedRelatedArticles = filteredRelatedArticles.map(article => ({
-      ...article,
-      _id: article._id.toString(),
-      createdAt: article.createdAt
-        ? (article.createdAt instanceof Date
-           ? article.createdAt.toISOString()
-           : article.createdAt)
-        : null,
-      // thumbnailUrl이 없으면 coverImage를 사용
-      thumbnailUrl: article.thumbnailUrl || article.coverImage
-    }));
-    
-    // Sidebar data fetch
-    const protocol = req.headers['x-forwarded-proto'] || 'http';
-    const baseUrl = `${protocol}://${req.headers.host}`;
-    const prodUrl = baseUrl;
-
-    let recentComments = [];
-    let rankingNews = [];
-    let trendingNews = [];
-    let editorsPickNews = [];
-    try {
-      const newsCat = processedNewsArticle.category || '';
-      const threeDaysAgo3 = new Date(); threeDaysAgo3.setDate(threeDaysAgo3.getDate() - 3); threeDaysAgo3.setHours(0,0,0,0);
-      const [commentsRes, rankingRes, trendingRes] = await Promise.all([
-        fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
-        fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&order=desc&createdAfter=${threeDaysAgo3.toISOString()}&${listFields}`).catch(() => null),
-        fetch(`${prodUrl}/api/news/trending?limit=5${newsCat ? `&category=${newsCat}` : ''}`).catch(() => null),
-      ]);
-      if (commentsRes) {
-        const cd = await commentsRes.json();
-        recentComments = cd.success ? (cd.data || cd.comments || []) : [];
-      }
-      if (rankingRes) {
-        const rd = await rankingRes.json();
-        rankingNews = rd.success ? (rd.data?.news || rd.data || []) : [];
-      }
-      if (trendingRes) {
-        const td = await trendingRes.json();
-        trendingNews = td.success ? (td.data || []) : [];
-      }
-      // Editor's PICK: trending ID 제외
-      const trendingIdStr = trendingNews.map(n => n._id).join(',');
-      const editorsPickRes = await fetch(`${prodUrl}/api/news/editors-pick?limit=6${newsCat ? `&category=${newsCat}` : ''}${trendingIdStr ? `&exclude=${trendingIdStr}` : ''}`).catch(() => null);
-      if (editorsPickRes) {
-        const ep = await editorsPickRes.json();
-        editorsPickNews = ep.success ? (ep.data || []) : [];
-      }
-    } catch (e) {
-      console.error('[News Detail] Sidebar data fetch error:', e.message);
-    }
+    const processedRelatedArticles = finalRelatedArticles
+      .filter(a => a._id.toString() !== newsArticle._id.toString() && (!a.slug || !newsArticle.slug || a.slug !== newsArticle.slug))
+      .map(a => ({
+        ...a,
+        _id: a._id.toString(),
+        createdAt: a.createdAt ? (a.createdAt instanceof Date ? a.createdAt.toISOString() : a.createdAt) : null,
+        thumbnailUrl: a.thumbnailUrl || a.coverImage
+      }));
 
     return {
       props: {
