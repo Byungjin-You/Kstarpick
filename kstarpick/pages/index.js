@@ -661,7 +661,7 @@ export async function getServerSideProps(context) {
       fetch(`${prodUrl}/api/news/trending?limit=5`).catch(() => ({ json: () => ({ success: false }) })),
       null, // editors-pick은 trending 결과 후 호출
       fetch(`${prodUrl}/api/music/popular?limit=5`),
-      fetch(`${prodUrl}/api/news?limit=200`), // Watch News: 'Watch:' 제목 필터링용
+      fetch(`${prodUrl}/api/news?title=Watch:&limit=11`), // Watch News: API에서 title 필터링
       fetch(`${prodUrl}/api/comments/recent?limit=10`),
       fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`),
       fetch(`${prodUrl}/api/news?limit=20&sort=createdAt&order=desc`)
@@ -697,9 +697,9 @@ export async function getServerSideProps(context) {
     const editorsPickRes = await fetch(`${prodUrl}/api/news/editors-pick?limit=6${trendingIds ? `&exclude=${trendingIds}` : ''}`).catch(() => ({ json: () => ({ success: false }) }));
     const editorsPickData = await editorsPickRes.json();
 
-    // Watch News: SSR에서 'Watch:' 제목 필터링
+    // Watch News: API에서 이미 title=Watch: 필터링 완료
     const watchNewsFiltered = watchNewsInitial.success && watchNewsInitial.data?.news
-      ? watchNewsInitial.data.news.filter(n => n.title && n.title.startsWith('Watch:')).slice(0, 11)
+      ? watchNewsInitial.data.news.slice(0, 11)
       : [];
 
     // Fix relative image URLs to absolute production URLs

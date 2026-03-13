@@ -6,6 +6,14 @@ import { authOptions } from '../auth/[...nextauth]';
 import { verifyToken } from '../../../lib/auth';
 import slugify from 'slugify';
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+};
+
 /**
  * @swagger
  * /api/news/{id}:
