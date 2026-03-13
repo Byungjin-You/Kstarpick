@@ -26,10 +26,10 @@ function Home({ initialData }) {
   const recommendedNews = initialData?.recommendedNews || [];
   const [topSongs, setTopSongs] = useState(initialData?.topSongs || []);
   const watchNews = initialData?.watchNews || [];
-  const [rankingNews, setRankingNews] = useState(initialData?.rankingNews || []);
+  const rankingNews = initialData?.rankingNews || [];
   const trendingNews = initialData?.trendingNews || [];
   const editorsPickNews = initialData?.editorsPickNews || [];
-  const [moreNews, setMoreNews] = useState(initialData?.moreNews || []);
+  const moreNews = initialData?.moreNews || [];
   const [error, setError] = useState(null);
 
   
@@ -367,46 +367,7 @@ function Home({ initialData }) {
     }
   }, [moreNews, newsArticles]); // loadedMoreNews를 의존성에서 제거하여 무한 루프 방지
 
-  // 클라이언트 사이드에서 추가 데이터 로드 (성능 최적화)
-  const loadAdditionalData = async () => {
-    if (typeof window === 'undefined') return;
-    
-    try {
-      
-      // 병렬로 나머지 API 호출 (trending/editors-pick은 SSR에서 이미 로드됨)
-      const [
-        rankingNewsRes,
-        moreNewsRes
-      ] = await Promise.all([
-        fetch(`/api/news?limit=10&sort=viewCount`),
-        fetch(`/api/news?limit=20&sort=createdAt&order=desc`)
-      ]);
-
-      const [
-        rankingNews,
-        moreNews
-      ] = await Promise.all([
-        rankingNewsRes.json(),
-        moreNewsRes.json()
-      ]);
-
-      // 상태 업데이트
-      setRankingNews(rankingNews.success ? rankingNews.data.news || [] : []);
-      setMoreNews(moreNews.success ? moreNews.data.news || [] : []);
-      
-    } catch (error) {
-      console.error('❌ 추가 데이터 로딩 오류:', error);
-    }
-  };
-
-  // 컴포넌트 마운트 시 추가 데이터 로드
-  useEffect(() => {
-    // 초기 데이터가 있는 경우에만 추가 데이터 로드
-    if (initialData && Object.keys(initialData).length > 0) {
-      // 즉시 추가 데이터 로드 시작 (지연 시간 제거)
-      loadAdditionalData();
-    }
-  }, []);
+  // rankingNews, moreNews는 SSR에서 로딩 (getServerSideProps → initialData)
 
 
   return (
@@ -690,7 +651,9 @@ export async function getServerSideProps(context) {
       , // editors-pick은 trending 결과 후 호출
       musicRes,
       watchNewsRes,
-      recentCommentsRes
+      recentCommentsRes,
+      rankingNewsRes,
+      moreNewsRes
     ] = await Promise.all([
       fetch(`${prodUrl}/api/news?limit=20`),
       fetch(`${prodUrl}/api/news?featured=true&limit=20&createdAfter=${sevenDaysAgo.toISOString()}`),
@@ -699,7 +662,9 @@ export async function getServerSideProps(context) {
       null, // editors-pick은 trending 결과 후 호출
       fetch(`${prodUrl}/api/music/popular?limit=5`),
       fetch(`${prodUrl}/api/news?limit=200`), // Watch News: 'Watch:' 제목 필터링용
-      fetch(`${prodUrl}/api/comments/recent?limit=10`)
+      fetch(`${prodUrl}/api/comments/recent?limit=10`),
+      fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`),
+      fetch(`${prodUrl}/api/news?limit=20&sort=createdAt&order=desc`)
     ]);
 
     // 응답을 JSON으로 파싱
@@ -711,7 +676,9 @@ export async function getServerSideProps(context) {
       ,
       music,
       watchNewsInitial,
-      recentComments
+      recentComments,
+      rankingNewsData,
+      moreNewsData
     ] = await Promise.all([
       mainNewsRes.json(),
       featuredNewsRes.json(),
@@ -720,7 +687,9 @@ export async function getServerSideProps(context) {
       Promise.resolve(null),
       musicRes.json(),
       watchNewsRes.json(),
-      recentCommentsRes.json()
+      recentCommentsRes.json(),
+      rankingNewsRes.json(),
+      moreNewsRes.json()
     ]);
 
     // Editor's PICK: trending ID 제외하여 호출
@@ -763,9 +732,9 @@ export async function getServerSideProps(context) {
         kpop: [], // 클라이언트에서 로드
         celeb: [] // 클라이언트에서 로드
       },
-      rankingNews: [], // 클라이언트에서 로드
+      rankingNews: processNews(rankingNewsData.success ? rankingNewsData.data?.news?.slice(0, 10) : []),
       topSongs: music.success ? (music.data || music.musics)?.slice(0, 5) || [] : [],
-      moreNews: [], // 클라이언트에서 로드
+      moreNews: processNews(moreNewsData.success ? moreNewsData.data?.news?.slice(0, 20) : []),
       recentComments: recentComments.success ? recentComments.data?.slice(0, 10) || [] : []
     };
 
