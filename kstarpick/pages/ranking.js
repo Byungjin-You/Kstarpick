@@ -673,6 +673,8 @@ export default function Ranking({ todayNews = [], weekNews = [], monthNews = [],
 
 export async function getServerSideProps(context) {
   try {
+    // 뒤로가기 시 브라우저 캐시 사용 → 서버 요청 없이 즉시 렌더링
+    context.res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
     const protocol = context.req.headers['x-forwarded-proto'] || 'http';
     const server = `${protocol}://${context.req.headers.host}`;
 

@@ -2853,11 +2853,13 @@ export default function TVFilmDetail({ tvfilm, relatedNews, recentComments, rank
 }
 
 // 데이터 가져오기
-export async function getServerSideProps({ params, req, query, resolvedUrl }) {
+export async function getServerSideProps({ params, req, res: sRes, query, resolvedUrl }) {
   const { id } = params;
   const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
 
   try {
+    // 뒤로가기 시 브라우저 캐시 사용 → 서버 요청 없이 즉시 렌더링
+    sRes.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
     // TV/Film 상세 정보 조회 - /api/dramas API 사용
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/dramas/${id}?view=true`);
     const data = await res.json();

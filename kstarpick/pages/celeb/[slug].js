@@ -1937,8 +1937,10 @@ export default function CelebrityDetailPage({ celebrity = null, recentComments, 
   );
 }
 
-export async function getServerSideProps({ params, req }) {
+export async function getServerSideProps({ params, req, res }) {
   try {
+    // 뒤로가기 시 브라우저 캐시 사용 → 서버 요청 없이 즉시 렌더링
+    res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
     const protocol = req.headers['x-forwarded-proto'] || 'http';
     const baseUrl = `${protocol}://${req.headers.host}`;
     const prodUrl = baseUrl;

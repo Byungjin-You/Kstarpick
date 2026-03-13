@@ -393,8 +393,10 @@ export default function SearchPage({ recentComments = [], rankingNews = [], tren
   );
 }
 
-export async function getServerSideProps() {
+export async function getServerSideProps(context) {
   try {
+    // 뒤로가기 시 브라우저 캐시 사용 → 서버 요청 없이 즉시 렌더링
+    context.res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
     const server = process.env.NODE_ENV === 'production'
       ? process.env.NEXT_PUBLIC_API_URL || 'http://localhost:13001'
       : 'http://localhost:3000';

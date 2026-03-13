@@ -653,6 +653,8 @@ export default function Music({ musicNews = [], topSongs = [], watchNews = [], r
 
 export async function getServerSideProps(context) {
   try {
+    // 뒤로가기 시 브라우저 캐시 사용 → 서버 요청 없이 즉시 렌더링
+    context.res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
     const protocol = context.req.headers['x-forwarded-proto'] || 'http';
     const baseUrl = `${protocol}://${context.req.headers.host}`;
     const prodUrl = baseUrl;

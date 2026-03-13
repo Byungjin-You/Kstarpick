@@ -4062,10 +4062,12 @@ function generateMetaTags(drama) {
 }
 
 // 데이터 가져오기
-export async function getServerSideProps({ params, req, query, resolvedUrl }) {
+export async function getServerSideProps({ params, req, res: sRes, query, resolvedUrl }) {
   const { id } = params;
-  
+
   try {
+    // 뒤로가기 시 브라우저 캐시 사용 → 서버 요청 없이 즉시 렌더링
+    sRes.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
     // 드라마 상세 정보 조회 - 기존 드라마 API 사용
     console.log(`드라마 데이터 요청: /api/dramas/${id}?view=true`);
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/dramas/${id}?view=true`);

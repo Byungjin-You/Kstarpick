@@ -3281,7 +3281,9 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
   );
 }
 
-export async function getServerSideProps({ params, req }) {
+export async function getServerSideProps({ params, req, res }) {
+  // 뒤로가기 시 브라우저 캐시 사용 → 서버 요청 없이 즉시 렌더링
+  res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
   const { id } = params;
   const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
 

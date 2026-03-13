@@ -635,6 +635,9 @@ export async function getServerSideProps(context) {
     const baseUrl = `${protocol}://${context.req.headers.host}`;
     const prodUrl = baseUrl;
 
+    // 뒤로가기 시 브라우저 캐시 사용 → 서버 요청 없이 즉시 렌더링
+    context.res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+
     console.log('🚀 Static Generation으로 홈페이지 데이터 로딩 시작');
 
     // 7일 전 날짜 계산
