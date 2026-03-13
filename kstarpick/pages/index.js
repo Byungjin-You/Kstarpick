@@ -25,15 +25,13 @@ function Home({ initialData }) {
   const [featuredArticles, setFeaturedArticles] = useState(initialData?.featuredArticles || []);
   const recommendedNews = initialData?.recommendedNews || [];
   const [topSongs, setTopSongs] = useState(initialData?.topSongs || []);
-  const [watchNews, setWatchNews] = useState(initialData?.watchNews || []);
+  const watchNews = initialData?.watchNews || [];
   const [rankingNews, setRankingNews] = useState(initialData?.rankingNews || []);
   const trendingNews = initialData?.trendingNews || [];
   const editorsPickNews = initialData?.editorsPickNews || [];
   const [moreNews, setMoreNews] = useState(initialData?.moreNews || []);
   const [error, setError] = useState(null);
 
-  // 클라이언트 마운트 상태 (하이드레이션 에러 방지)
-  const [isClientMounted, setIsClientMounted] = useState(false);
   
   // 기존 상태들
   const [loadedMoreNews, setLoadedMoreNews] = useState(false);
@@ -99,10 +97,6 @@ function Home({ initialData }) {
       if (featuredArticles.length > 0) {
         sessionStorage.setItem('cachedFeaturedNews', JSON.stringify(featuredArticles));
         sessionStorage.setItem('featuredNewsCacheTime', Date.now().toString());
-      }
-      if (watchNews.length > 0) {
-        sessionStorage.setItem('cachedWatchNews', JSON.stringify(watchNews));
-        sessionStorage.setItem('watchNewsCacheTime', Date.now().toString());
       }
     }
 
@@ -340,39 +334,7 @@ function Home({ initialData }) {
     }
   }, []); // logoClickTrigger 제거 - 페이지 로드 시 한 번만 실행
 
-  // 클라이언트 마운트 감지 useEffect (하이드레이션 에러 방지)
-  useEffect(() => {
-    setIsClientMounted(true);
-  }, []);
-
-  // Watch News 클라이언트 로딩 로직 (하이드레이션 에러 방지)
-  useEffect(() => {
-    if (typeof window === 'undefined' || !isClientMounted) return;
-    
-    const loadWatchNews = async () => {
-      try {
-        // 전체 뉴스에서 Watch: 필터링
-        const response = await fetch('/api/news?limit=200');
-        const data = await response.json();
-        
-        if (data.success && data.data.news) {
-          const watchNewsFiltered = data.data.news
-            .filter(news => news.title && news.title.startsWith('Watch:'))
-            .slice(0, 11);
-
-          if (process.env.NODE_ENV === 'development') {
-          }
-          setWatchNews(watchNewsFiltered);
-        }
-      } catch (error) {
-        console.error('Watch News 로딩 오류:', error);
-      }
-    };
-    
-    loadWatchNews();
-  }, [isClientMounted]);
-  
-  // 로고 클릭 감지는 339줄의 useEffect에서 처리하므로 제거
+  // Watch News는 SSR에서 로딩 (getServerSideProps → initialData.watchNews)
 
   // useEffect to prepare moreNews data for MoreNews component
   useEffect(() => {
@@ -736,7 +698,7 @@ export async function getServerSideProps(context) {
       fetch(`${prodUrl}/api/news/trending?limit=5`).catch(() => ({ json: () => ({ success: false }) })),
       null, // editors-pick은 trending 결과 후 호출
       fetch(`${prodUrl}/api/music/popular?limit=5`),
-      fetch(`${prodUrl}/api/music/popular?limit=5`), // 임시로 중복 호출 (Watch News는 클라이언트에서)
+      fetch(`${prodUrl}/api/news?limit=200`), // Watch News: 'Watch:' 제목 필터링용
       fetch(`${prodUrl}/api/comments/recent?limit=10`)
     ]);
 
@@ -766,8 +728,10 @@ export async function getServerSideProps(context) {
     const editorsPickRes = await fetch(`${prodUrl}/api/news/editors-pick?limit=6${trendingIds ? `&exclude=${trendingIds}` : ''}`).catch(() => ({ json: () => ({ success: false }) }));
     const editorsPickData = await editorsPickRes.json();
 
-    // Watch News는 클라이언트에서 처리 (하이드레이션 에러 방지)
-    const watchNews = { success: true, data: { news: [] } };
+    // Watch News: SSR에서 'Watch:' 제목 필터링
+    const watchNewsFiltered = watchNewsInitial.success && watchNewsInitial.data?.news
+      ? watchNewsInitial.data.news.filter(n => n.title && n.title.startsWith('Watch:')).slice(0, 11)
+      : [];
 
     // Fix relative image URLs to absolute production URLs
     const fixImageUrl = (url) => {
@@ -792,7 +756,7 @@ export async function getServerSideProps(context) {
       recommendedNews: processNews(recommendedNews.success ? recommendedNews.data?.slice(0, 6) : []),
       trendingNews: processNews(trendingNewsData.success ? trendingNewsData.data?.slice(0, 5) : []),
       editorsPickNews: processNews(editorsPickData.success ? editorsPickData.data?.slice(0, 6) : []),
-      watchNews: watchNews.success ? watchNews.data.news?.slice(0, 6) || [] : [], // Watch News 추가
+      watchNews: processNews(watchNewsFiltered),
       popularNews: {
         drama: [], // 클라이언트에서 로드
         movie: [], // 클라이언트에서 로드
