@@ -1942,12 +1942,13 @@ export async function getServerSideProps({ params, req }) {
     const protocol = req.headers['x-forwarded-proto'] || 'http';
     const baseUrl = `${protocol}://${req.headers.host}`;
     const prodUrl = baseUrl;
+    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
 
     // Fetch celeb info + sidebar data in parallel
     const [celebResponse, commentsResponse, rankingResponse, trendingResponse, editorsPickResponse] = await Promise.all([
       fetch(`${prodUrl}/api/celeb/slug/${params.slug}`),
       fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => ({ json: () => ({ success: false }) })),
-      fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&${listFields}`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news/trending?limit=5`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news/editors-pick?limit=6`).catch(() => ({ json: () => ({ success: false }) })),
     ]);

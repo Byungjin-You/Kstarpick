@@ -657,6 +657,8 @@ export async function getServerSideProps(context) {
     const baseUrl = `${protocol}://${context.req.headers.host}`;
     const prodUrl = baseUrl;
 
+    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
+
     const fixImageUrl = (url) => {
       if (!url) return url;
       if (url.startsWith('/api/proxy/hash-image')) return `${prodUrl}${url}`;
@@ -668,11 +670,11 @@ export async function getServerSideProps(context) {
     };
 
     const [newsRes, musicRes, watchRes, commentsRes, rankingRes, trendingRes] = await Promise.all([
-      fetch(`${prodUrl}/api/news?category=kpop&limit=100`),
+      fetch(`${prodUrl}/api/news?category=kpop&limit=100&${listFields}`),
       fetch(`${prodUrl}/api/music/popular?limit=20`),
-      fetch(`${prodUrl}/api/news?limit=200`),
+      fetch(`${prodUrl}/api/news?limit=200&${listFields}`),
       fetch(`${baseUrl}/api/comments/recent?limit=10`),
-      fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&category=kpop`),
+      fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&category=kpop&${listFields}`),
       fetch(`${prodUrl}/api/news/trending?limit=5&category=kpop`).catch(() => ({ json: () => ({ success: false }) })),
     ]);
 

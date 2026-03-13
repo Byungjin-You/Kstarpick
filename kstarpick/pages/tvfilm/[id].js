@@ -2855,7 +2855,8 @@ export default function TVFilmDetail({ tvfilm, relatedNews, recentComments, rank
 // 데이터 가져오기
 export async function getServerSideProps({ params, req, query, resolvedUrl }) {
   const { id } = params;
-  
+  const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
+
   try {
     // TV/Film 상세 정보 조회 - /api/dramas API 사용
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/dramas/${id}?view=true`);
@@ -2953,7 +2954,7 @@ export async function getServerSideProps({ params, req, query, resolvedUrl }) {
         console.log('관련 뉴스가 3개 미만입니다. 랭킹 뉴스를 추가합니다.');
         
         // 랭킹 뉴스 가져오기
-        const rankingNewsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/news?limit=30&sort=views&category=movie`);
+        const rankingNewsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/news?limit=30&sort=views&category=movie&${listFields}`);
         
         if (!rankingNewsRes.ok) {
           console.error('랭킹 뉴스 API 호출 실패:', rankingNewsRes.status, rankingNewsRes.statusText);
@@ -2989,7 +2990,7 @@ export async function getServerSideProps({ params, req, query, resolvedUrl }) {
             console.log('영화 카테고리 뉴스로도 부족합니다. 일반 인기 뉴스를 추가합니다.');
             
             // 일반 인기 뉴스 가져오기
-            const generalNewsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/news?limit=20&sort=views`);
+            const generalNewsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/news?limit=20&sort=views&${listFields}`);
             
             if (generalNewsRes.ok) {
               const generalNewsData = await generalNewsRes.json();
@@ -3032,7 +3033,7 @@ export async function getServerSideProps({ params, req, query, resolvedUrl }) {
     try {
       const [commentsResult, rankingResult] = await Promise.allSettled([
         fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/comments/recent?limit=10`).then(r => r.json()),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/news?limit=10&sort=viewCount&category=movie`).then(r => r.json()),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/news?limit=10&sort=viewCount&category=movie&${listFields}`).then(r => r.json()),
       ]);
       if (commentsResult.status === 'fulfilled' && commentsResult.value?.success) {
         recentComments = commentsResult.value.data || [];

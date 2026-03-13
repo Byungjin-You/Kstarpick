@@ -678,6 +678,8 @@ export async function getServerSideProps(context) {
 
     const baseUrl = server;
 
+    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
+
     // Date calculations
     const twoDaysAgo = new Date();
     twoDaysAgo.setHours(twoDaysAgo.getHours() - 48);
@@ -699,11 +701,11 @@ export async function getServerSideProps(context) {
     } catch (e) { /* fallback to 1 */ }
 
     const [todayResponse, weekResponse, monthResponse, commentsResponse, rankingResponse, trendingResponse, editorsPickResponse] = await Promise.all([
-      fetch(`${server}/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${twoDaysAgo.toISOString()}`),
-      fetch(`${server}/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${weekAgo.toISOString()}&createdBefore=${twoDaysAgo.toISOString()}`),
-      fetch(`${server}/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${monthAgo.toISOString()}&createdBefore=${weekAgo.toISOString()}`),
+      fetch(`${server}/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${twoDaysAgo.toISOString()}&${listFields}`),
+      fetch(`${server}/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${weekAgo.toISOString()}&createdBefore=${twoDaysAgo.toISOString()}&${listFields}`),
+      fetch(`${server}/api/news?limit=30&sort=viewCount&order=desc&createdAfter=${monthAgo.toISOString()}&createdBefore=${weekAgo.toISOString()}&${listFields}`),
       fetch(`${server}/api/comments/recent?limit=10`),
-      fetch(`${server}/api/news?limit=10&sort=viewCount`),
+      fetch(`${server}/api/news?limit=10&sort=viewCount&${listFields}`),
       fetch(`${server}/api/news/trending?limit=5`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${server}/api/news/editors-pick?limit=6`).catch(() => ({ json: () => ({ success: false }) })),
     ]);

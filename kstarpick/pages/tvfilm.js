@@ -913,6 +913,7 @@ export async function getServerSideProps(context) {
 
     // Use production API for movie/tvfilm data (local DB may not have movie category data)
     const prodUrl = baseUrl;
+    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
 
     // Fetch all data in parallel
     // comments/recent may not exist on production, use local for that
@@ -920,12 +921,12 @@ export async function getServerSideProps(context) {
       fetch(`${prodUrl}/api/dramas?category=movie&limit=100&includeAllFields=true&sortBy=orderNumber&sortOrder=asc`, {
         headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
       }),
-      fetch(`${prodUrl}/api/news/movie?page=1&limit=12&sort=createdAt&order=desc`, {
+      fetch(`${prodUrl}/api/news/movie?page=1&limit=12&sort=createdAt&order=desc&${listFields}`, {
         headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
       }),
       fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => ({ json: () => ({ success: false }) })),
-      fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`).catch(() => ({ json: () => ({ success: false }) })),
-      fetch(`${prodUrl}/api/news?limit=200`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&${listFields}`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news?limit=200&${listFields}`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${baseUrl}/api/dramas/reviews/recent?limit=10&category=movie`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news/trending?limit=5&category=movie`).catch(() => ({ json: () => ({ success: false }) })),
     ]);

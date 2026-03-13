@@ -941,13 +941,15 @@ export async function getServerSideProps(context) {
     // Use production API for data (local DB may not have all data)
     const prodUrl = baseUrl;
 
+    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
+
     // Fetch all data in parallel
     const [celebResponse, celebNewsResponse, commentsResponse, rankingResponse, allNewsResponse, trendingResponse] = await Promise.all([
       fetch(`${prodUrl}/api/celeb?limit=50&active=true`),
       fetch(`${prodUrl}/api/news/celeb?limit=200`),
       fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => ({ json: () => ({ success: false }) })),
-      fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&category=celeb`).catch(() => ({ json: () => ({ success: false }) })),
-      fetch(`${prodUrl}/api/news?limit=200`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&category=celeb&${listFields}`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news?limit=200&${listFields}`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news/trending?limit=5&category=celeb`).catch(() => ({ json: () => ({ success: false }) })),
     ]);
 

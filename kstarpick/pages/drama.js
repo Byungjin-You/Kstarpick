@@ -990,6 +990,7 @@ export async function getServerSideProps(context) {
     const protocol = context.req.headers['x-forwarded-proto'] || 'http';
     const baseUrl = `${protocol}://${context.req.headers.host}`;
     const prodUrl = baseUrl;
+    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
 
     // Fetch all data in parallel
     const [dramaResponse, dramaNewsResponse, commentsResponse, rankingResponse, allNewsResponse, reviewsResponse, trendingResponse] = await Promise.all([
@@ -1000,8 +1001,8 @@ export async function getServerSideProps(context) {
         headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
       }),
       fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => ({ json: () => ({ success: false }) })),
-      fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`).catch(() => ({ json: () => ({ success: false }) })),
-      fetch(`${prodUrl}/api/news?limit=200`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&${listFields}`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news?limit=200&${listFields}`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${baseUrl}/api/dramas/reviews/recent?limit=10&category=drama`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news/trending?limit=5&category=drama`).catch(() => ({ json: () => ({ success: false }) })),
     ]);

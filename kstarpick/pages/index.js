@@ -642,6 +642,9 @@ export async function getServerSideProps(context) {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     sevenDaysAgo.setHours(0, 0, 0, 0);
 
+    // 홈에서 필요한 필드만 지정 (content 제외 → MongoDB 프로젝션으로 DB 부하 감소)
+    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
+
     // 병렬로 핵심 API 호출 (Watch News + Recent Comments 추가)
     const [
       mainNewsRes,
@@ -655,16 +658,16 @@ export async function getServerSideProps(context) {
       rankingNewsRes,
       moreNewsRes
     ] = await Promise.all([
-      fetch(`${prodUrl}/api/news?limit=20`),
-      fetch(`${prodUrl}/api/news?featured=true&limit=20&createdAfter=${sevenDaysAgo.toISOString()}`),
+      fetch(`${prodUrl}/api/news?limit=20&${listFields}`),
+      fetch(`${prodUrl}/api/news?featured=true&limit=20&createdAfter=${sevenDaysAgo.toISOString()}&${listFields}`),
       fetch(`${prodUrl}/api/news/related?limit=6`),
       fetch(`${prodUrl}/api/news/trending?limit=5`).catch(() => ({ json: () => ({ success: false }) })),
       null, // editors-pick은 trending 결과 후 호출
       fetch(`${prodUrl}/api/music/popular?limit=5`),
-      fetch(`${prodUrl}/api/news?title=Watch:&limit=11`), // Watch News: API에서 title 필터링
+      fetch(`${prodUrl}/api/news?title=Watch:&limit=11&${listFields}`),
       fetch(`${prodUrl}/api/comments/recent?limit=10`),
-      fetch(`${prodUrl}/api/news?limit=10&sort=viewCount`),
-      fetch(`${prodUrl}/api/news?limit=20&sort=createdAt&order=desc`)
+      fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&${listFields}`),
+      fetch(`${prodUrl}/api/news?limit=20&sort=createdAt&order=desc&${listFields}`)
     ]);
 
     // 응답을 JSON으로 파싱

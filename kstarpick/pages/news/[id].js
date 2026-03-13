@@ -3283,6 +3283,7 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
 
 export async function getServerSideProps({ params, req }) {
   const { id } = params;
+  const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
 
   // USE_LOCAL_DATA=true일 때 DB 연결 없이 로컬 데이터 사용
   if (process.env.USE_LOCAL_DATA === 'true') {
@@ -3310,7 +3311,7 @@ export async function getServerSideProps({ params, req }) {
             const threeDaysAgo = new Date(); threeDaysAgo.setDate(threeDaysAgo.getDate() - 3); threeDaysAgo.setHours(0,0,0,0);
             const [commentsRes, rankingRes, trendingRes, editorsPickRes] = await Promise.all([
               fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
-              fetch(`${baseUrl}/api/news?limit=10&sort=viewCount&order=desc&createdAfter=${threeDaysAgo.toISOString()}`).catch(() => null),
+              fetch(`${baseUrl}/api/news?limit=10&sort=viewCount&order=desc&createdAfter=${threeDaysAgo.toISOString()}&${listFields}`).catch(() => null),
               fetch(`${baseUrl}/api/news/trending?limit=5${articleCategory ? `&category=${articleCategory}` : ''}`).catch(() => null),
               fetch(`${baseUrl}/api/news/editors-pick?limit=6${articleCategory ? `&category=${articleCategory}` : ''}`).catch(() => null),
             ]);
@@ -3354,9 +3355,9 @@ export async function getServerSideProps({ params, req }) {
               const artCat = article.category || '';
               const threeDaysAgo2 = new Date(); threeDaysAgo2.setDate(threeDaysAgo2.getDate() - 3); threeDaysAgo2.setHours(0,0,0,0);
               const [relRes, commentsRes, rankingRes, trendingRes, editorsPickRes] = await Promise.all([
-                fetch(`${baseUrl}/api/news?limit=12&category=${artCat}`).catch(() => null),
+                fetch(`${baseUrl}/api/news?limit=12&category=${artCat}&${listFields}`).catch(() => null),
                 fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
-                fetch(`${baseUrl}/api/news?limit=10&sort=viewCount&order=desc&createdAfter=${threeDaysAgo2.toISOString()}`).catch(() => null),
+                fetch(`${baseUrl}/api/news?limit=10&sort=viewCount&order=desc&createdAfter=${threeDaysAgo2.toISOString()}&${listFields}`).catch(() => null),
                 fetch(`${baseUrl}/api/news/trending?limit=5${artCat ? `&category=${artCat}` : ''}`).catch(() => null),
                 fetch(`${baseUrl}/api/news/editors-pick?limit=6${artCat ? `&category=${artCat}` : ''}`).catch(() => null),
               ]);
@@ -3433,7 +3434,7 @@ export async function getServerSideProps({ params, req }) {
                 const artCat2 = article.category || '';
                 const [commentsRes, rankingRes, trendingRes, editorsPickRes] = await Promise.all([
                   fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
-                  fetch(`${baseUrl}/api/news?limit=10&sort=viewCount`).catch(() => null),
+                  fetch(`${baseUrl}/api/news?limit=10&sort=viewCount&${listFields}`).catch(() => null),
                   fetch(`${baseUrl}/api/news/trending?limit=5${artCat2 ? `&category=${artCat2}` : ''}`).catch(() => null),
                   fetch(`${baseUrl}/api/news/editors-pick?limit=6${artCat2 ? `&category=${artCat2}` : ''}`).catch(() => null),
                 ]);
@@ -3445,7 +3446,7 @@ export async function getServerSideProps({ params, req }) {
               // related articles from production
               let relatedArticles = [];
               try {
-                const relRes = await fetch(`${prodUrl}/api/news?limit=12&category=${article.category || ''}`);
+                const relRes = await fetch(`${prodUrl}/api/news?limit=12&category=${article.category || ''}&${listFields}`);
                 if (relRes.ok) {
                   const relData = await relRes.json();
                   relatedArticles = (relData.data?.news || relData.data || [])
@@ -3623,7 +3624,7 @@ export async function getServerSideProps({ params, req }) {
       const threeDaysAgo3 = new Date(); threeDaysAgo3.setDate(threeDaysAgo3.getDate() - 3); threeDaysAgo3.setHours(0,0,0,0);
       const [commentsRes, rankingRes, trendingRes] = await Promise.all([
         fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => null),
-        fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&order=desc&createdAfter=${threeDaysAgo3.toISOString()}`).catch(() => null),
+        fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&order=desc&createdAfter=${threeDaysAgo3.toISOString()}&${listFields}`).catch(() => null),
         fetch(`${prodUrl}/api/news/trending?limit=5${newsCat ? `&category=${newsCat}` : ''}`).catch(() => null),
       ]);
       if (commentsRes) {

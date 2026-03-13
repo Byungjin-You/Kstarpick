@@ -399,9 +399,11 @@ export async function getServerSideProps() {
       ? process.env.NEXT_PUBLIC_API_URL || 'http://localhost:13001'
       : 'http://localhost:3000';
 
+    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
+
     const [commentsResponse, rankingResponse, trendingResponse, editorsPickResponse] = await Promise.all([
       fetch(`${server}/api/comments/recent?limit=10`),
-      fetch(`${server}/api/news?limit=10&sort=viewCount`),
+      fetch(`${server}/api/news?limit=10&sort=viewCount&${listFields}`),
       fetch(`${server}/api/news/trending?limit=5`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${server}/api/news/editors-pick?limit=6`).catch(() => ({ json: () => ({ success: false }) })),
     ]);
