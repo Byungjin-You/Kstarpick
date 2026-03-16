@@ -995,18 +995,15 @@ export async function getServerSideProps(context) {
     const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
 
     // Fetch all data in parallel
-    const [dramaResponse, dramaNewsResponse, commentsResponse, rankingResponse, allNewsResponse, reviewsResponse, trendingResponse] = await Promise.all([
-      fetch(`${prodUrl}/api/dramas?category=drama&limit=50&sortBy=orderNumber&sortOrder=asc`, {
-        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-      }),
-      fetch(`${prodUrl}/api/news/drama?page=1&limit=12&sort=createdAt&order=desc`, {
-        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-      }),
+    const [dramaResponse, dramaNewsResponse, commentsResponse, rankingResponse, allNewsResponse, reviewsResponse, trendingResponse, editorsPickResponse] = await Promise.all([
+      fetch(`${prodUrl}/api/dramas?category=drama&limit=50&sortBy=orderNumber&sortOrder=asc`),
+      fetch(`${prodUrl}/api/news/drama?page=1&limit=12&sort=createdAt&order=desc`),
       fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&${listFields}`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news?limit=200&${listFields}`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${baseUrl}/api/dramas/reviews/recent?limit=10&category=drama`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news/trending?limit=5&category=drama`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news/editors-pick?limit=6&category=drama`).catch(() => ({ json: () => ({ success: false }) })),
     ]);
 
     const dramaData = await dramaResponse.json();
@@ -1016,10 +1013,6 @@ export async function getServerSideProps(context) {
     const allNewsData = await allNewsResponse.json();
     const reviewsData = await reviewsResponse.json();
     const trendingData = await trendingResponse.json();
-
-    // Editor's PICK: trending ID 제외
-    const trendingIds = (trendingData.success ? trendingData.data || [] : []).map(n => n._id).join(',');
-    const editorsPickResponse = await fetch(`${prodUrl}/api/news/editors-pick?limit=6&category=drama${trendingIds ? `&exclude=${trendingIds}` : ''}`).catch(() => ({ json: () => ({ success: false }) }));
     const editorsPickData = await editorsPickResponse.json();
 
     // Fix relative image URLs to absolute production URLs

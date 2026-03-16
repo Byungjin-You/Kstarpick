@@ -2682,6 +2682,7 @@ async function createNewsItem(title, url, thumbnailUrl, category, timeText, orde
       email: 'crawler@soompi.com',
       image: '/images/default-avatar.png'
     },
+    status: 'published',
     createdAt: new Date(),
     publishedAt: new Date(), // 홈페이지 정렬을 위해 publishedAt 필드 추가
     updatedAt: new Date(),

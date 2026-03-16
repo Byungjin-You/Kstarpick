@@ -114,13 +114,8 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
   const navigateToPage = useCallback((path, e) => {
     if (e) e.preventDefault();
     if (router.pathname === path || router.asPath === path) return false;
-    try {
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('celebScrollPosition', window.scrollY.toString());
-      }
-    } catch (err) {}
     router.push(path);
-    return true;
+    return false;
   }, [router]);
 
   // YouTube modal
@@ -946,13 +941,14 @@ export async function getServerSideProps(context) {
     const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
 
     // Fetch all data in parallel
-    const [celebResponse, celebNewsResponse, commentsResponse, rankingResponse, allNewsResponse, trendingResponse] = await Promise.all([
+    const [celebResponse, celebNewsResponse, commentsResponse, rankingResponse, allNewsResponse, trendingResponse, editorsPickResponse] = await Promise.all([
       fetch(`${prodUrl}/api/celeb?limit=50&active=true`),
       fetch(`${prodUrl}/api/news/celeb?limit=200`),
       fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&category=celeb&${listFields}`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news?limit=200&${listFields}`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news/trending?limit=5&category=celeb`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news/editors-pick?limit=6&category=celeb`).catch(() => ({ json: () => ({ success: false }) })),
     ]);
 
     const celebData = await celebResponse.json();
@@ -961,10 +957,6 @@ export async function getServerSideProps(context) {
     const rankingData = await rankingResponse.json();
     const allNewsData = await allNewsResponse.json();
     const trendingData = await trendingResponse.json();
-
-    // Editor's PICK: trending ID 제외
-    const trendingIds = (trendingData.success ? trendingData.data || [] : []).map(n => n._id).join(',');
-    const editorsPickResponse = await fetch(`${prodUrl}/api/news/editors-pick?limit=6&category=celeb${trendingIds ? `&exclude=${trendingIds}` : ''}`).catch(() => ({ json: () => ({ success: false }) }));
     const editorsPickData = await editorsPickResponse.json();
 
     // Fix relative image URLs to absolute production URLs

@@ -649,12 +649,13 @@ export async function getServerSideProps(context) {
     const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
 
     // 병렬로 핵심 API 호출 (Watch News + Recent Comments 추가)
+    // 모든 API를 병렬로 호출 (editors-pick 포함)
     const [
       mainNewsRes,
       featuredNewsRes,
       recommendedNewsRes,
       trendingNewsRes,
-      , // editors-pick은 trending 결과 후 호출
+      editorsPickRes,
       musicRes,
       watchNewsRes,
       recentCommentsRes,
@@ -665,7 +666,7 @@ export async function getServerSideProps(context) {
       fetch(`${prodUrl}/api/news?featured=true&limit=20&createdAfter=${sevenDaysAgo.toISOString()}&${listFields}`),
       fetch(`${prodUrl}/api/news/related?limit=6`),
       fetch(`${prodUrl}/api/news/trending?limit=5`).catch(() => ({ json: () => ({ success: false }) })),
-      null, // editors-pick은 trending 결과 후 호출
+      fetch(`${prodUrl}/api/news/editors-pick?limit=6`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/music/popular?limit=5`),
       fetch(`${prodUrl}/api/news?title=Watch:&limit=11&${listFields}`),
       fetch(`${prodUrl}/api/comments/recent?limit=10`),
@@ -679,7 +680,7 @@ export async function getServerSideProps(context) {
       featuredNews,
       recommendedNews,
       trendingNewsData,
-      ,
+      editorsPickData,
       music,
       watchNewsInitial,
       recentComments,
@@ -690,18 +691,13 @@ export async function getServerSideProps(context) {
       featuredNewsRes.json(),
       recommendedNewsRes.json(),
       trendingNewsRes.json(),
-      Promise.resolve(null),
+      editorsPickRes.json(),
       musicRes.json(),
       watchNewsRes.json(),
       recentCommentsRes.json(),
       rankingNewsRes.json(),
       moreNewsRes.json()
     ]);
-
-    // Editor's PICK: trending ID 제외하여 호출
-    const trendingIds = (trendingNewsData.success ? trendingNewsData.data || [] : []).map(n => n._id).join(',');
-    const editorsPickRes = await fetch(`${prodUrl}/api/news/editors-pick?limit=6${trendingIds ? `&exclude=${trendingIds}` : ''}`).catch(() => ({ json: () => ({ success: false }) }));
-    const editorsPickData = await editorsPickRes.json();
 
     // Watch News: API에서 이미 title=Watch: 필터링 완료
     const watchNewsFiltered = watchNewsInitial.success && watchNewsInitial.data?.news

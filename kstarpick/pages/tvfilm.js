@@ -115,13 +115,8 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
   const navigateToPage = (path, e) => {
     if (e) e.preventDefault();
     if (router.pathname === path || router.asPath === path) return false;
-    try {
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('tvfilmScrollPosition', window.scrollY.toString());
-      }
-    } catch (err) {}
     router.push(path);
-    return true;
+    return false;
   };
 
   // YouTube modal
@@ -919,18 +914,15 @@ export async function getServerSideProps(context) {
 
     // Fetch all data in parallel
     // comments/recent may not exist on production, use local for that
-    const [moviesResponse, movieNewsResponse, commentsResponse, rankingResponse, allNewsResponse, reviewsResponse, trendingResponse] = await Promise.all([
-      fetch(`${prodUrl}/api/dramas?category=movie&limit=100&includeAllFields=true&sortBy=orderNumber&sortOrder=asc`, {
-        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-      }),
-      fetch(`${prodUrl}/api/news/movie?page=1&limit=12&sort=createdAt&order=desc&${listFields}`, {
-        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-      }),
+    const [moviesResponse, movieNewsResponse, commentsResponse, rankingResponse, allNewsResponse, reviewsResponse, trendingResponse, editorsPickResponse] = await Promise.all([
+      fetch(`${prodUrl}/api/dramas?category=movie&limit=100&includeAllFields=true&sortBy=orderNumber&sortOrder=asc`),
+      fetch(`${prodUrl}/api/news/movie?page=1&limit=12&sort=createdAt&order=desc&${listFields}`),
       fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&${listFields}`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news?limit=200&${listFields}`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${baseUrl}/api/dramas/reviews/recent?limit=10&category=movie`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news/trending?limit=5&category=movie`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news/editors-pick?limit=6&category=movie`).catch(() => ({ json: () => ({ success: false }) })),
     ]);
 
     const moviesData = await moviesResponse.json();
@@ -940,10 +932,6 @@ export async function getServerSideProps(context) {
     const allNewsData = await allNewsResponse.json();
     const reviewsData = await reviewsResponse.json();
     const trendingData = await trendingResponse.json();
-
-    // Editor's PICK: trending ID 제외
-    const trendingIds = (trendingData.success ? trendingData.data || [] : []).map(n => n._id).join(',');
-    const editorsPickResponse = await fetch(`${prodUrl}/api/news/editors-pick?limit=6&category=movie${trendingIds ? `&exclude=${trendingIds}` : ''}`).catch(() => ({ json: () => ({ success: false }) }));
     const editorsPickData = await editorsPickResponse.json();
 
     const movieNewsArray = Array.isArray(movieNewsData.data) ? movieNewsData.data : [];

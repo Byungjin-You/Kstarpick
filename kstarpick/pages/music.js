@@ -671,23 +671,19 @@ export async function getServerSideProps(context) {
       return url;
     };
 
-    const [newsRes, musicRes, watchRes, commentsRes, rankingRes, trendingRes] = await Promise.all([
+    const [newsRes, musicRes, watchRes, commentsRes, rankingRes, trendingRes, editorsPickRes] = await Promise.all([
       fetch(`${prodUrl}/api/news?category=kpop&limit=100&${listFields}`),
       fetch(`${prodUrl}/api/music/popular?limit=20`),
       fetch(`${prodUrl}/api/news?limit=200&${listFields}`),
       fetch(`${baseUrl}/api/comments/recent?limit=10`),
       fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&category=kpop&${listFields}`),
       fetch(`${prodUrl}/api/news/trending?limit=5&category=kpop`).catch(() => ({ json: () => ({ success: false }) })),
+      fetch(`${prodUrl}/api/news/editors-pick?limit=6&category=kpop`).catch(() => ({ json: () => ({ success: false }) })),
     ]);
 
-    const [newsData, musicData, allNewsData, commentsData, rankingData, trendingData] = await Promise.all([
-      newsRes.json(), musicRes.json(), watchRes.json(), commentsRes.json(), rankingRes.json(), trendingRes.json(),
+    const [newsData, musicData, allNewsData, commentsData, rankingData, trendingData, editorsPickData] = await Promise.all([
+      newsRes.json(), musicRes.json(), watchRes.json(), commentsRes.json(), rankingRes.json(), trendingRes.json(), editorsPickRes.json(),
     ]);
-
-    // Editor's PICK: trending ID 제외
-    const trendingIds = (trendingData.success ? trendingData.data || [] : []).map(n => n._id).join(',');
-    const editorsPickRes = await fetch(`${prodUrl}/api/news/editors-pick?limit=6&category=kpop${trendingIds ? `&exclude=${trendingIds}` : ''}`).catch(() => ({ json: () => ({ success: false }) }));
-    const editorsPickData = await editorsPickRes.json();
 
     // Process music news
     let musicNews = [];
