@@ -178,7 +178,7 @@ async function getNews(req, res) {
     console.log('[News API] NODE_ENV:', process.env.NODE_ENV);
 
     // 로컬 개발 환경에서 MONGODB_URI가 없거나 USE_LOCAL_DATA가 설정된 경우 로컬 데이터 사용
-    if (!MONGODB_URI || process.env.USE_LOCAL_DATA === 'true') {
+    if (!process.env.MONGODB_URI || process.env.USE_LOCAL_DATA === 'true') {
       console.log('[News API] Using local data file (no MONGODB_URI or USE_LOCAL_DATA=true)');
       return getNewsFromLocalData(req, res);
     }
