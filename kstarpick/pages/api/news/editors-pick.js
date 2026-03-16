@@ -1,7 +1,5 @@
-import { MongoClient, ObjectId } from 'mongodb';
-
-const MONGODB_URI = process.env.MONGODB_URI;
-const MONGODB_DB = process.env.MONGODB_DB || 'kstarpick';
+import { ObjectId } from 'mongodb';
+import { connectToDatabase } from '@/utils/mongodb';
 
 const NEWS_FIELDS = {
   _id: 1, slug: 1, title: 1, summary: 1, coverImage: 1,
@@ -30,8 +28,7 @@ export default async function handler(req, res) {
       ? req.query.exclude.split(',').filter(Boolean)
       : [];
 
-    const client = await MongoClient.connect(MONGODB_URI);
-    const db = client.db(MONGODB_DB);
+    const { db } = await connectToDatabase();
 
     const results = [];
     const usedIds = new Set(excludeIds);
@@ -126,8 +123,6 @@ export default async function handler(req, res) {
         }
       }
     }
-
-    await client.close();
 
     // undefined 필드를 빈 문자열로 변환 (Next.js SSR 직렬화 에러 방지)
     const safeResults = results.map(r => ({

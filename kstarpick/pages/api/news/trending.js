@@ -1,7 +1,4 @@
-import { MongoClient } from 'mongodb';
-
-const MONGODB_URI = process.env.MONGODB_URI;
-const MONGODB_DB = process.env.MONGODB_DB || 'kstarpick';
+import { connectToDatabase } from '@/utils/mongodb';
 
 const FIELDS = {
   _id: 1, slug: 1, title: 1, summary: 1, coverImage: 1,
@@ -27,8 +24,7 @@ export default async function handler(req, res) {
     const limit = Math.min(parseInt(req.query.limit, 10) || 5, 10);
     const category = req.query.category || null;
 
-    const client = await MongoClient.connect(MONGODB_URI);
-    const db = client.db(MONGODB_DB);
+    const { db } = await connectToDatabase();
     const collection = db.collection('news');
 
     const results = [];
@@ -74,8 +70,6 @@ export default async function handler(req, res) {
         }
       }
     }
-
-    await client.close();
 
     const safeResults = results.map(r => ({
       ...r,

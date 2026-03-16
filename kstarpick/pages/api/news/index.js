@@ -1,4 +1,4 @@
-import { MongoClient, ObjectId } from 'mongodb';
+import { ObjectId } from 'mongodb';
 import { getServerSession } from 'next-auth/next';
 import slugify from 'slugify';
 import formidable from 'formidable';
@@ -8,14 +8,7 @@ import jwt from 'jsonwebtoken';
 
 // Import the authOptions config
 import { authOptions } from '../auth/[...nextauth]';
-
-// MongoDB 연결 설정
-const MONGODB_URI = process.env.MONGODB_URI;
-const MONGODB_DB = process.env.MONGODB_DB || 'kstarpick';
-
-if (!MONGODB_URI) {
-  console.warn('[News API] MONGODB_URI not defined - will use local data fallback in development');
-}
+import { connectToDatabase } from '@/utils/mongodb';
 
 // Configure formidable options
 export const config = {
@@ -190,28 +183,7 @@ async function getNews(req, res) {
       return getNewsFromLocalData(req, res);
     }
 
-    // MongoDB 클라이언트 연결 - 로컬/프로덕션 환경 구분
-    const isLocal = process.env.NODE_ENV === 'development' && MONGODB_URI.includes('localhost');
-    const options = isLocal ? {
-      // 로컬 MongoDB 옵션
-      connectTimeoutMS: 5000,
-      serverSelectionTimeoutMS: 5000,
-    } : {
-      // 프로덕션 DocumentDB 옵션
-      retryWrites: false,
-      connectTimeoutMS: 30000,
-      socketTimeoutMS: 45000,
-      serverSelectionTimeoutMS: 30000,
-      authSource: 'admin',
-      authMechanism: 'SCRAM-SHA-1',
-    };
-
-    client = new MongoClient(MONGODB_URI, options);
-
-    await client.connect();
-    console.log('[News API] MongoDB 연결 성공');
-    
-    const db = client.db(MONGODB_DB);
+    const { db } = await connectToDatabase();
     
     // 파라미터 추출
     const {
@@ -392,7 +364,7 @@ async function getNews(req, res) {
     });
   } finally {
     if (client) {
-      await client.close();
+      // connection pool managed by utils/mongodb
       console.log('[News API] MongoDB 연결 종료');
     }
   }
@@ -402,30 +374,7 @@ async function createNews(req, res, session) {
   let client;
 
   try {
-    console.log('[createNews] === 네이티브 MongoDB 연결 시작 ===');
-
-    // MongoDB 클라이언트 연결 - 로컬/프로덕션 환경 구분
-    const isLocal = process.env.NODE_ENV === 'development' && MONGODB_URI.includes('localhost');
-    const options = isLocal ? {
-      // 로컬 MongoDB 옵션
-      connectTimeoutMS: 5000,
-      serverSelectionTimeoutMS: 5000,
-    } : {
-      // 프로덕션 DocumentDB 옵션
-      retryWrites: false,
-      connectTimeoutMS: 30000,
-      socketTimeoutMS: 45000,
-      serverSelectionTimeoutMS: 30000,
-      authSource: 'admin',
-      authMechanism: 'SCRAM-SHA-1',
-    };
-
-    client = new MongoClient(MONGODB_URI, options);
-
-    await client.connect();
-    console.log('[createNews] MongoDB 연결 성공');
-
-    const db = client.db(MONGODB_DB);
+    const { db } = await connectToDatabase();
 
     // Content-Type 확인하여 JSON 또는 FormData 처리 분기
     const contentType = req.headers['content-type'] || '';
@@ -658,7 +607,7 @@ async function createNews(req, res, session) {
         } finally {
           // MongoDB 연결 종료
           if (client) {
-            await client.close();
+            // connection pool managed by utils/mongodb
             console.log('[createNews] MongoDB 연결 종료');
           }
         }
@@ -667,7 +616,7 @@ async function createNews(req, res, session) {
   } catch (error) {
     console.error('[createNews] 전체 오류:', error);
     if (client) {
-      await client.close();
+      // connection pool managed by utils/mongodb
       console.log('[createNews] MongoDB 연결 종료 (오류 시)');
     }
     return res.status(500).json({
