@@ -80,25 +80,96 @@ async function saveImageHash(url, hash) {
   }
 }
 
-// Soompi 이미지 URL을 해시 기반 프록시 URL로 변환
+// 이미지를 다운로드하여 로컬 디스크에 저장하는 함수
+async function downloadImageToDisk(url, hash) {
+  const fs = require('fs');
+  const path = require('path');
+
+  const imageDir = path.join(process.cwd(), 'public', 'images', 'news');
+
+  // 디렉토리 생성
+  if (!fs.existsSync(imageDir)) {
+    fs.mkdirSync(imageDir, { recursive: true });
+  }
+
+  // 이미 파일이 존재하면 스킵
+  const possibleExts = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
+  for (const ext of possibleExts) {
+    if (fs.existsSync(path.join(imageDir, `${hash}${ext}`))) {
+      return `/images/news/${hash}${ext}`;
+    }
+  }
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        'Referer': 'https://www.soompi.com/',
+      },
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!response.ok) {
+      console.error(`[Image Download] HTTP ${response.status} for ${url}`);
+      return null;
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    let ext = '.jpg';
+    if (contentType.includes('png')) ext = '.png';
+    else if (contentType.includes('webp')) ext = '.webp';
+    else if (contentType.includes('gif')) ext = '.gif';
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+
+    // 10MB 초과 이미지는 저장하지 않음
+    if (buffer.length > 10 * 1024 * 1024) {
+      console.warn(`[Image Download] Image too large (${(buffer.length / 1024 / 1024).toFixed(1)}MB): ${url}`);
+      return null;
+    }
+
+    const filePath = path.join(imageDir, `${hash}${ext}`);
+    fs.writeFileSync(filePath, buffer);
+    console.log(`[Image Download] Saved: ${hash}${ext} (${(buffer.length / 1024).toFixed(0)}KB)`);
+
+    return `/images/news/${hash}${ext}`;
+  } catch (error) {
+    console.error(`[Image Download] Failed to download ${url}:`, error.message);
+    return null;
+  }
+}
+
+// Soompi 이미지 URL을 로컬 이미지 경로로 변환
 async function convertSoompiImageToProxy(soompiImageUrl) {
   if (!soompiImageUrl) return null;
-  
-  // 이미 우리 사이트 URL이면 그대로 반환
-  if (soompiImageUrl.startsWith('/api/proxy/') || soompiImageUrl.startsWith('/images/')) {
+
+  // 이미 로컬 이미지면 그대로 반환
+  if (soompiImageUrl.startsWith('/images/')) {
     return soompiImageUrl;
   }
-  
-  // 외부 이미지 URL인 경우 해시 기반 프록시 URL로 변환
+
+  // 이미 해시 프록시 URL이면 로컬 이미지로 변환 시도
+  if (soompiImageUrl.startsWith('/api/proxy/hash-image')) {
+    return soompiImageUrl; // 기존 URL은 hash-image API가 처리 (점진적 마이그레이션)
+  }
+
+  // 외부 이미지 URL인 경우 다운로드 후 로컬 경로 반환
   if (soompiImageUrl.startsWith('http://') || soompiImageUrl.startsWith('https://')) {
     const hash = createImageHash(soompiImageUrl);
-    
-    // 해시를 DB에 저장
+
+    // DB에 해시 저장 (fallback용)
     await saveImageHash(soompiImageUrl, hash);
-    
+
+    // 이미지를 디스크에 다운로드
+    const localPath = await downloadImageToDisk(soompiImageUrl, hash);
+    if (localPath) {
+      return localPath;
+    }
+
+    // 다운로드 실패 시 기존 프록시 URL로 fallback
     return `/api/proxy/hash-image?hash=${hash}`;
   }
-  
+
   return soompiImageUrl;
 }
 

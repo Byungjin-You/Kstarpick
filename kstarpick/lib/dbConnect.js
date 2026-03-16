@@ -114,30 +114,18 @@ async function dbConnect() {
         console.log('[Mongoose] Successfully connected to MongoDB');
         console.log('[Mongoose] Connection state:', mongoose.connection.readyState);
         
-        // 연결 오류 이벤트 리스너 추가
+        // 연결 오류 이벤트 리스너 (로깅만 - 다음 API 요청 시 자연스럽게 재연결)
         mongoose.connection.on('error', (err) => {
-          console.error('[Mongoose] Connection error event:', err);
+          console.error('[Mongoose] Connection error event:', err.message);
           cached.conn = null;
           cached.promise = null;
-          
-          // 오류 발생 시 5초 후 자동 재연결 시도
-          setTimeout(() => {
-            console.log('[Mongoose] Attempting to reconnect after error...');
-            dbConnect().catch(e => console.error('[Mongoose] Reconnection failed:', e));
-          }, 5000);
         });
-        
-        // 연결 끊김 이벤트 리스너 추가
+
+        // 연결 끊김 이벤트 리스너 (로깅만 - 다음 API 요청 시 자연스럽게 재연결)
         mongoose.connection.on('disconnected', () => {
           console.log('[Mongoose] Disconnected from MongoDB');
           cached.conn = null;
           cached.promise = null;
-          
-          // 연결 끊김 시 3초 후 자동 재연결 시도
-          setTimeout(() => {
-            console.log('[Mongoose] Attempting to reconnect after disconnect...');
-            dbConnect().catch(e => console.error('[Mongoose] Reconnection failed:', e));
-          }, 3000);
         });
         
         return mongoose;

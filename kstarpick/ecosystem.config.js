@@ -14,6 +14,9 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '1G',
+      exp_backoff_restart_delay: 1000,
+      max_restarts: 10,
+      min_uptime: 10000,
       error_file: '/doohub/service/kstarpick/logs/kstarpick-error.log',
       out_file: '/doohub/service/kstarpick/logs/kstarpick-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
