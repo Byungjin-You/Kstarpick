@@ -153,20 +153,16 @@ async function convertSoompiImageToProxy(soompiImageUrl) {
     return soompiImageUrl; // 기존 URL은 hash-image API가 처리 (점진적 마이그레이션)
   }
 
-  // 외부 이미지 URL인 경우 다운로드 후 로컬 경로 반환
+  // 외부 이미지 URL인 경우 다운로드 후 hash-image URL 반환
   if (soompiImageUrl.startsWith('http://') || soompiImageUrl.startsWith('https://')) {
     const hash = createImageHash(soompiImageUrl);
 
-    // DB에 해시 저장 (fallback용)
+    // DB에 해시 저장
     await saveImageHash(soompiImageUrl, hash);
 
-    // 이미지를 디스크에 다운로드
-    const localPath = await downloadImageToDisk(soompiImageUrl, hash);
-    if (localPath) {
-      return localPath;
-    }
+    // 이미지를 디스크에 미리 다운로드 (hash-image API에서 디스크 캐시로 즉시 응답)
+    await downloadImageToDisk(soompiImageUrl, hash);
 
-    // 다운로드 실패 시 기존 프록시 URL로 fallback
     return `/api/proxy/hash-image?hash=${hash}`;
   }
 
