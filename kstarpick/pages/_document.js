@@ -55,6 +55,13 @@ export default function Document() {
         <meta name="msapplication-TileImage" content="/images/favicon/icons8-popular-3d-fluency-144.png" />
         <link rel="manifest" href="/site.webmanifest" />
 
+        {/* Google AdSense */}
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4681824728161634"
+          crossOrigin="anonymous"
+        />
+
         {/* Web Fonts - Inter, Noto Sans KR, Poppins, Pretendard */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
