@@ -214,22 +214,9 @@ async function getNews(req, res) {
       andConditions.push({ featured: true });
     }
     
-    // 오류가 발생한 뉴스 필터링 (어드민 모드가 아닐 때만 적용)
+    // published 상태 뉴스만 표시 (어드민 모드가 아닐 때)
     if (adminMode !== 'true') {
-    andConditions.push({
-      $or: [
-        { title: { $exists: true, $ne: '', $ne: null } },
-        { title: { $exists: false } }
-      ]
-    });
-    
-    andConditions.push({
-      $or: [
-        { content: { $exists: false } },
-        { content: { $ne: '<p>상세 기사를 가져오는 중 오류가 발생했습니다. 원본 페이지를 방문해 주세요.</p>' } },
-        { content: { $not: { $regex: '^<p>상세 기사를 가져오는 중 오류가 발생했습니다' } } }
-      ]
-    });
+      andConditions.push({ status: 'published' });
     }
     
     // 제목 검색 기능 추가
