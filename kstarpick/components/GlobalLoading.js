@@ -31,7 +31,7 @@ const GlobalLoading = () => {
   if (!loading) return null;
 
   return (
-    <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div className="fixed left-0 right-0 bottom-0 bg-white/80 backdrop-blur-sm z-40 flex items-center justify-center" style={{ top: '52px' }}>
       <div className="flex flex-col items-center">
         {/* 로딩 애니메이션 */}
         <div className="relative w-16 h-16 mb-4">
