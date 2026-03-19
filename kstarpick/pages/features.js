@@ -70,7 +70,7 @@ export default function Features() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <Header />
+      {/* Header는 _app.js에서 렌더 */}
       
       {/* Page header with gradient background */}
       <div className="bg-gradient-to-r from-[#ff3e8e] to-[#ffb67b] text-white">

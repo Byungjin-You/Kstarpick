@@ -3,7 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
-import Header from '../../components/Header';
+// Header는 _app.js에서 렌더 (리마운트 방지)
 import Footer from '../../components/Footer';
 import Seo from '../../components/Seo';
 import StructuredData from '../../components/StructuredData';
@@ -1686,7 +1686,7 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
   if (!newsArticle) {
     return (
       <div className="min-h-screen flex flex-col bg-white">
-        <Header />
+        {/* Header는 _app.js에서 렌더 */}
         <main className="flex-grow flex items-center justify-center">
           <div className="text-center p-10 animate-pulse">
             <div className="w-24 h-24 bg-gradient-to-br from-pink-500 to-rose-500 rounded-full mx-auto mb-6 flex items-center justify-center">
@@ -1955,7 +1955,7 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
       />
       <Analytics />
 
-      <Header />
+      {/* Header는 _app.js에서 렌더 */}
 
       <main className="flex-grow">
         {isLoading ? (
@@ -2184,22 +2184,24 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                 </span>
                 <div className="flex flex-wrap" style={{ gap: '6px' }}>
                   {newsArticle.tags.map((tag, idx) => (
-                    <span
-                      key={idx}
-                      style={{
-                        backgroundColor: 'rgba(153, 161, 175, 0.15)',
-                        borderRadius: '60px',
-                        padding: '3px 8px',
-                        fontFamily: 'Inter, sans-serif',
-                        fontWeight: 600,
-                        fontSize: '10px',
-                        lineHeight: '1.5em',
-                        letterSpacing: '0.12px',
-                        color: '#99A1AF',
-                      }}
-                    >
-                      #{tag}
-                    </span>
+                    <Link key={idx} href={`/search?q=${encodeURIComponent(tag)}`}>
+                      <span
+                        className="cursor-pointer hover:opacity-80 transition-opacity"
+                        style={{
+                          backgroundColor: 'rgba(153, 161, 175, 0.15)',
+                          borderRadius: '60px',
+                          padding: '3px 8px',
+                          fontFamily: 'Inter, sans-serif',
+                          fontWeight: 600,
+                          fontSize: '10px',
+                          lineHeight: '1.5em',
+                          letterSpacing: '0.12px',
+                          color: '#99A1AF',
+                        }}
+                      >
+                        #{tag}
+                      </span>
+                    </Link>
                   ))}
                 </div>
               </div>

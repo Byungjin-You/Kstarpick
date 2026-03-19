@@ -1,12 +1,13 @@
 import '../styles/globals.css';
 import { Fragment } from 'react';
 import { SessionProvider } from 'next-auth/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Analytics from '../components/Analytics';
 import GlobalLoading from '../components/GlobalLoading';
+import Header from '../components/Header';
 
 // 전역 오류 핸들러 추가
 if (typeof window !== 'undefined') {
@@ -61,6 +62,7 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       '/drama': { key: 'dramaScrollPosition', flag: 'isBackToDrama', hasMoreNews: true },
       '/drama/[id]': { key: 'dramaDetailScrollPosition', flag: 'isBackToDramaDetail' },
       '/tvfilm': { key: 'tvfilmScrollPosition', flag: 'isBackToTvfilm', hasMoreNews: true },
+      '/tvfilm/[id]': { key: 'tvfilmDetailScrollPosition', flag: 'isBackToTvfilm' },
       '/music': { key: 'musicScrollPosition', flag: 'isBackToMusic', hasMoreNews: true },
       '/celeb': { key: 'celebScrollPosition', flag: 'isBackToCeleb', hasMoreNews: true },
       '/celeb/[slug]': { key: 'celebDetailScrollPosition', flag: 'isBackToCelebDetail' },
@@ -74,6 +76,7 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       if (pageScrollConfig[path]) return pageScrollConfig[path];
       // 동적 라우트
       if (path.startsWith('/drama/') && path !== '/drama') return pageScrollConfig['/drama/[id]'];
+      if (path.startsWith('/tvfilm/') && path !== '/tvfilm') return pageScrollConfig['/tvfilm/[id]'];
       if (path.startsWith('/celeb/') && path !== '/celeb') return pageScrollConfig['/celeb/[slug]'];
       // 뉴스 상세: 슬러그별 개별 키
       if (path.startsWith('/news/') && path !== '/news') {
@@ -514,6 +517,137 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
     };
   }, []);
 
+  // 모바일 좌우 스와이프 페이지 네비게이션
+  // 스와이프 네비게이션 (밀리는 효과 + 다음 페이지 이름 표시)
+  const pageWrapperRef = useRef(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const menuPages = ['/', '/drama', '/tvfilm', '/music', '/celeb', '/ranking'];
+    let startX = 0, startY = 0, moveX = 0;
+    let swiping = false, dirLocked = false, isHorizontal = false;
+
+    const isInScrollableArea = (el) => {
+      while (el && el !== document.body) {
+        if (el.scrollWidth > el.clientWidth + 5) {
+          const style = window.getComputedStyle(el);
+          const overflow = style.overflowX || style.overflow;
+          if (overflow === 'auto' || overflow === 'scroll' || overflow === 'hidden') return true;
+        }
+        el = el.parentElement;
+      }
+      return false;
+    };
+
+    const getNextIdx = (currentIdx, diffX) => {
+      if (diffX < 0 && currentIdx < menuPages.length - 1) return currentIdx + 1;
+      if (diffX > 0 && currentIdx > 0) return currentIdx - 1;
+      return -1;
+    };
+
+    const onTouchStart = (e) => {
+      if (isInScrollableArea(e.target)) { swiping = false; return; }
+      const currentPath = window.location.pathname;
+      if (!menuPages.includes(currentPath)) { swiping = false; return; }
+      if (currentPath.startsWith('/admin') || currentPath.startsWith('/news/') || currentPath.startsWith('/auth')) { swiping = false; return; }
+
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      moveX = 0;
+      swiping = true;
+      dirLocked = false;
+      isHorizontal = false;
+
+      const wrapper = document.querySelector('main') || pageWrapperRef.current;
+      if (wrapper) wrapper.style.transition = 'none';
+    };
+
+    const onTouchMove = (e) => {
+      if (!swiping) return;
+      const diffX = e.touches[0].clientX - startX;
+      const diffY = e.touches[0].clientY - startY;
+
+      if (!dirLocked) {
+        if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) {
+          dirLocked = true;
+          isHorizontal = Math.abs(diffX) > Math.abs(diffY) * 1.2;
+        }
+        if (!isHorizontal) return;
+      }
+      if (!isHorizontal) return;
+
+      // 수평 스와이프 중 수직 스크롤 방지
+      e.preventDefault();
+
+      const currentIdx = menuPages.indexOf(window.location.pathname);
+      const nextIdx = getNextIdx(currentIdx, diffX);
+      if (nextIdx === -1) {
+        // 끝이면 저항감 (1/4만 이동)
+        moveX = diffX * 0.25;
+      } else {
+        // 최대 화면 너비까지만
+        moveX = Math.max(-window.innerWidth, Math.min(window.innerWidth, diffX));
+      }
+
+      const wrapper = document.querySelector('main') || pageWrapperRef.current;
+      if (wrapper) {
+        wrapper.style.transform = `translateX(${moveX}px)`;
+      }
+    };
+
+    const onTouchEnd = () => {
+      if (!swiping || !isHorizontal) {
+        swiping = false;
+        return;
+      }
+      swiping = false;
+
+      const wrapper = document.querySelector('main') || pageWrapperRef.current;
+      const currentIdx = menuPages.indexOf(window.location.pathname);
+      const threshold = 80;
+
+      if (Math.abs(moveX) > threshold) {
+        const nextIdx = getNextIdx(currentIdx, moveX);
+        if (nextIdx !== -1) {
+          if (wrapper) {
+            wrapper.style.transition = 'transform 0.2s ease-out';
+            wrapper.style.transform = `translateX(${moveX < 0 ? '-100%' : '100%'})`;
+          }
+          window.__swipeNavigating = true;
+          // 라우트 변경 전에 인디케이터를 먼저 이동
+          window.dispatchEvent(new CustomEvent('swipe-nav', { detail: { path: menuPages[nextIdx] } }));
+          setTimeout(() => {
+            router.push(menuPages[nextIdx]).then(() => {
+              const el = document.querySelector('main');
+              if (el) {
+                el.style.transition = 'none';
+                el.style.transform = 'translateX(0)';
+              }
+              window.__swipeNavigating = false;
+            });
+          }, 180);
+          return;
+        }
+      }
+
+      // 스와이프 취소: 바운스백
+      if (wrapper) {
+        wrapper.style.transition = 'transform 0.25s ease-out';
+        wrapper.style.transform = 'translateX(0)';
+      }
+    };
+
+    document.addEventListener('touchstart', onTouchStart, { passive: true });
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      document.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [router]);
+
 
   return (
     <Fragment>
@@ -536,7 +670,11 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
               </div>
             </div>
           )}
-          <Component {...pageProps} />
+          {/* Header를 _app에서 렌더 → 페이지 전환 시 리마운트 안 됨 */}
+          {!router.pathname.startsWith('/admin') && !router.pathname.startsWith('/auth') && <Header />}
+          <div ref={pageWrapperRef} style={{ willChange: 'transform' }}>
+            <Component {...pageProps} />
+          </div>
         </SessionProvider>
       </QueryClientProvider>
     </Fragment>

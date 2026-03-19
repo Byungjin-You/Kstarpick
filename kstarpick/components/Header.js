@@ -17,6 +17,10 @@ const Header = () => {
   const [isMounted, setIsMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const searchInputRef = useRef(null);
+  const navRef = useRef(null);
+  const tabRefs = useRef({});
+  const indicatorRef = useRef(null);
+
 
   // Initialize client-side state after mounting to avoid hydration mismatch
   useEffect(() => {
@@ -93,6 +97,46 @@ const Header = () => {
       router.events.off('routeChangeComplete', handleRouteChange);
     };
   }, [router.events, isMenuOpen]);
+
+  // 인디케이터 DOM 직접 이동 + 전역 변수에 저장 (리마운트 시 즉시 복원)
+  const moveIndicator = (path, animate) => {
+    const tab = tabRefs.current[path];
+    const nav = navRef.current;
+    const el = indicatorRef.current;
+    if (!tab || !nav || !el) return;
+    const navRect = nav.getBoundingClientRect();
+    const tabRect = tab.getBoundingClientRect();
+    const left = tabRect.left - navRect.left + nav.scrollLeft;
+    const width = tabRect.width;
+    el.style.transition = animate ? 'left 0.3s ease, width 0.3s ease' : 'none';
+    el.style.left = left + 'px';
+    el.style.width = width + 'px';
+    el.style.display = 'block';
+    // 전역에 저장 → 리마운트 시 즉시 복원용
+    if (typeof window !== 'undefined') {
+      window.__indicatorPos = { left, width };
+    }
+  };
+
+  // pathname 변경 시 인디케이터 위치 업데이트 (Header는 _app.js에서 렌더되므로 리마운트 없음)
+  useEffect(() => {
+    const t = setTimeout(() => moveIndicator(router.pathname, true), 20);
+    return () => clearTimeout(t);
+  }, [router.pathname]);
+
+  // 스와이프 네비게이션: 라우트 변경 전에 인디케이터 먼저 이동
+  useEffect(() => {
+    const handleSwipeNav = (e) => {
+      const path = e.detail?.path;
+      if (path) {
+        moveIndicator(path, true);
+        const tab = tabRefs.current[path];
+        if (tab) tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    };
+    window.addEventListener('swipe-nav', handleSwipeNav);
+    return () => window.removeEventListener('swipe-nav', handleSwipeNav);
+  }, []);
 
   // 같은 메뉴 클릭 처리 함수
   const handleSameMenuClick = (e) => {
@@ -340,20 +384,21 @@ const Header = () => {
                 e.preventDefault();
                 sessionStorage.setItem('logoClicked', 'true');
                 window.scrollTo(0, 0);
-                router.push('/');
+                if (router.pathname !== '/') router.push('/');
               }} className="block cursor-pointer py-2 pr-1">
                 <img src="/images/k-logo-mobile.svg" alt="KstarPick" width={16} height={17} />
               </div>
             </div>
             {/* Horizontal tabs - scrollable */}
             <div className="relative flex-1 min-w-0">
-              <nav className="flex items-center gap-[12px] h-full overflow-x-auto scrollbar-hide">
+              <nav ref={navRef} className="relative flex items-center gap-[12px] h-full overflow-x-auto scrollbar-hide">
                 {navItems.map(item => {
                   const isActive = router.pathname === item.path;
                   return (
                     <Link
                       key={item.path}
                       href={item.path}
+                      ref={el => { tabRefs.current[item.path] = el; }}
                       className={`relative flex-shrink-0 flex items-center h-full text-[15px] transition-colors ${
                         isActive
                           ? 'font-bold text-ksp-accent'
@@ -363,11 +408,16 @@ const Header = () => {
                       onClick={isActive ? handleSameMenuClick : undefined}
                     >
                       {item.label}
-                      {isActive && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-ksp-accent" />}
                     </Link>
                   );
                 })}
                 <div className="flex-shrink-0 w-[28px]" />
+                {/* 슬라이딩 인디케이터 */}
+                <span
+                  ref={indicatorRef}
+                  className="absolute bottom-0 h-[2px] bg-ksp-accent"
+                  style={{ display: 'none', left: 0, width: 0 }}
+                />
               </nav>
               {/* Fade gradient overlay on right edge */}
               <div className="absolute right-0 top-0 w-10 h-full pointer-events-none" style={{ background: 'linear-gradient(270deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 100%)' }} />

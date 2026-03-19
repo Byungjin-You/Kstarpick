@@ -255,45 +255,7 @@ export default function TVFilmDetail({ tvfilm, relatedNews, recentComments, rank
     router.push(path);
   }, [router]);
 
-  // 스크롤 위치 복원 로직 - tvfilm 페이지에서 뒤로가기 시
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const isBackToTvfilm = sessionStorage.getItem('isBackToTvfilm');
-    const savedScrollPosition = sessionStorage.getItem('tvfilmDetailScrollPosition');
-
-    if (isBackToTvfilm === 'true' && savedScrollPosition) {
-      const scrollPos = parseInt(savedScrollPosition, 10);
-
-      const restoreScroll = () => {
-        // body에 직접 스크롤 설정
-        document.body.scrollTop = scrollPos;
-        document.documentElement.scrollTop = scrollPos;
-        window.scrollTo(0, scrollPos);
-      };
-
-      // 여러 시도로 동적 콘텐츠 로딩을 고려
-      setTimeout(restoreScroll, 0);
-      setTimeout(restoreScroll, 50);
-      setTimeout(restoreScroll, 100);
-      setTimeout(restoreScroll, 200);
-      setTimeout(restoreScroll, 300);
-      setTimeout(restoreScroll, 500);
-      setTimeout(restoreScroll, 800);
-
-      requestAnimationFrame(() => {
-        setTimeout(restoreScroll, 100);
-        setTimeout(restoreScroll, 300);
-        setTimeout(restoreScroll, 500);
-      });
-
-      // 플래그 제거
-      setTimeout(() => {
-        sessionStorage.removeItem('isBackToTvfilm');
-        sessionStorage.removeItem('tvfilmDetailScrollPosition');
-      }, 1000);
-    }
-  }, [router.asPath]);
+  // 스크롤 복원은 _app.js의 pageScrollConfig에서 처리 (tvfilmDetailScrollPosition 키 사용)
 
   // 댓글 데이터 클라이언트 fallback
   useEffect(() => {
@@ -2746,6 +2708,7 @@ export default function TVFilmDetail({ tvfilm, relatedNews, recentComments, rank
                         if (typeof window !== 'undefined') {
                           const scrollPosition = document.body.scrollTop || window.pageYOffset || document.documentElement.scrollTop;
                           sessionStorage.setItem('tvfilmDetailScrollPosition', scrollPosition.toString());
+                          sessionStorage.setItem('tvfilmDetailScrollPositionPath', window.location.pathname);
                           sessionStorage.setItem('isBackToTvfilm', 'true');
                         }
                       }}
