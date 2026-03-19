@@ -112,15 +112,25 @@ export default async function handler(req, res) {
       createdAt: { $gte: yesterday, $lt: today }
     }).catch(() => 0);
 
-    // 8. 기간별 TOP 콘텐츠 (급상승: 최근 24시간 조회수/시간 기준)
+    // 8. Trending: 6시간 → 12시간 → 24시간 폴백, views/hour 기준
+    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const trendingArticlesPromise = db.collection('news').find({
-      createdAt: { $gte: oneDayAgo }
-    })
-      .sort({ viewCount: -1 })
-      .limit(10)
-      .project({ title: 1, category: 1, viewCount: 1, createdAt: 1, coverImage: 1, slug: 1, reactions: 1 })
-      .toArray();
+    const trendingProjection = { title: 1, category: 1, viewCount: 1, createdAt: 1, coverImage: 1, slug: 1, reactions: 1 };
+    // 6시간, 12시간, 24시간 모두 가져오기 (병렬)
+    const [trending6h, trending12h, trending24h] = await Promise.all([
+      db.collection('news').find({ createdAt: { $gte: sixHoursAgo }, viewCount: { $gte: 1 } }).sort({ viewCount: -1 }).limit(30).project(trendingProjection).toArray(),
+      db.collection('news').find({ createdAt: { $gte: twelveHoursAgo }, viewCount: { $gte: 1 } }).sort({ viewCount: -1 }).limit(30).project(trendingProjection).toArray(),
+      db.collection('news').find({ createdAt: { $gte: oneDayAgo }, viewCount: { $gte: 1 } }).sort({ viewCount: -1 }).limit(30).project(trendingProjection).toArray(),
+    ]);
+    // 폴백: 6시간 내 기사 있으면 사용, 없으면 12시간, 없으면 24시간
+    const trendingRaw = trending6h.length >= 3 ? trending6h : trending12h.length >= 3 ? trending12h : trending24h;
+    // views/hour 계산 후 정렬
+    const now = Date.now();
+    const trendingArticlesResult = trendingRaw.map(a => {
+      const hoursAge = Math.max(1, (now - new Date(a.createdAt).getTime()) / (1000 * 60 * 60));
+      return { ...a, viewsPerHour: (a.viewCount || 0) / hoursAge };
+    }).sort((a, b) => b.viewsPerHour - a.viewsPerHour).slice(0, 10);
 
     // 일별 TOP (오늘)
     const dailyTopPromise = db.collection('news').find({
@@ -154,7 +164,6 @@ export default async function handler(req, res) {
       totalViewsResult,
       todayComments,
       yesterdayComments,
-      trendingArticles,
       dailyTopArticles,
       weeklyTopArticles
     ] = await Promise.all([
@@ -168,7 +177,6 @@ export default async function handler(req, res) {
       totalViewsPromise,
       todayCommentsPromise,
       yesterdayCommentsPromise,
-      trendingArticlesPromise,
       dailyTopPromise,
       weeklyTopPromise
     ]);
@@ -229,7 +237,7 @@ export default async function handler(req, res) {
           };
         }),
         topContent: {
-          trending: trendingArticles.map(a => ({ ...a, _id: a._id.toString(), createdAt: a.createdAt?.toISOString(), totalReactions: Object.values(a.reactions || {}).reduce((s, v) => s + (v || 0), 0) })),
+          trending: trendingArticlesResult.map(a => ({ ...a, _id: a._id.toString(), createdAt: a.createdAt?.toISOString(), totalReactions: Object.values(a.reactions || {}).reduce((s, v) => s + (v || 0), 0), viewsPerHour: Math.round(a.viewsPerHour * 10) / 10 })),
           daily: dailyTopArticles.map(a => ({ ...a, _id: a._id.toString(), createdAt: a.createdAt?.toISOString(), totalReactions: Object.values(a.reactions || {}).reduce((s, v) => s + (v || 0), 0) })),
           weekly: weeklyTopArticles.map(a => ({ ...a, _id: a._id.toString(), createdAt: a.createdAt?.toISOString(), totalReactions: Object.values(a.reactions || {}).reduce((s, v) => s + (v || 0), 0) })),
           monthly: popularArticles.map(a => ({ ...a, _id: a._id.toString(), createdAt: a.createdAt?.toISOString(), totalReactions: Object.values(a.reactions || {}).reduce((s, v) => s + (v || 0), 0) })),
