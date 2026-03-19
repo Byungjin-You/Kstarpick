@@ -43,8 +43,6 @@ import {
   Calendar,
   Layers,
   Heart,
-  Sparkles,
-  Lightbulb
 } from 'lucide-react';
 import AdminLayout from '../../components/AdminLayout';
 
@@ -75,15 +73,32 @@ export default function AdminDashboard() {
   const [gaLoading, setGaLoading] = useState(false);
   const [isUserAnalyticsOpen, setIsUserAnalyticsOpen] = useState(true);
   const [chartTooltip, setChartTooltip] = useState({ visible: false, x: 0, y: 0, date: '', value: 0 });
+  const [countryTooltip, setCountryTooltip] = useState({ visible: false, x: 0, y: 0, date: '', data: [] });
+  const [sessionTooltip, setSessionTooltip] = useState({ visible: false, x: 0, y: 0, date: '', sessions: 0, pageViews: 0, dau: 0 });
+  const [isUserFlowExpanded, setIsUserFlowExpanded] = useState(false);
   const [dataMultiplier, setDataMultiplier] = useState(1);
   const [isMultiplierOpen, setIsMultiplierOpen] = useState(false);
   const [isSavingMultiplier, setIsSavingMultiplier] = useState(false);
   const [dashboardStats, setDashboardStats] = useState(null);
   const [dashboardStatsLoading, setDashboardStatsLoading] = useState(false);
 
-  // AI Trending Insight
-  const [trendInsight, setTrendInsight] = useState(null);
-  const [trendInsightLoading, setTrendInsightLoading] = useState(false);
+  // TOP 콘텐츠 탭
+  const [topContentTab, setTopContentTab] = useState('trending');
+
+  // GA 기간 선택 (Traffic Sources, Countries)
+  const [gaPeriod, setGaPeriod] = useState(30);
+  const [gaCustomDate, setGaCustomDate] = useState('');
+  const handleGaPeriodChange = (period) => {
+    setGaPeriod(period);
+    setGaCustomDate('');
+    fetchGAData(period);
+  };
+  const handleGaDateChange = (dateStr) => {
+    setGaCustomDate(dateStr);
+    setGaPeriod(null);
+    fetchGAData(null, dateStr, dateStr);
+  };
+
 
   // 배율 설정을 변경할 수 있는 슈퍼 관리자 이메일
   const SUPER_ADMIN_EMAIL = 'y@fsn.co.kr';
@@ -139,9 +154,15 @@ export default function AdminDashboard() {
   const getScaledData = () => {
     if (!gaData) return null;
 
-    const scale = (value) => Math.round(value * dataMultiplier);
+    const scale = (value) => {
+      if (dataMultiplier <= 1) return Math.round(value * dataMultiplier);
+      const base = value * dataMultiplier;
+      // 값 기반 시드로 ±3% 노이즈 (같은 값은 항상 같은 노이즈)
+      const noise = 1 + (seededRandom(dauSeed, Math.abs(Math.round(value)) % 9999) - 0.5) * 0.06;
+      return Math.round(base * noise);
+    };
 
-    // DAU 값 (D-2 기준, 배율 적용 전 원본 값)
+    // DAU 값 (D-1 기준, 배율 적용 전 원본 값)
     const rawDAU = gaData.summary?.dau?.users || 100;
     // 배율 적용된 DAU
     const scaledDAU = rawDAU * dataMultiplier;
@@ -233,6 +254,10 @@ export default function AdminDashboard() {
           ...c,
           users: scale(c.users),
         })),
+        dailyCountries: gaData.demographics.dailyCountries?.map(dc => ({
+          ...dc,
+          users: scale(dc.users),
+        })),
         devices: gaData.demographics.devices?.map(d => ({
           ...d,
           users: scale(d.users),
@@ -266,6 +291,7 @@ export default function AdminDashboard() {
           pageViews: scale(p.pageViews),
           avgTimeOnPage: varyTime(p.avgTimeOnPage, 15, 40 + i),
         })),
+        dailyEngagement: gaData.engagementMetrics?.dailyEngagement || [],
       },
       trafficSources: {
         sources: gaData.trafficSources?.sources?.map((s, i) => ({
@@ -611,10 +637,17 @@ export default function AdminDashboard() {
   }, []);
 
   // GA 데이터 가져오기
-  const fetchGAData = async () => {
+  const fetchGAData = async (period, startDate, endDate) => {
     try {
       setGaLoading(true);
-      const response = await fetch('/api/analytics/ga-realtime', {
+      let url = '/api/analytics/ga-realtime';
+      if (startDate && endDate) {
+        url += `?startDate=${startDate}&endDate=${endDate}`;
+      } else {
+        const p = period || gaPeriod || 30;
+        url += `?period=${p}`;
+      }
+      const response = await fetch(url, {
         credentials: 'include',
       });
       const data = await response.json();
@@ -664,69 +697,6 @@ export default function AdminDashboard() {
     }
   }, [session]);
 
-  // AI Trending Insight - fetch cached or auto-generate at 10AM
-  const fetchTrendInsight = async () => {
-    try {
-      const res = await fetch('/api/admin/trending-insight', { credentials: 'include' });
-      const data = await res.json();
-      if (data.success && data.insight) {
-        setTrendInsight(data.insight);
-        return data.insight;
-      }
-      return null;
-    } catch { return null; }
-  };
-
-  const generateTrendInsight = async () => {
-    if (!dashboardStats?.popularArticles?.length) return;
-    setTrendInsightLoading(true);
-    try {
-      const res = await fetch('/api/admin/trending-insight', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          articles: dashboardStats.popularArticles.map(a => ({
-            ...a,
-            viewCount: (a.viewCount || 0) * dataMultiplier,
-            totalReactions: a.totalReactions || 0
-          })),
-          categoryStats: (dashboardStats.contentStats?.categories || []).map(c => ({
-            ...c,
-            totalViews: (c.totalViews || 0) * dataMultiplier
-          })),
-          multiplier: dataMultiplier
-        })
-      });
-      const data = await res.json();
-      if (data.success) setTrendInsight(data.insight);
-    } catch (err) {
-      console.error('Trend insight error:', err);
-    } finally {
-      setTrendInsightLoading(false);
-    }
-  };
-
-  // Auto-check: generate insight if none exists for today after 10AM
-  useEffect(() => {
-    if (!dashboardStats?.popularArticles?.length) return;
-
-    (async () => {
-      const cached = await fetchTrendInsight();
-      if (cached?.createdAt) {
-        const lastDate = new Date(cached.createdAt);
-        const now = new Date();
-        const today10AM = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0, 0);
-        // If insight is from before today 10AM and current time is past 10AM, regenerate
-        if (now >= today10AM && lastDate < today10AM) {
-          generateTrendInsight();
-        }
-      } else {
-        // No cached insight at all, generate one
-        generateTrendInsight();
-      }
-    })();
-  }, [dashboardStats?.popularArticles]);
 
   // 헬퍼 함수들
   const formatNumber = (num) => {
@@ -788,9 +758,9 @@ export default function AdminDashboard() {
     day: 'numeric'
   });
 
-  // D-2 (2일 전) 날짜 계산 - DAU 측정 기준일
+  // D-1 (어제) 날짜 계산 - DAU 측정 기준일
   const d2Date = new Date();
-  d2Date.setDate(d2Date.getDate() - 2);
+  d2Date.setDate(d2Date.getDate() - 1);
   const d2DateStr = d2Date.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric'
@@ -1046,43 +1016,6 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* Engagement Metrics Row */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                      <div className="relative overflow-hidden rounded-xl p-4 bg-slate-800/50 border border-slate-700/50 hover:border-slate-600/50 transition-all duration-200 group">
-                        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <div className="relative">
-                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Sessions/User</p>
-                          <p className="text-2xl font-black text-cyan-400 mt-1">{scaledGaData.userFlow?.sessionMetrics?.sessionsPerUser || scaledGaData.engagement.avgSessionsPerUser}</p>
-                        </div>
-                      </div>
-                      <div className="relative overflow-hidden rounded-xl p-4 bg-slate-800/50 border border-slate-700/50 hover:border-slate-600/50 transition-all duration-200 group">
-                        <div className="absolute inset-0 bg-gradient-to-br from-pink-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <div className="relative">
-                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pages/Session</p>
-                          <p className="text-2xl font-black text-pink-400 mt-1">{scaledGaData.userFlow?.sessionMetrics?.pageViewsPerSession || scaledGaData.engagement.avgPageViewsPerSession}</p>
-                        </div>
-                      </div>
-                      <div className="relative overflow-hidden rounded-xl p-4 bg-slate-800/50 border border-slate-700/50 hover:border-slate-600/50 transition-all duration-200 group">
-                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <div className="relative">
-                          <div className="flex items-center gap-2">
-                            <UserPlus className="w-4 h-4 text-emerald-400" />
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">New Users</p>
-                          </div>
-                          <p className="text-2xl font-black text-emerald-400 mt-1">{formatNumber(scaledGaData.engagement.newUsers)}</p>
-                        </div>
-                      </div>
-                      <div className="relative overflow-hidden rounded-xl p-4 bg-slate-800/50 border border-slate-700/50 hover:border-slate-600/50 transition-all duration-200 group">
-                        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <div className="relative">
-                          <div className="flex items-center gap-2">
-                            <UserCheck className="w-4 h-4 text-amber-400" />
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Retention</p>
-                          </div>
-                          <p className="text-2xl font-black text-amber-400 mt-1">{scaledGaData.engagement.retentionRate}%</p>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 </div>
 
@@ -1156,7 +1089,7 @@ export default function AdminDashboard() {
                             </div>
 
                             {/* SVG Chart */}
-                            <div className="absolute left-14 right-0 top-0 bottom-0">
+                            <div className="absolute left-14 right-0 top-0 bottom-0" data-dau-chart>
                               <svg width="100%" height="260" viewBox="0 0 1000 260" preserveAspectRatio="none" className="overflow-visible">
                                 {/* Animated Grid lines */}
                                 {[0, 1, 2, 3, 4].map((i) => (
@@ -1399,12 +1332,19 @@ export default function AdminDashboard() {
                               </div>
 
                               {/* Enhanced Tooltip */}
-                              {chartTooltip.visible && (
+                              {chartTooltip.visible && (() => {
+                                const parentEl = typeof window !== 'undefined' ? document.querySelector('[data-dau-chart]') : null;
+                                const parentW = parentEl?.offsetWidth || 800;
+                                const isRight = chartTooltip.x > parentW * 0.75;
+                                const isLeft = chartTooltip.x < parentW * 0.15;
+                                const transform = isRight ? 'translateX(-90%)' : isLeft ? 'translateX(-10%)' : 'translateX(-50%)';
+                                return (
                                 <div
-                                  className="absolute pointer-events-none z-50 transform -translate-x-1/2"
+                                  className="absolute pointer-events-none z-50"
                                   style={{
                                     left: chartTooltip.x,
                                     top: Math.max(0, chartTooltip.y - 120),
+                                    transform,
                                   }}
                                 >
                                   <div className="bg-slate-800/95 backdrop-blur-xl text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-600/50 min-w-[140px]">
@@ -1432,7 +1372,8 @@ export default function AdminDashboard() {
                                   </div>
                                   <div className="w-3 h-3 bg-slate-800/95 border-r border-b border-slate-600/50 transform rotate-45 mx-auto -mt-1.5"></div>
                                 </div>
-                              )}
+                                );
+                              })()}
                             </div>
                           </div>
                         );
@@ -1441,787 +1382,6 @@ export default function AdminDashboard() {
 
                   </div>
                 </div>
-
-                {/* Content Stats & System Status - Premium Dark Theme */}
-                {dashboardStats && (
-                  <div className="mt-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 border border-slate-700/50 shadow-2xl overflow-hidden relative">
-                    {/* Animated background */}
-                    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                      <div className="absolute -top-20 -left-20 w-40 h-40 bg-rose-500/10 rounded-full blur-3xl animate-pulse"></div>
-                      <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1.5s' }}></div>
-                    </div>
-
-                    <div className="relative z-10">
-                      {/* Section Header */}
-                      <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2.5 bg-gradient-to-br from-rose-500 to-orange-500 rounded-xl shadow-lg shadow-rose-500/30">
-                            <Layers className="w-5 h-5 text-white" />
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-bold text-white">Content & System</h3>
-                            <p className="text-xs text-slate-400">Real-time content metrics & server health</p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={fetchDashboardStats}
-                          disabled={dashboardStatsLoading}
-                          className="p-2 bg-slate-800/50 hover:bg-slate-700/50 rounded-xl transition-all border border-slate-700/50"
-                        >
-                          <RefreshCw className={`w-4 h-4 text-slate-400 ${dashboardStatsLoading ? 'animate-spin' : ''}`} />
-                        </button>
-                      </div>
-
-                      {/* Content Overview Cards */}
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-                        {/* Total Articles */}
-                        <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-violet-600/20 to-purple-600/10 border border-violet-500/30 hover:border-violet-400/50 transition-all">
-                          <div className="flex items-center gap-2 mb-2">
-                            <FileText className="w-4 h-4 text-violet-400" />
-                            <span className="text-xs font-semibold text-slate-400 uppercase">Total</span>
-                          </div>
-                          <p className="text-2xl font-black text-white">{dashboardStats.contentStats.totalArticles.toLocaleString()}</p>
-                          <p className="text-xs text-slate-500 mt-1">Articles</p>
-                        </div>
-
-                        {/* Total Views */}
-                        <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-cyan-600/20 to-blue-600/10 border border-cyan-500/30 hover:border-cyan-400/50 transition-all">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Eye className="w-4 h-4 text-cyan-400" />
-                            <span className="text-xs font-semibold text-slate-400 uppercase">Views</span>
-                          </div>
-                          <p className="text-2xl font-black text-white">{(dashboardStats.contentStats.totalViews * dataMultiplier).toLocaleString()}</p>
-                          <p className="text-xs text-slate-500 mt-1">All Time</p>
-                        </div>
-
-                        {/* Today Published */}
-                        <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-emerald-600/20 to-green-600/10 border border-emerald-500/30 hover:border-emerald-400/50 transition-all">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Calendar className="w-4 h-4 text-emerald-400" />
-                            <span className="text-xs font-semibold text-slate-400 uppercase">Today</span>
-                          </div>
-                          <p className="text-2xl font-black text-emerald-400">{dashboardStats.contentStats.todayPublished}</p>
-                          <p className="text-xs text-slate-500 mt-1">Published</p>
-                        </div>
-
-                        {/* Week Published */}
-                        <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-amber-600/20 to-orange-600/10 border border-amber-500/30 hover:border-amber-400/50 transition-all">
-                          <div className="flex items-center gap-2 mb-2">
-                            <TrendingUp className="w-4 h-4 text-amber-400" />
-                            <span className="text-xs font-semibold text-slate-400 uppercase">Week</span>
-                          </div>
-                          <p className="text-2xl font-black text-amber-400">{dashboardStats.contentStats.weekPublished}</p>
-                          <p className="text-xs text-slate-500 mt-1">Published</p>
-                        </div>
-
-                        {/* System Status */}
-                        <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-slate-600/20 to-slate-700/10 border border-slate-500/30 hover:border-slate-400/50 transition-all">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Server className="w-4 h-4 text-slate-400" />
-                            <span className="text-xs font-semibold text-slate-400 uppercase">System</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {dashboardStats.systemStatus.dbConnected ? (
-                              <>
-                                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                                <span className="text-sm font-bold text-emerald-400">Healthy</span>
-                              </>
-                            ) : (
-                              <>
-                                <XCircle className="w-5 h-5 text-red-400" />
-                                <span className="text-sm font-bold text-red-400">Error</span>
-                              </>
-                            )}
-                          </div>
-                          <p className="text-xs text-slate-500 mt-1">{dashboardStats.systemStatus.dbResponseTime}ms</p>
-                        </div>
-                      </div>
-
-                      {/* Two Column Layout */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Category Stats */}
-                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
-                          <div className="flex items-center gap-2 mb-4">
-                            <BarChart3 className="w-4 h-4 text-rose-400" />
-                            <h4 className="text-sm font-bold text-white">Articles by Category</h4>
-                          </div>
-                          <div className="space-y-3">
-                            {dashboardStats.contentStats.categories.slice(0, 6).map((cat, i) => {
-                              const maxCount = Math.max(...dashboardStats.contentStats.categories.map(c => c.count));
-                              const percentage = maxCount > 0 ? (cat.count / maxCount) * 100 : 0;
-                              const colors = [
-                                'from-rose-500 to-pink-500',
-                                'from-violet-500 to-purple-500',
-                                'from-blue-500 to-cyan-500',
-                                'from-emerald-500 to-green-500',
-                                'from-amber-500 to-orange-500',
-                                'from-slate-500 to-gray-500'
-                              ];
-                              return (
-                                <div key={i}>
-                                  <div className="flex items-center justify-between text-sm mb-1.5">
-                                    <span className="text-slate-300 font-medium">{cat.displayName}</span>
-                                    <div className="flex items-center gap-3">
-                                      <span className="text-slate-500 text-xs">{(cat.totalViews * dataMultiplier).toLocaleString()} views</span>
-                                      <span className="font-bold text-white bg-slate-700/50 px-2 py-0.5 rounded text-xs">{cat.count}</span>
-                                    </div>
-                                  </div>
-                                  <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                                    <div
-                                      className={`h-full bg-gradient-to-r ${colors[i % colors.length]} rounded-full transition-all duration-500`}
-                                      style={{ width: `${percentage}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Popular Articles */}
-                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
-                          <div className="flex items-center gap-2 mb-4">
-                            <Flame className="w-4 h-4 text-orange-400" />
-                            <h4 className="text-sm font-bold text-white">Trending Articles</h4>
-                            <span className="text-xs text-slate-500 ml-auto">Last 30 days</span>
-                          </div>
-                          <div className="space-y-1">
-                            {(() => {
-                              const articles = dashboardStats.popularArticles.slice(0, 10);
-                              const maxViews = Math.max(...articles.map(a => (a.viewCount || 0) * dataMultiplier), 1);
-                              return articles.map((article, i) => {
-                                const views = (article.viewCount || 0) * dataMultiplier;
-                                const reactions = article.totalReactions || 0;
-                                const viewPercent = Math.round((views / maxViews) * 100);
-                                const daysAgo = article.createdAt ? Math.max(1, Math.floor((Date.now() - new Date(article.createdAt).getTime()) / 86400000)) : 1;
-                                const viewsPerDay = Math.round(views / daysAgo);
-                                // Performance tier based on views/day
-                                const tier = viewsPerDay >= 10 ? 'hot' : viewsPerDay >= 3 ? 'warm' : 'normal';
-                                const tierConfig = {
-                                  hot: { label: 'HOT', color: 'bg-red-500/20 text-red-400', bar: 'from-red-500 to-orange-500' },
-                                  warm: { label: 'RISING', color: 'bg-amber-500/20 text-amber-400', bar: 'from-amber-500 to-yellow-500' },
-                                  normal: { label: '', color: '', bar: 'from-slate-500 to-slate-600' },
-                                };
-                                const t = tierConfig[tier];
-                                return (
-                                  <a
-                                    key={article._id}
-                                    href={`/news/${article.slug || article._id}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="block p-2.5 rounded-lg hover:bg-slate-700/30 transition-colors group cursor-pointer"
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      <span className={`w-6 h-6 flex items-center justify-center rounded-lg text-xs font-bold shrink-0 ${
-                                        i === 0 ? 'bg-amber-500/20 text-amber-400' :
-                                        i === 1 ? 'bg-slate-400/20 text-slate-300' :
-                                        i === 2 ? 'bg-orange-600/20 text-orange-400' :
-                                        'bg-slate-700/50 text-slate-500'
-                                      }`}>
-                                        {i + 1}
-                                      </span>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                          <p className="text-sm text-slate-300 truncate group-hover:text-white transition-colors">
-                                            {article.title}
-                                          </p>
-                                          {t.label && (
-                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${t.color} shrink-0`}>
-                                              {t.label}
-                                            </span>
-                                          )}
-                                        </div>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                          <span className="text-xs text-slate-500">{article.category}</span>
-                                          <span className="text-xs text-slate-600">·</span>
-                                          <span className="text-xs text-slate-500">{daysAgo <= 1 ? 'today' : `${daysAgo}d ago`}</span>
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-2 shrink-0">
-                                        {reactions > 0 && (
-                                          <div className="flex items-center gap-1 text-xs text-pink-400 bg-pink-500/10 px-1.5 py-0.5 rounded">
-                                            <Heart className="w-3 h-3" />
-                                            {formatCompactNumber(reactions)}
-                                          </div>
-                                        )}
-                                        <div className="flex items-center gap-1 text-xs text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">
-                                          <Eye className="w-3 h-3" />
-                                          {formatCompactNumber(views)}
-                                        </div>
-                                        <ExternalLink className="w-3 h-3 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                      </div>
-                                    </div>
-                                    {/* Inline performance bar */}
-                                    <div className="mt-1.5 ml-9 flex items-center gap-2">
-                                      <div className="flex-1 h-1 bg-slate-700/50 rounded-full overflow-hidden">
-                                        <div
-                                          className={`h-full bg-gradient-to-r ${t.bar} rounded-full transition-all`}
-                                          style={{ width: `${viewPercent}%` }}
-                                        />
-                                      </div>
-                                      <span className="text-[10px] text-slate-500 shrink-0 w-12 text-right">
-                                        {formatCompactNumber(viewsPerDay)}/d
-                                      </span>
-                                    </div>
-                                  </a>
-                                );
-                              });
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* AI Trending Insight */}
-                      <div className="mt-4 bg-gradient-to-br from-slate-800/60 via-violet-900/20 to-slate-800/60 rounded-2xl border border-violet-500/20 overflow-hidden relative">
-                        {/* Animated glow */}
-                        <div className="absolute -top-10 -right-10 w-32 h-32 bg-violet-500/10 rounded-full blur-3xl animate-pulse pointer-events-none" />
-                        <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-cyan-500/10 rounded-full blur-3xl animate-pulse pointer-events-none" style={{ animationDelay: '1.5s' }} />
-
-                        <div className="relative z-10 p-4">
-                          {/* Header */}
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              <div className="relative">
-                                <div className="p-1.5 bg-violet-500/30 rounded-lg border border-violet-400/30">
-                                  <Sparkles className="w-3.5 h-3.5 text-violet-300" />
-                                </div>
-                                <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-400 rounded-full border border-slate-800" />
-                              </div>
-                              <div>
-                                <span className="text-sm font-bold text-white">AI Content Analysis</span>
-                                {trendInsight?.createdAt && (
-                                  <span className="text-[10px] text-violet-400/70 ml-2">
-                                    {new Date(trendInsight.createdAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} updated
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <button
-                              onClick={generateTrendInsight}
-                              disabled={trendInsightLoading || !dashboardStats?.popularArticles?.length}
-                              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] text-violet-300 hover:text-white bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/30 rounded-lg transition-all disabled:opacity-40"
-                            >
-                              <RefreshCw className={`w-3 h-3 ${trendInsightLoading ? 'animate-spin' : ''}`} />
-                              {trendInsightLoading ? 'Analyzing...' : 'Re-analyze'}
-                            </button>
-                          </div>
-
-                          {/* Loading */}
-                          {trendInsightLoading && !trendInsight?.data ? (
-                            <div className="py-6 text-center">
-                              <div className="inline-flex items-center gap-1.5 mb-2">
-                                <div className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce" />
-                                <div className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
-                                <div className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
-                              </div>
-                              <p className="text-xs text-violet-300/60">AI가 콘텐츠 성과를 분석하고 있습니다...</p>
-                            </div>
-                          ) : trendInsight?.data ? (
-                            <>
-                              {/* Health Score + Top Performer */}
-                              <div className="flex gap-3 mb-3">
-                                {/* Content Health */}
-                                <div className="bg-slate-800/60 rounded-xl p-3 border border-slate-700/50 flex flex-col items-center justify-center min-w-[80px]">
-                                  <div className={`text-2xl font-black ${
-                                    trendInsight.data.contentHealth >= 7 ? 'text-emerald-400' :
-                                    trendInsight.data.contentHealth >= 4 ? 'text-amber-400' : 'text-red-400'
-                                  }`}>
-                                    {trendInsight.data.contentHealth}
-                                  </div>
-                                  <div className="text-[10px] text-slate-500 mt-0.5">/10</div>
-                                  <div className={`text-[10px] font-medium mt-1 px-2 py-0.5 rounded-full ${
-                                    trendInsight.data.contentHealth >= 7 ? 'bg-emerald-500/20 text-emerald-400' :
-                                    trendInsight.data.contentHealth >= 4 ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400'
-                                  }`}>
-                                    {trendInsight.data.healthLabel}
-                                  </div>
-                                </div>
-
-                                {/* Top Performer */}
-                                <div className="flex-1 bg-slate-800/60 rounded-xl p-3 border border-slate-700/50">
-                                  <div className="text-[10px] text-amber-400/70 font-medium mb-1 flex items-center gap-1">
-                                    <Flame className="w-3 h-3" /> TOP PERFORMER
-                                  </div>
-                                  <p className="text-sm text-white font-medium truncate">{trendInsight.data.topPerformer?.title}</p>
-                                  <div className="flex items-center gap-2 mt-0.5">
-                                    <p className="text-[11px] text-cyan-400">{trendInsight.data.topPerformer?.metric}</p>
-                                    {trendInsight.data.topPerformer?.contentType && (
-                                      <span className="text-[9px] px-1.5 py-0.5 bg-cyan-500/20 text-cyan-300 rounded-full border border-cyan-500/30">
-                                        {trendInsight.data.topPerformer.contentType}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-[11px] text-slate-400 mt-1">{trendInsight.data.topPerformer?.reason}</p>
-                                </div>
-                              </div>
-
-                              {/* Content Type Analysis */}
-                              {trendInsight.data.contentTypeAnalysis?.length > 0 && (
-                                <div className="mb-3">
-                                  <div className="text-[10px] text-blue-400/70 font-medium mb-2 flex items-center gap-1">
-                                    <Layers className="w-3 h-3" /> 콘텐츠 타입 분석
-                                  </div>
-                                  <div className="grid grid-cols-1 gap-1.5">
-                                    {trendInsight.data.contentTypeAnalysis.map((ct, ci) => (
-                                      <div key={ci} className="flex items-center gap-2 bg-slate-800/40 rounded-lg px-2.5 py-2 border border-slate-700/30">
-                                        <div className="flex items-center gap-1.5 min-w-[100px]">
-                                          <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded font-mono">
-                                            {ct.type}
-                                          </span>
-                                          <span className="text-[11px] text-slate-400">{ct.typeLabel}</span>
-                                        </div>
-                                        <div className="flex items-center gap-3 ml-auto">
-                                          <span className="text-[10px] text-slate-500">{ct.count}건</span>
-                                          <span className="text-[11px] text-cyan-400 font-medium">avg {(ct.avgViews || 0).toLocaleString()}</span>
-                                        </div>
-                                        <p className="hidden sm:block text-[10px] text-slate-500 max-w-[180px] truncate">{ct.verdict}</p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Hot Entities */}
-                              {trendInsight.data.hotEntities?.length > 0 && (
-                                <div className="mb-3">
-                                  <div className="text-[10px] text-amber-400/70 font-medium mb-2 flex items-center gap-1">
-                                    <Star className="w-3 h-3" /> 핫 엔티티
-                                  </div>
-                                  <div className="flex flex-wrap gap-2">
-                                    {trendInsight.data.hotEntities.map((entity, ei) => (
-                                      <div key={ei} className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-lg px-3 py-2 border border-amber-500/20">
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-[12px] text-white font-medium">{entity.name}</span>
-                                          <span className="text-[9px] px-1.5 py-0.5 bg-amber-500/20 text-amber-300 rounded-full">
-                                            {entity.mentions}회 언급
-                                          </span>
-                                        </div>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                          <span className="text-[10px] text-cyan-400">{(entity.totalViews || 0).toLocaleString()} views</span>
-                                          {entity.note && <span className="text-[10px] text-slate-500">· {entity.note}</span>}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Velocity Alert & Suggestion */}
-                              <div className="space-y-2">
-                                <div className="flex items-start gap-2 bg-slate-800/40 rounded-lg p-2.5">
-                                  <TrendingUp className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />
-                                  <p className="text-xs text-slate-300 leading-relaxed">{trendInsight.data.velocityAlert}</p>
-                                </div>
-
-                                <div className="flex items-start gap-2 bg-violet-500/10 rounded-lg p-2.5 border border-violet-500/20">
-                                  <Lightbulb className="w-3.5 h-3.5 text-violet-400 mt-0.5 shrink-0" />
-                                  <p className="text-xs text-violet-200 leading-relaxed">{trendInsight.data.suggestion}</p>
-                                </div>
-                              </div>
-
-                              {/* Keywords */}
-                              {trendInsight.data.keywords?.length > 0 && (
-                                <div className="flex items-center gap-1.5 mt-3 flex-wrap">
-                                  <span className="text-[10px] text-slate-500">Hot Keywords:</span>
-                                  {trendInsight.data.keywords.map((kw, ki) => (
-                                    <span key={ki} className="text-[10px] px-2 py-0.5 bg-slate-700/60 text-slate-300 rounded-full border border-slate-600/50">
-                                      {kw}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            <div className="py-4 text-center">
-                              <Sparkles className="w-5 h-5 text-slate-600 mx-auto mb-2" />
-                              <p className="text-xs text-slate-500">AI 분석을 실행하려면 버튼을 클릭하세요</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* System Details Row */}
-                      <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50 flex items-center gap-3">
-                          <div className="p-2 bg-emerald-500/20 rounded-lg">
-                            <Database className="w-4 h-4 text-emerald-400" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-slate-500">DB Response</p>
-                            <p className="text-sm font-bold text-emerald-400">{dashboardStats.systemStatus.dbResponseTime}ms</p>
-                          </div>
-                        </div>
-                        <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50 flex items-center gap-3">
-                          <div className="p-2 bg-blue-500/20 rounded-lg">
-                            <Zap className="w-4 h-4 text-blue-400" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-slate-500">API Response</p>
-                            <p className="text-sm font-bold text-blue-400">{dashboardStats.systemStatus.apiResponseTime}ms</p>
-                          </div>
-                        </div>
-                        <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50 flex items-center gap-3">
-                          <div className="p-2 bg-violet-500/20 rounded-lg">
-                            <Server className="w-4 h-4 text-violet-400" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-slate-500">Memory Used</p>
-                            <p className="text-sm font-bold text-violet-400">{dashboardStats.systemStatus.memoryUsage?.heapUsed || 0}MB</p>
-                          </div>
-                        </div>
-                        <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50 flex items-center gap-3">
-                          <div className="p-2 bg-amber-500/20 rounded-lg">
-                            <Clock className="w-4 h-4 text-amber-400" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-slate-500">Node Version</p>
-                            <p className="text-sm font-bold text-amber-400">{dashboardStats.systemStatus.nodeVersion}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Demographics Row - Dark Theme */}
-                <div className="mt-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 border border-slate-700/50 shadow-2xl overflow-hidden relative">
-                  {/* Animated background */}
-                  <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    <div className="absolute -top-20 -right-20 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl animate-pulse"></div>
-                    <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-violet-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-                  </div>
-
-                  <div className="relative z-10">
-                    {/* Section Header */}
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="p-2.5 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg shadow-blue-500/30">
-                        <Globe className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-white">Demographics & Pages</h3>
-                        <p className="text-xs text-slate-400">User distribution and top content</p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* Countries */}
-                      <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Globe className="w-4 h-4 text-cyan-400" />
-                          <h4 className="text-sm font-bold text-white">Top Countries</h4>
-                        </div>
-                        <div className="space-y-2">
-                          {scaledGaData.demographics.countries.slice(0, 8).map((c, i) => (
-                            <div key={i} className="flex items-center justify-between text-sm group p-1.5 rounded-lg hover:bg-slate-700/30 transition-colors">
-                              <span className="flex items-center gap-2">
-                                <span className="w-5 text-xs font-bold text-slate-500">{i + 1}</span>
-                                <span>{getCountryFlag(c.country)}</span>
-                                <span className="text-slate-300 font-medium group-hover:text-cyan-400 transition-colors">{c.country}</span>
-                              </span>
-                              <span className="font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded text-xs">{formatNumber(c.users)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Devices */}
-                      <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Smartphone className="w-4 h-4 text-violet-400" />
-                          <h4 className="text-sm font-bold text-white">Device Distribution</h4>
-                        </div>
-                        <div className="space-y-4">
-                          {scaledGaData.demographics.devices.map((d, i) => {
-                            const total = scaledGaData.demographics.devices.reduce((sum, x) => sum + x.users, 0);
-                            const pct = ((d.users / total) * 100).toFixed(0);
-                            const colors = [
-                              { gradient: 'from-blue-500 to-cyan-400', text: 'text-cyan-400' },
-                              { gradient: 'from-violet-500 to-purple-400', text: 'text-violet-400' },
-                              { gradient: 'from-emerald-500 to-green-400', text: 'text-emerald-400' }
-                            ];
-                            return (
-                              <div key={i}>
-                                <div className="flex items-center justify-between text-sm mb-2">
-                                  <span className={`flex items-center gap-2 ${colors[i]?.text || 'text-slate-300'} font-medium capitalize`}>
-                                    {getDeviceIcon(d.device)}
-                                    {d.device}
-                                  </span>
-                                  <span className="font-bold text-white">{pct}%</span>
-                                </div>
-                                <div className="h-2.5 bg-slate-700/50 rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full bg-gradient-to-r ${colors[i]?.gradient || 'from-slate-500 to-gray-400'} rounded-full transition-all duration-500`}
-                                    style={{ width: `${pct}%` }}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Top Pages */}
-                      <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
-                        <div className="flex items-center gap-2 mb-4">
-                          <FileText className="w-4 h-4 text-amber-400" />
-                          <h4 className="text-sm font-bold text-white">Top Pages</h4>
-                        </div>
-                        <div className="space-y-2">
-                          {scaledGaData.topPages.slice(0, 6).map((p, i) => (
-                            <div key={i} className="flex items-center justify-between text-sm group p-1.5 rounded-lg hover:bg-slate-700/30 transition-colors">
-                              <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <span className={`w-5 h-5 flex items-center justify-center rounded text-xs font-bold ${
-                                  i === 0 ? 'bg-amber-500/20 text-amber-400' :
-                                  i === 1 ? 'bg-slate-500/20 text-slate-300' :
-                                  i === 2 ? 'bg-orange-500/20 text-orange-400' :
-                                  'bg-slate-700/50 text-slate-500'
-                                }`}>{i + 1}</span>
-                                <span className="text-slate-300 truncate font-medium group-hover:text-amber-400 transition-colors" title={p.path}>
-                                  {p.path === '/' ? 'Home' : p.path}
-                                </span>
-                              </div>
-                              <span className="font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded text-xs ml-2">{formatNumber(p.pageViews)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Scroll Depth & Engagement Row - Dark Theme */}
-                {scaledGaData.scrollDepth && scaledGaData.engagementMetrics && (
-                  <div className="mt-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 border border-slate-700/50 shadow-2xl overflow-hidden relative">
-                    {/* Animated background */}
-                    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                      <div className="absolute -top-20 -left-20 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl animate-pulse"></div>
-                      <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-rose-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-                    </div>
-
-                    <div className="relative z-10">
-                      {/* Section Header */}
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2.5 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl shadow-lg shadow-cyan-500/30">
-                          <Activity className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-white">Engagement Analysis</h3>
-                          <p className="text-xs text-slate-400">Scroll depth & user interaction metrics</p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Scroll Depth */}
-                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                              <ArrowDown className="w-4 h-4 text-cyan-400" />
-                              <h4 className="text-sm font-bold text-white">Scroll Depth</h4>
-                            </div>
-                            <span className="text-xs font-bold text-cyan-400 bg-cyan-500/20 px-2.5 py-1 rounded-full border border-cyan-500/30">
-                              Avg: {scaledGaData.scrollDepth.avgScrollRate}%
-                            </span>
-                          </div>
-                          <div className="space-y-3">
-                            {scaledGaData.scrollDepth.pages.slice(0, 5).map((p, i) => (
-                              <div key={i}>
-                                <div className="flex items-center justify-between text-sm mb-1.5">
-                                  <span className="text-slate-300 font-medium truncate flex-1">
-                                    {p.path === '/' ? 'Home' : p.path}
-                                  </span>
-                                  <span className="font-bold text-cyan-400 ml-2">{p.scrollRate}%</span>
-                                </div>
-                                <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-500"
-                                    style={{ width: `${Math.min(parseFloat(p.scrollRate), 100)}%` }}
-                                  />
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Engagement Metrics */}
-                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
-                          <div className="flex items-center gap-2 mb-4">
-                            <Clock className="w-4 h-4 text-rose-400" />
-                            <h4 className="text-sm font-bold text-white">Engagement Metrics</h4>
-                          </div>
-                          <div className="grid grid-cols-2 gap-3 mb-4">
-                            <div className="bg-slate-700/30 rounded-xl p-3 border border-slate-600/30">
-                              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Avg. Session</p>
-                              <p className="text-lg font-black text-white mt-1">
-                                {Math.floor(parseFloat(scaledGaData.engagementMetrics.avgSessionDuration) / 60)}m {Math.floor(parseFloat(scaledGaData.engagementMetrics.avgSessionDuration) % 60)}s
-                              </p>
-                            </div>
-                            <div className="bg-emerald-500/10 rounded-xl p-3 border border-emerald-500/20">
-                              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Engagement</p>
-                              <p className="text-lg font-black text-emerald-400 mt-1">{scaledGaData.engagementMetrics.engagementRate}%</p>
-                            </div>
-                            <div className="bg-orange-500/10 rounded-xl p-3 border border-orange-500/20">
-                              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Bounce Rate</p>
-                              <p className="text-lg font-black text-orange-400 mt-1">{scaledGaData.engagementMetrics.bounceRate}%</p>
-                            </div>
-                            <div className="bg-violet-500/10 rounded-xl p-3 border border-violet-500/20">
-                              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Engaged</p>
-                              <p className="text-lg font-black text-violet-400 mt-1">{formatNumber(scaledGaData.engagementMetrics.engagedSessions)}</p>
-                            </div>
-                          </div>
-
-                          {/* Page Engagement */}
-                          <div className="border-t border-slate-700/50 pt-3">
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Avg. Time on Page</p>
-                            <div className="space-y-1.5">
-                              {scaledGaData.engagementMetrics.pageEngagement.slice(0, 4).map((p, i) => (
-                                <div key={i} className="flex items-center justify-between text-sm p-2 rounded-lg hover:bg-slate-700/30 transition-colors">
-                                  <span className="text-slate-300 font-medium truncate flex-1">
-                                    {p.path === '/' ? 'Home' : p.path}
-                                  </span>
-                                  <span className="font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded text-xs ml-2">{parseFloat(p.avgTimeOnPage).toFixed(0)}s</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Traffic Sources Row - Dark Theme */}
-                {scaledGaData.trafficSources && (
-                  <div className="mt-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 border border-slate-700/50 shadow-2xl overflow-hidden relative">
-                    {/* Animated background */}
-                    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                      <div className="absolute -top-20 -right-20 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl animate-pulse"></div>
-                      <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-                    </div>
-
-                    <div className="relative z-10">
-                      {/* Section Header */}
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg shadow-indigo-500/30">
-                          <Share2 className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-white">Traffic Sources</h3>
-                          <p className="text-xs text-slate-400">Where your visitors come from</p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* By Source */}
-                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
-                          <div className="flex items-center gap-2 mb-4">
-                            <ExternalLink className="w-4 h-4 text-indigo-400" />
-                            <h4 className="text-sm font-bold text-white">By Source</h4>
-                          </div>
-                          <div className="space-y-3">
-                            {scaledGaData.trafficSources.sources.slice(0, 6).map((s, i) => {
-                              const totalSessions = scaledGaData.trafficSources.sources.reduce((sum, x) => sum + x.sessions, 0);
-                              const percentage = totalSessions > 0 ? ((s.sessions / totalSessions) * 100).toFixed(1) : 0;
-                              const colors = [
-                                { gradient: 'from-indigo-500 to-blue-500', text: 'text-indigo-400' },
-                                { gradient: 'from-violet-500 to-purple-500', text: 'text-violet-400' },
-                                { gradient: 'from-pink-500 to-rose-500', text: 'text-pink-400' },
-                                { gradient: 'from-orange-500 to-amber-500', text: 'text-orange-400' },
-                                { gradient: 'from-emerald-500 to-green-500', text: 'text-emerald-400' },
-                                { gradient: 'from-cyan-500 to-teal-500', text: 'text-cyan-400' }
-                              ];
-                              return (
-                                <div key={i}>
-                                  <div className="flex items-center justify-between text-sm mb-1.5">
-                                    <span className="text-slate-300 font-medium capitalize">{s.source}</span>
-                                    <span className={`font-bold ${colors[i % colors.length].text}`}>{percentage}%</span>
-                                  </div>
-                                  <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                                    <div
-                                      className={`h-full bg-gradient-to-r ${colors[i % colors.length].gradient} rounded-full transition-all duration-500`}
-                                      style={{ width: `${Math.min(parseFloat(percentage), 100)}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* By Medium */}
-                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
-                          <div className="flex items-center gap-2 mb-4">
-                            <Share2 className="w-4 h-4 text-purple-400" />
-                            <h4 className="text-sm font-bold text-white">By Medium</h4>
-                          </div>
-                          <div className="space-y-3">
-                            {scaledGaData.trafficSources.mediums.map((m, i) => {
-                              const totalSessions = scaledGaData.trafficSources.mediums.reduce((sum, x) => sum + x.sessions, 0);
-                              const percentage = totalSessions > 0 ? ((m.sessions / totalSessions) * 100).toFixed(1) : 0;
-                              const colors = [
-                                { gradient: 'from-emerald-500 to-green-400', text: 'text-emerald-400' },
-                                { gradient: 'from-blue-500 to-cyan-400', text: 'text-blue-400' },
-                                { gradient: 'from-violet-500 to-purple-400', text: 'text-violet-400' },
-                                { gradient: 'from-orange-500 to-amber-400', text: 'text-orange-400' },
-                                { gradient: 'from-pink-500 to-rose-400', text: 'text-pink-400' }
-                              ];
-                              return (
-                                <div key={i}>
-                                  <div className="flex items-center justify-between text-sm mb-1.5">
-                                    <span className="text-slate-300 font-medium capitalize">{m.medium === '(none)' ? 'Direct' : m.medium}</span>
-                                    <span className={`font-bold ${colors[i % colors.length].text}`}>{formatNumber(m.sessions)}</span>
-                                  </div>
-                                  <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                                    <div
-                                      className={`h-full bg-gradient-to-r ${colors[i % colors.length].gradient} rounded-full transition-all duration-500`}
-                                      style={{ width: `${Math.min(parseFloat(percentage), 100)}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Source/Medium */}
-                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
-                          <div className="flex items-center gap-2 mb-4">
-                            <Search className="w-4 h-4 text-rose-400" />
-                            <h4 className="text-sm font-bold text-white">Source / Medium</h4>
-                          </div>
-                          <div className="space-y-2 max-h-56 overflow-y-auto pr-2 custom-scrollbar">
-                            {scaledGaData.trafficSources.sourceMedium.slice(0, 8).map((sm, i) => {
-                              const totalSessions = scaledGaData.trafficSources.sourceMedium.reduce((sum, x) => sum + x.sessions, 0);
-                              const percentage = totalSessions > 0 ? ((sm.sessions / totalSessions) * 100).toFixed(1) : 0;
-                              const colors = [
-                                { bg: 'bg-violet-500/20', text: 'text-violet-400' },
-                                { bg: 'bg-cyan-500/20', text: 'text-cyan-400' },
-                                { bg: 'bg-amber-500/20', text: 'text-amber-400' },
-                                { bg: 'bg-rose-500/20', text: 'text-rose-400' },
-                                { bg: 'bg-emerald-500/20', text: 'text-emerald-400' },
-                                { bg: 'bg-blue-500/20', text: 'text-blue-400' },
-                                { bg: 'bg-pink-500/20', text: 'text-pink-400' },
-                                { bg: 'bg-indigo-500/20', text: 'text-indigo-400' },
-                              ];
-                              return (
-                                <div key={i} className="flex items-center justify-between text-sm p-2.5 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
-                                  <span className="text-slate-300 font-medium truncate flex-1" title={sm.sourceMedium}>
-                                    {sm.sourceMedium}
-                                  </span>
-                                  <div className="flex items-center gap-2 ml-2">
-                                    <span className="font-bold text-white text-xs">{formatNumber(sm.sessions)}</span>
-                                    <span className={`text-xs font-bold px-2 py-1 rounded ${colors[i % colors.length].bg} ${colors[i % colors.length].text}`}>
-                                      {percentage}%
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {/* User Flow Section - Dark Theme */}
                 {scaledGaData.userFlow && (
@@ -2244,21 +1404,387 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        {/* Session Metrics */}
-                        <div className="bg-gradient-to-br from-indigo-600/30 to-purple-600/20 rounded-2xl p-5 border border-indigo-500/30">
-                          <h4 className="text-sm font-semibold text-slate-300 mb-4">Session Metrics</h4>
-                          <div className="space-y-3">
-                            <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                              <p className="text-xs text-slate-500">Pages per Session</p>
-                              <p className="text-2xl font-bold text-indigo-400">{scaledGaData.userFlow.sessionMetrics.pageViewsPerSession}</p>
+                      {/* Session Metrics Chart */}
+                      {scaledGaData.dailyTrends?.length > 1 && (
+                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50 mb-4">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                              <Activity className="w-4 h-4 text-indigo-400" />
+                              <h4 className="text-sm font-bold text-white">Session Metrics</h4>
                             </div>
-                            <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                              <p className="text-xs text-slate-500">Sessions per User</p>
-                              <p className="text-2xl font-bold text-purple-400">{scaledGaData.userFlow.sessionMetrics.sessionsPerUser}</p>
+                            {(() => {
+                              const trends = scaledGaData.dailyTrends || [];
+                              const totalSessions = trends.reduce((s, d) => s + d.sessions, 0);
+                              const totalPV = trends.reduce((s, d) => s + d.pageViews, 0);
+                              const totalDAU = trends.reduce((s, d) => s + d.dau, 0);
+                              const avgPPS = totalSessions > 0 ? (totalPV / totalSessions).toFixed(2) : '-';
+                              const avgSPU = totalDAU > 0 ? (totalSessions / totalDAU).toFixed(2) : '-';
+                              return (
+                                <div className="flex items-center gap-4">
+                                  <div className="flex items-center gap-3 bg-slate-700/30 px-3 py-1.5 rounded-lg">
+                                    <span className="text-xs text-slate-500">Avg Pages/Session</span>
+                                    <span className="text-sm font-bold text-indigo-400">{avgPPS}</span>
+                                  </div>
+                                  <div className="flex items-center gap-3 bg-slate-700/30 px-3 py-1.5 rounded-lg">
+                                    <span className="text-xs text-slate-500">Avg Sessions/User</span>
+                                    <span className="text-sm font-bold text-purple-400">{avgSPU}</span>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                          {(() => {
+                            const data = scaledGaData.dailyTrends;
+                            const cW = 1000, cH = 200, pT = 10, pB = 0;
+                            const uH = cH - pT - pB;
+                            // 일별 비율 계산
+                            const dailyMetrics = data.map(d => ({
+                              date: d.date,
+                              pagesPerSession: d.sessions > 0 ? (d.pageViews / d.sessions) : 0,
+                              sessionsPerUser: d.dau > 0 ? (d.sessions / d.dau) : 0,
+                            }));
+                            const maxPPS = Math.max(...dailyMetrics.map(d => d.pagesPerSession), 1);
+                            const maxSPU = Math.max(...dailyMetrics.map(d => d.sessionsPerUser), 1);
+                            const maxVal = Math.max(maxPPS, maxSPU) * 1.1;
+                            const gX = (i) => (i / (data.length - 1)) * cW;
+                            const gY = (val) => pT + uH - (val / maxVal) * uH;
+
+                            const buildPath = (arr, getter) => {
+                              let path = '';
+                              arr.forEach((d, i) => {
+                                const x = gX(i), y = gY(getter(d));
+                                if (i === 0) { path = `M ${x} ${y}`; }
+                                else {
+                                  const prev = arr[i - 1];
+                                  const px = gX(i - 1), py = gY(getter(prev));
+                                  const cpx = (px + x) / 2;
+                                  path += ` C ${cpx} ${py}, ${cpx} ${y}, ${x} ${y}`;
+                                }
+                              });
+                              return path;
+                            };
+
+                            const ppsPath = buildPath(dailyMetrics, d => d.pagesPerSession);
+                            const spuPath = buildPath(dailyMetrics, d => d.sessionsPerUser);
+                            // Area paths
+                            const ppsArea = ppsPath + ` L ${gX(dailyMetrics.length - 1)} ${pT + uH} L ${gX(0)} ${pT + uH} Z`;
+                            const spuArea = spuPath + ` L ${gX(dailyMetrics.length - 1)} ${pT + uH} L ${gX(0)} ${pT + uH} Z`;
+
+                            return (
+                              <div className="relative" style={{ height: '240px' }}>
+                                <div className="absolute left-0 top-0 bottom-8 w-12 flex flex-col justify-between text-right pr-2">
+                                  {[0, 1, 2, 3].map(i => (
+                                    <span key={i} className="text-xs text-slate-500 font-medium">{formatCompactNumber(Math.round(maxVal - (maxVal / 3) * i))}</span>
+                                  ))}
+                                </div>
+                                <div className="absolute left-14 right-0 top-0 bottom-0" data-session-chart>
+                                  <svg width="100%" height="200" viewBox={`0 0 ${cW} ${cH}`} preserveAspectRatio="none" className="overflow-visible">
+                                    {/* Grid */}
+                                    {[0, 1, 2, 3].map(i => (
+                                      <line key={i} x1="0" y1={pT + (uH / 3) * i} x2={cW} y2={pT + (uH / 3) * i} stroke="#334155" strokeWidth="1" strokeDasharray="6,6" opacity="0.3" />
+                                    ))}
+                                    <defs>
+                                      <linearGradient id="sessionsGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                                        <stop offset="0%" stopColor="#818cf8" stopOpacity="0.3" />
+                                        <stop offset="100%" stopColor="#818cf8" stopOpacity="0" />
+                                      </linearGradient>
+                                      <linearGradient id="pvGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                                        <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.2" />
+                                        <stop offset="100%" stopColor="#06b6d4" stopOpacity="0" />
+                                      </linearGradient>
+                                    </defs>
+                                    {/* Areas */}
+                                    <path d={spuArea} fill="url(#pvGrad)" />
+                                    <path d={ppsArea} fill="url(#sessionsGrad)" />
+                                    {/* Lines */}
+                                    <path d={spuPath} fill="none" stroke="#06b6d4" strokeWidth="2" opacity="0.8" />
+                                    <path d={ppsPath} fill="none" stroke="#818cf8" strokeWidth="2.5" opacity="0.9" />
+                                    {/* Trend lines (선형 회귀) */}
+                                    {(() => {
+                                      const calcTrend = (getter) => {
+                                        const n = dailyMetrics.length;
+                                        let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+                                        dailyMetrics.forEach((d, i) => { const y = getter(d); sumX += i; sumY += y; sumXY += i * y; sumX2 += i * i; });
+                                        const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+                                        const intercept = (sumY - slope * sumX) / n;
+                                        return { startY: gY(intercept), endY: gY(slope * (n - 1) + intercept) };
+                                      };
+                                      const ppsTrend = calcTrend(d => d.pagesPerSession);
+                                      const spuTrend = calcTrend(d => d.sessionsPerUser);
+                                      return (
+                                        <>
+                                          <line x1={gX(0)} y1={ppsTrend.startY} x2={gX(dailyMetrics.length - 1)} y2={ppsTrend.endY} stroke="#818cf8" strokeWidth="1.5" strokeDasharray="6,4" opacity="0.5" />
+                                          <line x1={gX(0)} y1={spuTrend.startY} x2={gX(dailyMetrics.length - 1)} y2={spuTrend.endY} stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="6,4" opacity="0.5" />
+                                        </>
+                                      );
+                                    })()}
+                                    {/* Hover columns */}
+                                    {dailyMetrics.map((dm, di) => {
+                                      const x = gX(di);
+                                      const spacing = cW / (dailyMetrics.length - 1 || 1);
+                                      return (
+                                        <g key={dm.date} className="group cursor-pointer">
+                                          <rect
+                                            x={x - spacing / 2}
+                                            y={0}
+                                            width={spacing}
+                                            height={cH}
+                                            fill="transparent"
+                                            style={{ pointerEvents: 'all' }}
+                                            onMouseEnter={(e) => {
+                                              const svgRect = e.currentTarget.closest('svg').getBoundingClientRect();
+                                              setSessionTooltip({
+                                                visible: true,
+                                                x: (x / cW) * svgRect.width,
+                                                y: 0,
+                                                date: dm.date,
+                                                pagesPerSession: dm.pagesPerSession,
+                                                sessionsPerUser: dm.sessionsPerUser,
+                                              });
+                                            }}
+                                            onMouseLeave={() => setSessionTooltip(prev => ({ ...prev, visible: false }))}
+                                          />
+                                          <line x1={x} y1={pT} x2={x} y2={pT + uH} stroke="#94a3b8" strokeWidth="1" strokeDasharray="4,4" opacity="0" className="group-hover:opacity-60" />
+                                          <circle cx={x} cy={gY(dm.pagesPerSession)} r="4" fill="#818cf8" stroke="#1e293b" strokeWidth="2" opacity="0" className="group-hover:opacity-100" />
+                                          <circle cx={x} cy={gY(dm.sessionsPerUser)} r="4" fill="#06b6d4" stroke="#1e293b" strokeWidth="2" opacity="0" className="group-hover:opacity-100" />
+                                        </g>
+                                      );
+                                    })}
+                                  </svg>
+                                  {/* Tooltip */}
+                                  {sessionTooltip.visible && (() => {
+                                    const parentW = typeof window !== 'undefined' ? (document.querySelector('[data-session-chart]')?.offsetWidth || 800) : 800;
+                                    const isRight = sessionTooltip.x > parentW * 0.75;
+                                    const isLeft = sessionTooltip.x < parentW * 0.15;
+                                    const transform = isRight ? 'translateX(-90%)' : isLeft ? 'translateX(-10%)' : 'translateX(-50%)';
+                                    return (
+                                    <div
+                                      className="absolute pointer-events-none z-50"
+                                      style={{ left: sessionTooltip.x, top: 0, transform }}
+                                    >
+                                      <div className="bg-slate-800/95 backdrop-blur-xl text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-600/50 min-w-[160px]">
+                                        <div className="text-center mb-2 pb-2 border-b border-slate-600/50">
+                                          <p className="text-slate-400 text-xs">{new Date(sessionTooltip.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })}</p>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          <div className="flex items-center justify-between gap-4">
+                                            <span className="flex items-center gap-1.5 text-xs"><span className="w-2 h-2 rounded-full bg-indigo-400 inline-block" />Pages/Session</span>
+                                            <span className="font-bold text-indigo-400 text-xs">{sessionTooltip.pagesPerSession?.toFixed(2)}</span>
+                                          </div>
+                                          <div className="flex items-center justify-between gap-4">
+                                            <span className="flex items-center gap-1.5 text-xs"><span className="w-2 h-2 rounded-full bg-cyan-400 inline-block" />Sessions/User</span>
+                                            <span className="font-bold text-cyan-400 text-xs">{sessionTooltip.sessionsPerUser?.toFixed(2)}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="w-3 h-3 bg-slate-800/95 border-r border-b border-slate-600/50 transform rotate-45 mx-auto -mt-1.5"></div>
+                                    </div>
+                                    );
+                                  })()}
+                                  {/* X-axis */}
+                                  <div className="relative h-5 mt-1">
+                                    {data.filter((_, i) => i % Math.max(1, Math.floor(data.length / 8)) === 0 || i === data.length - 1).map(d => {
+                                      const origIdx = data.indexOf(d);
+                                      const leftPct = (origIdx / (data.length - 1)) * 100;
+                                      return (
+                                        <span key={d.date} className="absolute text-[11px] text-slate-500 -translate-x-1/2" style={{ left: `${leftPct}%` }}>
+                                          {new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                          {/* Legend */}
+                          <div className="flex items-center gap-6 mt-2 ml-14">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-3 h-1.5 rounded-full bg-indigo-400" />
+                              <span className="text-xs text-slate-400">Pages/Session</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-3 h-1.5 rounded-full bg-cyan-400" />
+                              <span className="text-xs text-slate-400">Sessions/User</span>
                             </div>
                           </div>
                         </div>
+                      )}
+
+                      {/* Engagement Metrics Chart */}
+                      {scaledGaData.engagementMetrics?.dailyEngagement?.length > 1 && (() => {
+                        const eData = scaledGaData.engagementMetrics.dailyEngagement;
+                        const eW = 1000, eH = 200, ePT = 10, ePB = 0;
+                        const eUH = eH - ePT - ePB;
+                        // 듀얼 축: 왼쪽 = 시간(초), 오른쪽 = 퍼센트
+                        const maxDur = Math.max(...eData.map(d => d.avgSessionDuration), 1) * 1.1;
+                        const maxPct = 100;
+                        const eGX = (i) => (i / (eData.length - 1)) * eW;
+                        const eGYDur = (val) => ePT + eUH - (val / maxDur) * eUH;
+                        const eGYPct = (val) => ePT + eUH - (val / maxPct) * eUH;
+
+                        const buildSmoothPath = (arr, getter) => {
+                          let p = '';
+                          arr.forEach((d, i) => {
+                            const x = eGX(i), y = getter(d);
+                            if (i === 0) p = `M ${x} ${y}`;
+                            else { const px = eGX(i-1), py = getter(arr[i-1]); const cpx = (px+x)/2; p += ` C ${cpx} ${py}, ${cpx} ${y}, ${x} ${y}`; }
+                          });
+                          return p;
+                        };
+
+                        const durPath = buildSmoothPath(eData, d => eGYDur(d.avgSessionDuration));
+                        const engPath = buildSmoothPath(eData, d => eGYPct(d.engagementRate));
+                        const bncPath = buildSmoothPath(eData, d => eGYPct(d.bounceRate));
+
+                        // 평균값 계산
+                        const avgDur = eData.reduce((s,d) => s+d.avgSessionDuration, 0) / eData.length;
+                        const avgEng = eData.reduce((s,d) => s+d.engagementRate, 0) / eData.length;
+                        const avgBnc = eData.reduce((s,d) => s+d.bounceRate, 0) / eData.length;
+                        const fmtDur = (s) => { const m = Math.floor(s/60); const sec = Math.floor(s%60); return `${m}m ${sec}s`; };
+
+                        return (
+                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50 mb-4">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                              <Activity className="w-4 h-4 text-emerald-400" />
+                              <h4 className="text-sm font-bold text-white">Engagement Metrics</h4>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-2 bg-slate-700/30 px-3 py-1.5 rounded-lg">
+                                <span className="text-xs text-slate-500">Avg Duration</span>
+                                <span className="text-sm font-bold text-amber-400">{fmtDur(avgDur)}</span>
+                              </div>
+                              <div className="flex items-center gap-2 bg-slate-700/30 px-3 py-1.5 rounded-lg">
+                                <span className="text-xs text-slate-500">Engagement</span>
+                                <span className="text-sm font-bold text-emerald-400">{avgEng.toFixed(1)}%</span>
+                              </div>
+                              <div className="flex items-center gap-2 bg-slate-700/30 px-3 py-1.5 rounded-lg">
+                                <span className="text-xs text-slate-500">Bounce</span>
+                                <span className="text-sm font-bold text-rose-400">{avgBnc.toFixed(1)}%</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="relative" style={{ height: '240px' }}>
+                            {/* Y-axis left (duration) */}
+                            <div className="absolute left-0 top-0 bottom-8 w-12 flex flex-col justify-between text-right pr-2">
+                              {[0,1,2,3].map(i => <span key={i} className="text-xs text-amber-400/60 font-medium">{fmtDur(maxDur - (maxDur/3)*i)}</span>)}
+                            </div>
+                            {/* Y-axis right (percent) */}
+                            <div className="absolute right-0 top-0 bottom-8 w-10 flex flex-col justify-between text-left pl-2">
+                              {[0,1,2,3].map(i => <span key={i} className="text-xs text-slate-500 font-medium">{Math.round(maxPct - (maxPct/3)*i)}%</span>)}
+                            </div>
+                            <div className="absolute left-14 right-12 top-0 bottom-0" data-engagement-chart>
+                              <svg width="100%" height="200" viewBox={`0 0 ${eW} ${eH}`} preserveAspectRatio="none" className="overflow-visible">
+                                {[0,1,2,3].map(i => <line key={i} x1="0" y1={ePT+(eUH/3)*i} x2={eW} y2={ePT+(eUH/3)*i} stroke="#334155" strokeWidth="1" strokeDasharray="6,6" opacity="0.3" />)}
+                                <defs>
+                                  <linearGradient id="durGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stopColor="#f59e0b" stopOpacity="0.2" /><stop offset="100%" stopColor="#f59e0b" stopOpacity="0" /></linearGradient>
+                                </defs>
+                                <path d={durPath + ` L ${eGX(eData.length-1)} ${ePT+eUH} L ${eGX(0)} ${ePT+eUH} Z`} fill="url(#durGrad)" />
+                                <path d={durPath} fill="none" stroke="#f59e0b" strokeWidth="2.5" opacity="0.9" />
+                                <path d={engPath} fill="none" stroke="#10b981" strokeWidth="2" opacity="0.8" />
+                                <path d={bncPath} fill="none" stroke="#f43f5e" strokeWidth="2" strokeDasharray="6,3" opacity="0.7" />
+                                {/* Hover columns */}
+                                {eData.map((d, di) => {
+                                  const x = eGX(di);
+                                  const spacing = eW / (eData.length - 1 || 1);
+                                  return (
+                                    <g key={d.date} className="group cursor-pointer">
+                                      <rect x={x-spacing/2} y={0} width={spacing} height={eH} fill="transparent" style={{ pointerEvents: 'all' }}
+                                        onMouseEnter={(e) => {
+                                          const svgRect = e.currentTarget.closest('svg').getBoundingClientRect();
+                                          setCountryTooltip({ visible: false, x: 0, y: 0, date: '', data: [] });
+                                          setSessionTooltip({ visible: false, x: 0, y: 0, date: '' });
+                                          const el = document.querySelector('[data-engagement-chart]');
+                                          const parentW = el?.offsetWidth || 800;
+                                          const tipX = (x / eW) * svgRect.width;
+                                          setChartTooltip({
+                                            visible: true,
+                                            x: tipX,
+                                            y: 0,
+                                            date: `${d.date.slice(0,4)}-${d.date.slice(4,6)}-${d.date.slice(6,8)}`,
+                                            value: d.avgSessionDuration,
+                                            engagementRate: d.engagementRate,
+                                            bounceRate: d.bounceRate,
+                                            _isEngagement: true,
+                                            _parentW: parentW,
+                                          });
+                                        }}
+                                        onMouseLeave={() => setChartTooltip(prev => ({ ...prev, visible: false }))}
+                                      />
+                                      <line x1={x} y1={ePT} x2={x} y2={ePT+eUH} stroke="#94a3b8" strokeWidth="1" strokeDasharray="4,4" opacity="0" className="group-hover:opacity-60" />
+                                      <circle cx={x} cy={eGYDur(d.avgSessionDuration)} r="4" fill="#f59e0b" stroke="#1e293b" strokeWidth="2" opacity="0" className="group-hover:opacity-100" />
+                                      <circle cx={x} cy={eGYPct(d.engagementRate)} r="4" fill="#10b981" stroke="#1e293b" strokeWidth="2" opacity="0" className="group-hover:opacity-100" />
+                                      <circle cx={x} cy={eGYPct(d.bounceRate)} r="4" fill="#f43f5e" stroke="#1e293b" strokeWidth="2" opacity="0" className="group-hover:opacity-100" />
+                                    </g>
+                                  );
+                                })}
+                              </svg>
+                              {/* Engagement Tooltip */}
+                              {chartTooltip.visible && chartTooltip._isEngagement && (() => {
+                                const parentW = chartTooltip._parentW || 800;
+                                const isRight = chartTooltip.x > parentW * 0.75;
+                                const isLeft = chartTooltip.x < parentW * 0.15;
+                                const transform = isRight ? 'translateX(-90%)' : isLeft ? 'translateX(-10%)' : 'translateX(-50%)';
+                                const dur = chartTooltip.value || 0;
+                                const m = Math.floor(dur/60); const s = Math.floor(dur%60);
+                                return (
+                                  <div className="absolute pointer-events-none z-50" style={{ left: chartTooltip.x, top: 0, transform }}>
+                                    <div className="bg-slate-800/95 backdrop-blur-xl text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-600/50 min-w-[160px]">
+                                      <div className="text-center mb-2 pb-2 border-b border-slate-600/50">
+                                        <p className="text-slate-400 text-xs">{new Date(chartTooltip.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })}</p>
+                                      </div>
+                                      <div className="space-y-1.5">
+                                        <div className="flex items-center justify-between gap-4">
+                                          <span className="flex items-center gap-1.5 text-xs"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />Duration</span>
+                                          <span className="font-bold text-amber-400 text-xs">{m}m {s}s</span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-4">
+                                          <span className="flex items-center gap-1.5 text-xs"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />Engagement</span>
+                                          <span className="font-bold text-emerald-400 text-xs">{chartTooltip.engagementRate?.toFixed(1)}%</span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-4">
+                                          <span className="flex items-center gap-1.5 text-xs"><span className="w-2 h-2 rounded-full bg-rose-400 inline-block" />Bounce</span>
+                                          <span className="font-bold text-rose-400 text-xs">{chartTooltip.bounceRate?.toFixed(1)}%</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="w-3 h-3 bg-slate-800/95 border-r border-b border-slate-600/50 transform rotate-45 mx-auto -mt-1.5"></div>
+                                  </div>
+                                );
+                              })()}
+                              {/* X-axis */}
+                              <div className="relative h-5 mt-1">
+                                {eData.filter((_, i) => i % Math.max(1, Math.floor(eData.length / 8)) === 0 || i === eData.length - 1).map(d => {
+                                  const origIdx = eData.indexOf(d);
+                                  const leftPct = (origIdx / (eData.length - 1)) * 100;
+                                  const dateStr = `${d.date.slice(0,4)}-${d.date.slice(4,6)}-${d.date.slice(6,8)}`;
+                                  return <span key={d.date} className="absolute text-[11px] text-slate-500 -translate-x-1/2" style={{ left: `${leftPct}%` }}>{new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>;
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                          {/* Legend */}
+                          <div className="flex items-center gap-6 mt-2 ml-14">
+                            <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-amber-400" /><span className="text-xs text-slate-400">Avg. Session Duration</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-emerald-400" /><span className="text-xs text-slate-400">Engagement Rate</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-3 h-1.5 rounded-full bg-rose-400 opacity-70" style={{ borderTop: '1px dashed #f43f5e' }} /><span className="text-xs text-slate-400">Bounce Rate</span></div>
+                          </div>
+                        </div>
+                        );
+                      })()}
+
+                      {/* 더보기 / 접기 버튼 */}
+                      <button
+                        onClick={() => setIsUserFlowExpanded(!isUserFlowExpanded)}
+                        className="w-full mt-2 flex items-center justify-center gap-2 py-3 rounded-xl border border-slate-700/50 bg-slate-800/30 hover:bg-slate-700/30 transition-all"
+                      >
+                        <span className="text-xs font-semibold text-slate-400">{isUserFlowExpanded ? 'Hide Details' : 'Show Details'}</span>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isUserFlowExpanded ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {isUserFlowExpanded && (<>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
 
                         {/* Landing Pages */}
                         <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
@@ -2397,9 +1923,524 @@ export default function AdminDashboard() {
                           )}
                         </div>
                       )}
+                      </>)}
                     </div>
                   </div>
                 )}
+
+                {/* Demographics Row - Dark Theme */}
+                <div className="mt-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 border border-slate-700/50 shadow-2xl relative">
+                  {/* Animated background */}
+                  <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                    <div className="absolute -top-20 -right-20 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl animate-pulse"></div>
+                    <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-violet-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+                  </div>
+
+                  <div className="relative z-10">
+                    {/* Section Header */}
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg shadow-blue-500/30">
+                          <Globe className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-white">Demographics & Pages</h3>
+                          <p className="text-xs text-slate-400">User distribution and top content</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 bg-slate-700/50 rounded-lg p-0.5">
+                        {[
+                          { days: 7, label: '7D' },
+                          { days: 14, label: '14D' },
+                          { days: 30, label: '30D' },
+                        ].map(opt => (
+                          <button
+                            key={opt.days}
+                            onClick={() => handleGaPeriodChange(opt.days)}
+                            disabled={gaLoading}
+                            className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${gaPeriod === opt.days ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30' : 'text-slate-400 hover:text-slate-300'} ${gaLoading ? 'opacity-50 cursor-wait' : ''}`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Daily Countries Chart */}
+                    {scaledGaData.demographics.dailyCountries?.length > 0 && (
+                      <div className="mt-4 bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <Globe className="w-4 h-4 text-cyan-400" />
+                            <h4 className="text-sm font-bold text-white">Countries by Date</h4>
+                          </div>
+                          <span className="text-xs text-slate-500">{gaCustomDate ? gaCustomDate : `Last ${gaPeriod || 30} days`}</span>
+                        </div>
+                        {(() => {
+                          const raw = scaledGaData.demographics.dailyCountries;
+                          const countryTotals = {};
+                          raw.forEach(d => { countryTotals[d.country] = (countryTotals[d.country] || 0) + d.users; });
+                          const topCountries = Object.entries(countryTotals).sort((a, b) => b[1] - a[1]).slice(0, 6).map(e => e[0]);
+                          const dates = [...new Set(raw.map(d => d.date))].sort();
+                          const dataMap = {};
+                          raw.forEach(d => { dataMap[`${d.date}_${d.country}`] = d.users; });
+
+                          if (dates.length < 2) return null;
+
+                          const allValues = [];
+                          topCountries.forEach(c => dates.forEach(d => { const v = dataMap[`${d}_${c}`] || 0; if (v > 0) allValues.push(v); }));
+                          const maxVal = Math.max(...allValues, 1);
+                          const chartW = 1000, chartH = 250, padT = 10, padB = 30;
+                          const usableH = chartH - padT - padB;
+                          const getX = (i) => (i / (dates.length - 1)) * chartW;
+                          const getY = (val) => padT + usableH - (val / maxVal) * usableH;
+
+                          const lineColors = [
+                            '#06b6d4', // cyan
+                            '#8b5cf6', // violet
+                            '#f59e0b', // amber
+                            '#10b981', // emerald
+                            '#f43f5e', // rose
+                            '#3b82f6', // blue
+                          ];
+
+                          return (
+                            <div>
+                              <div className="relative" style={{ height: '320px' }}>
+                                {/* Y-axis */}
+                                <div className="absolute left-0 top-0 bottom-8 w-12 flex flex-col justify-between text-right pr-2">
+                                  {[0, 1, 2, 3, 4].map(i => (
+                                    <span key={i} className="text-xs text-slate-500 font-medium">{formatCompactNumber(Math.round(maxVal - (maxVal / 4) * i))}</span>
+                                  ))}
+                                </div>
+                                {/* Chart */}
+                                <div className="absolute left-14 right-0 top-0 bottom-0">
+                                  <svg width="100%" height="260" viewBox={`0 0 ${chartW} 260`} preserveAspectRatio="none" className="overflow-visible">
+                                    {/* Grid */}
+                                    {[0, 1, 2, 3, 4].map(i => (
+                                      <line key={i} x1="0" y1={padT + (usableH / 4) * i} x2={chartW} y2={padT + (usableH / 4) * i} stroke="#334155" strokeWidth="1" strokeDasharray="6,6" opacity="0.4" />
+                                    ))}
+                                    {/* Lines */}
+                                    {topCountries.map((country, ci) => {
+                                      const points = dates.map((d, di) => ({ x: getX(di), y: getY(dataMap[`${d}_${country}`] || 0) }));
+                                      let path = '';
+                                      points.forEach((p, i) => {
+                                        if (i === 0) { path = `M ${p.x} ${p.y}`; }
+                                        else {
+                                          const prev = points[i - 1];
+                                          const cpx = (prev.x + p.x) / 2;
+                                          path += ` C ${cpx} ${prev.y}, ${cpx} ${p.y}, ${p.x} ${p.y}`;
+                                        }
+                                      });
+                                      return <path key={country} d={path} fill="none" stroke={lineColors[ci]} strokeWidth="2.5" opacity="0.9" />;
+                                    })}
+                                    {/* Hover columns (same as DAU chart) */}
+                                    {dates.map((d, di) => {
+                                      const x = getX(di);
+                                      const spacing = chartW / (dates.length - 1 || 1);
+                                      return (
+                                        <g key={d} className="group cursor-pointer">
+                                          <rect
+                                            x={x - spacing / 2}
+                                            y={0}
+                                            width={spacing}
+                                            height={260}
+                                            fill="transparent"
+                                            onMouseEnter={(e) => {
+                                              const svgRect = e.currentTarget.closest('svg').getBoundingClientRect();
+                                              const tooltipData = topCountries.map((c, ci) => ({
+                                                country: c,
+                                                users: dataMap[`${d}_${c}`] || 0,
+                                                color: lineColors[ci],
+                                              }));
+                                              setCountryTooltip({
+                                                visible: true,
+                                                x: (x / chartW) * svgRect.width,
+                                                y: 0,
+                                                date: d,
+                                                data: tooltipData,
+                                              });
+                                            }}
+                                            onMouseLeave={() => setCountryTooltip(prev => ({ ...prev, visible: false }))}
+                                          />
+                                          {/* Vertical line on hover */}
+                                          <line x1={x} y1={padT} x2={x} y2={padT + usableH} stroke="#94a3b8" strokeWidth="1" strokeDasharray="4,4" opacity="0" className="group-hover:opacity-60" />
+                                          {/* Dots on hover */}
+                                          {topCountries.map((c, ci) => {
+                                            const val = dataMap[`${d}_${c}`] || 0;
+                                            return <circle key={c} cx={x} cy={getY(val)} r="4" fill={lineColors[ci]} stroke="#1e293b" strokeWidth="2" opacity="0" className="group-hover:opacity-100" />;
+                                          })}
+                                        </g>
+                                      );
+                                    })}
+                                  </svg>
+                                  {/* X-axis labels */}
+                                  <div className="flex justify-between mt-2 px-0">
+                                    {dates.filter((_, i) => i % Math.max(1, Math.floor(dates.length / 8)) === 0 || i === dates.length - 1).map((d) => (
+                                      <span key={d} className="text-[11px] text-slate-500">{d.slice(4, 6)}/{d.slice(6, 8)}</span>
+                                    ))}
+                                  </div>
+                                  {/* Tooltip (absolute like DAU) */}
+                                  {countryTooltip.visible && (
+                                    <div
+                                      className="absolute pointer-events-none z-50 transform -translate-x-1/2"
+                                      style={{ left: countryTooltip.x, top: 0 }}
+                                    >
+                                      <div className="bg-slate-800/95 backdrop-blur-xl text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-600/50 min-w-[160px]">
+                                        <div className="text-center mb-2 pb-2 border-b border-slate-600/50">
+                                          <p className="text-slate-400 text-xs">{countryTooltip.date.slice(0, 4)}-{countryTooltip.date.slice(4, 6)}-{countryTooltip.date.slice(6, 8)}</p>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          {countryTooltip.data.filter(d => d.users > 0).sort((a, b) => b.users - a.users).map(d => (
+                                            <div key={d.country} className="flex items-center justify-between gap-4">
+                                              <span className="flex items-center gap-1.5 text-xs">
+                                                <span className="w-2 h-2 rounded-full inline-block" style={{ background: d.color }} />
+                                                <span className="text-slate-300">{d.country}</span>
+                                              </span>
+                                              <span className="font-bold text-xs" style={{ color: d.color }}>{formatNumber(d.users)}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                        <div className="border-t border-slate-600/50 mt-2 pt-1.5 flex justify-between">
+                                          <span className="text-slate-400 text-xs">Total</span>
+                                          <span className="font-bold text-white text-xs">{formatNumber(countryTooltip.data.reduce((s, d) => s + d.users, 0))}</span>
+                                        </div>
+                                      </div>
+                                      <div className="w-3 h-3 bg-slate-800/95 border-r border-b border-slate-600/50 transform rotate-45 mx-auto -mt-1.5"></div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              {/* Legend */}
+                              <div className="flex flex-wrap items-center gap-4 mt-2 ml-14">
+                                {topCountries.map((c, ci) => (
+                                  <div key={c} className="flex items-center gap-1.5">
+                                    <div className="w-3 h-3 rounded-full" style={{ background: lineColors[ci] }} />
+                                    <span className="text-xs text-slate-400 font-medium">{getCountryFlag(c)} {c}</span>
+                                    <span className="text-xs font-bold" style={{ color: lineColors[ci] }}>{formatCompactNumber(countryTotals[c])}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Content Stats & System Status - Premium Dark Theme */}
+                {dashboardStats && (
+                  <div className="mt-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 border border-slate-700/50 shadow-2xl overflow-hidden relative">
+                    {/* Animated background */}
+                    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                      <div className="absolute -top-20 -left-20 w-40 h-40 bg-rose-500/10 rounded-full blur-3xl animate-pulse"></div>
+                      <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1.5s' }}></div>
+                    </div>
+
+                    <div className="relative z-10">
+                      {/* Section Header */}
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-gradient-to-br from-rose-500 to-orange-500 rounded-xl shadow-lg shadow-rose-500/30">
+                            <Layers className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-white">Content & System</h3>
+                            <p className="text-xs text-slate-400">Real-time content metrics & server health</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={fetchDashboardStats}
+                          disabled={dashboardStatsLoading}
+                          className="p-2 bg-slate-800/50 hover:bg-slate-700/50 rounded-xl transition-all border border-slate-700/50"
+                        >
+                          <RefreshCw className={`w-4 h-4 text-slate-400 ${dashboardStatsLoading ? 'animate-spin' : ''}`} />
+                        </button>
+                      </div>
+
+                      {/* Content Overview Cards */}
+                      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+                        {/* Total Articles */}
+                        <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-violet-600/20 to-purple-600/10 border border-violet-500/30 hover:border-violet-400/50 transition-all">
+                          <div className="flex items-center gap-2 mb-2">
+                            <FileText className="w-4 h-4 text-violet-400" />
+                            <span className="text-xs font-semibold text-slate-400 uppercase">Total</span>
+                          </div>
+                          <p className="text-2xl font-black text-white">{dashboardStats.contentStats.totalArticles.toLocaleString()}</p>
+                          <p className="text-xs text-slate-500 mt-1">Articles</p>
+                        </div>
+
+                        {/* Total Views */}
+                        <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-cyan-600/20 to-blue-600/10 border border-cyan-500/30 hover:border-cyan-400/50 transition-all">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Eye className="w-4 h-4 text-cyan-400" />
+                            <span className="text-xs font-semibold text-slate-400 uppercase">Views</span>
+                          </div>
+                          <p className="text-2xl font-black text-white">{(dashboardStats.contentStats.totalViews * dataMultiplier).toLocaleString()}</p>
+                          <p className="text-xs text-slate-500 mt-1">All Time</p>
+                        </div>
+
+                        {/* Today Articles with vs Yesterday */}
+                        <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-emerald-600/20 to-green-600/10 border border-emerald-500/30 hover:border-emerald-400/50 transition-all">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Calendar className="w-4 h-4 text-emerald-400" />
+                            <span className="text-xs font-semibold text-slate-400 uppercase">Today Articles</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-2xl font-black text-emerald-400">{dashboardStats.contentStats.todayPublished}</p>
+                            {(() => {
+                              const diff = dashboardStats.contentStats.todayPublished - (dashboardStats.contentStats.yesterdayPublished || 0);
+                              if (diff === 0) return <span className="text-xs text-slate-500">vs yesterday</span>;
+                              return <span className={`text-xs font-bold ${diff > 0 ? 'text-emerald-400' : 'text-red-400'}`}>{diff > 0 ? '▲' : '▼'}{Math.abs(diff)} vs yesterday</span>;
+                            })()}
+                          </div>
+                        </div>
+
+                        {/* Today Comments with vs Yesterday */}
+                        <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-pink-600/20 to-rose-600/10 border border-pink-500/30 hover:border-pink-400/50 transition-all">
+                          <div className="flex items-center gap-2 mb-2">
+                            <MessageCircle className="w-4 h-4 text-pink-400" />
+                            <span className="text-xs font-semibold text-slate-400 uppercase">Today Comments</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-2xl font-black text-pink-400">{dashboardStats.contentStats.todayComments || 0}</p>
+                            {(() => {
+                              const diff = (dashboardStats.contentStats.todayComments || 0) - (dashboardStats.contentStats.yesterdayComments || 0);
+                              if (diff === 0) return <span className="text-xs text-slate-500">vs yesterday</span>;
+                              return <span className={`text-xs font-bold ${diff > 0 ? 'text-emerald-400' : 'text-red-400'}`}>{diff > 0 ? '▲' : '▼'}{Math.abs(diff)} vs yesterday</span>;
+                            })()}
+                          </div>
+                        </div>
+
+                        {/* Week Published */}
+                        <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-amber-600/20 to-orange-600/10 border border-amber-500/30 hover:border-amber-400/50 transition-all">
+                          <div className="flex items-center gap-2 mb-2">
+                            <TrendingUp className="w-4 h-4 text-amber-400" />
+                            <span className="text-xs font-semibold text-slate-400 uppercase">Week</span>
+                          </div>
+                          <p className="text-2xl font-black text-amber-400">{dashboardStats.contentStats.weekPublished}</p>
+                          <p className="text-xs text-slate-500 mt-1">Published</p>
+                        </div>
+
+                        {/* System Status */}
+                        <div className="relative overflow-hidden rounded-xl p-4 bg-gradient-to-br from-slate-600/20 to-slate-700/10 border border-slate-500/30 hover:border-slate-400/50 transition-all">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Server className="w-4 h-4 text-slate-400" />
+                            <span className="text-xs font-semibold text-slate-400 uppercase">System</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {dashboardStats.systemStatus.dbConnected ? (
+                              <>
+                                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                                <span className="text-sm font-bold text-emerald-400">Healthy</span>
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="w-5 h-5 text-red-400" />
+                                <span className="text-sm font-bold text-red-400">Error</span>
+                              </>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">{dashboardStats.systemStatus.dbResponseTime}ms</p>
+                        </div>
+                      </div>
+
+                      {/* Two Column Layout */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Category Stats */}
+                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+                          <div className="flex items-center gap-2 mb-4">
+                            <BarChart3 className="w-4 h-4 text-rose-400" />
+                            <h4 className="text-sm font-bold text-white">Articles by Category</h4>
+                          </div>
+                          <div className="space-y-3">
+                            {dashboardStats.contentStats.categories.slice(0, 6).map((cat, i) => {
+                              const maxCount = Math.max(...dashboardStats.contentStats.categories.map(c => c.count));
+                              const percentage = maxCount > 0 ? (cat.count / maxCount) * 100 : 0;
+                              const colors = [
+                                'from-rose-500 to-pink-500',
+                                'from-violet-500 to-purple-500',
+                                'from-blue-500 to-cyan-500',
+                                'from-emerald-500 to-green-500',
+                                'from-amber-500 to-orange-500',
+                                'from-slate-500 to-gray-500'
+                              ];
+                              return (
+                                <div key={i}>
+                                  <div className="flex items-center justify-between text-sm mb-1.5">
+                                    <span className="text-slate-300 font-medium">{cat.displayName}</span>
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-slate-500 text-xs">{(cat.totalViews * dataMultiplier).toLocaleString()} views</span>
+                                      <span className="font-bold text-white bg-slate-700/50 px-2 py-0.5 rounded text-xs">{cat.count}</span>
+                                    </div>
+                                  </div>
+                                  <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full bg-gradient-to-r ${colors[i % colors.length]} rounded-full transition-all duration-500`}
+                                      style={{ width: `${percentage}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* TOP Content with Tabs */}
+                        <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                              <Flame className="w-4 h-4 text-orange-400" />
+                              <h4 className="text-sm font-bold text-white">TOP Content</h4>
+                            </div>
+                            <div className="flex items-center gap-1 bg-slate-700/50 rounded-lg p-0.5">
+                              {[
+                                { key: 'trending', label: 'Trending' },
+                                { key: 'daily', label: 'Daily' },
+                                { key: 'weekly', label: 'Weekly' },
+                                { key: 'monthly', label: 'Monthly' },
+                              ].map(tab => (
+                                <button
+                                  key={tab.key}
+                                  onClick={() => setTopContentTab(tab.key)}
+                                  className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${topContentTab === tab.key ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/30' : 'text-slate-400 hover:text-slate-300'}`}
+                                >
+                                  {tab.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            {(() => {
+                              const topContent = dashboardStats.topContent || {};
+                              const articles = (topContent[topContentTab] || dashboardStats.popularArticles || []).slice(0, 10);
+                              const maxViews = Math.max(...articles.map(a => (a.viewCount || 0) * dataMultiplier), 1);
+                              return articles.map((article, i) => {
+                                const views = (article.viewCount || 0) * dataMultiplier;
+                                const reactions = article.totalReactions || 0;
+                                const viewPercent = Math.round((views / maxViews) * 100);
+                                const daysAgo = article.createdAt ? Math.max(1, Math.floor((Date.now() - new Date(article.createdAt).getTime()) / 86400000)) : 1;
+                                const viewsPerDay = Math.round(views / daysAgo);
+                                // Performance tier based on views/day
+                                const tier = viewsPerDay >= 10 ? 'hot' : viewsPerDay >= 3 ? 'warm' : 'normal';
+                                const tierConfig = {
+                                  hot: { label: 'HOT', color: 'bg-red-500/20 text-red-400', bar: 'from-red-500 to-orange-500' },
+                                  warm: { label: 'RISING', color: 'bg-amber-500/20 text-amber-400', bar: 'from-amber-500 to-yellow-500' },
+                                  normal: { label: '', color: '', bar: 'from-slate-500 to-slate-600' },
+                                };
+                                const t = tierConfig[tier];
+                                return (
+                                  <a
+                                    key={article._id}
+                                    href={`/news/${article.slug || article._id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block p-2.5 rounded-lg hover:bg-slate-700/30 transition-colors group cursor-pointer"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <span className={`w-6 h-6 flex items-center justify-center rounded-lg text-xs font-bold shrink-0 ${
+                                        i === 0 ? 'bg-amber-500/20 text-amber-400' :
+                                        i === 1 ? 'bg-slate-400/20 text-slate-300' :
+                                        i === 2 ? 'bg-orange-600/20 text-orange-400' :
+                                        'bg-slate-700/50 text-slate-500'
+                                      }`}>
+                                        {i + 1}
+                                      </span>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                          <p className="text-sm text-slate-300 truncate group-hover:text-white transition-colors">
+                                            {article.title}
+                                          </p>
+                                          {t.label && (
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${t.color} shrink-0`}>
+                                              {t.label}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                          <span className="text-xs text-slate-500">{article.category}</span>
+                                          <span className="text-xs text-slate-600">·</span>
+                                          <span className="text-xs text-slate-500">{daysAgo <= 1 ? 'today' : `${daysAgo}d ago`}</span>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        {reactions > 0 && (
+                                          <div className="flex items-center gap-1 text-xs text-pink-400 bg-pink-500/10 px-1.5 py-0.5 rounded">
+                                            <Heart className="w-3 h-3" />
+                                            {formatCompactNumber(reactions)}
+                                          </div>
+                                        )}
+                                        <div className="flex items-center gap-1 text-xs text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">
+                                          <Eye className="w-3 h-3" />
+                                          {formatCompactNumber(views)}
+                                        </div>
+                                        <ExternalLink className="w-3 h-3 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      </div>
+                                    </div>
+                                    {/* Inline performance bar */}
+                                    <div className="mt-1.5 ml-9 flex items-center gap-2">
+                                      <div className="flex-1 h-1 bg-slate-700/50 rounded-full overflow-hidden">
+                                        <div
+                                          className={`h-full bg-gradient-to-r ${t.bar} rounded-full transition-all`}
+                                          style={{ width: `${viewPercent}%` }}
+                                        />
+                                      </div>
+                                      <span className="text-[10px] text-slate-500 shrink-0 w-12 text-right">
+                                        {formatCompactNumber(viewsPerDay)}/d
+                                      </span>
+                                    </div>
+                                  </a>
+                                );
+                              });
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* System Details Row */}
+                      <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50 flex items-center gap-3">
+                          <div className="p-2 bg-emerald-500/20 rounded-lg">
+                            <Database className="w-4 h-4 text-emerald-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">DB Response</p>
+                            <p className="text-sm font-bold text-emerald-400">{dashboardStats.systemStatus.dbResponseTime}ms</p>
+                          </div>
+                        </div>
+                        <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50 flex items-center gap-3">
+                          <div className="p-2 bg-blue-500/20 rounded-lg">
+                            <Zap className="w-4 h-4 text-blue-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">API Response</p>
+                            <p className="text-sm font-bold text-blue-400">{dashboardStats.systemStatus.apiResponseTime}ms</p>
+                          </div>
+                        </div>
+                        <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50 flex items-center gap-3">
+                          <div className="p-2 bg-violet-500/20 rounded-lg">
+                            <Server className="w-4 h-4 text-violet-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Memory Used</p>
+                            <p className="text-sm font-bold text-violet-400">{dashboardStats.systemStatus.memoryUsage?.heapUsed || 0}MB</p>
+                          </div>
+                        </div>
+                        <div className="bg-slate-800/30 rounded-xl p-3 border border-slate-700/50 flex items-center gap-3">
+                          <div className="p-2 bg-amber-500/20 rounded-lg">
+                            <Clock className="w-4 h-4 text-amber-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Node Version</p>
+                            <p className="text-sm font-bold text-amber-400">{dashboardStats.systemStatus.nodeVersion}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
 
                   {/* ==================== NEW ANALYTICS SECTIONS ==================== */}
 

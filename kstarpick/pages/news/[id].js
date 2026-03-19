@@ -2859,7 +2859,7 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                                   {[...localComments].sort((a, b) => {
                                     if (commentSort === 'popular') return ((b.likes || 0) + (b.dislikes || 0)) - ((a.likes || 0) + (a.dislikes || 0));
                                     return new Date(b.timestamp) - new Date(a.timestamp);
-                                  }).slice(0, 4).map((comment, index) => {
+                                  }).slice(0, visibleCommentCount || 10).map((comment, index) => {
                                     const colors = getColorFromNickname(comment.author);
                                     return (
                                       <div key={comment.id || index} className="flex flex-col" style={{ padding: '16px 25px', borderBottom: '1px solid #F3F4F6', gap: '8px' }}>
@@ -2896,41 +2896,25 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                                     );
                                   })}
                                 </div>
-                                {localComments.length > 4 && (
-                                  <div style={{ background: 'rgba(255, 255, 255, 0.5)' }}>
-                                    {localComments.slice(4, 8).map((comment, index) => {
-                                      const colors = getColorFromNickname(comment.author);
-                                      return (
-                                        <div key={comment.id || `extra-${index}`} className="flex flex-col" style={{ padding: '16px 25px', borderBottom: '1px solid #F3F4F6', gap: '8px' }}>
-                                          <div className="flex justify-between items-center">
-                                            <div className="flex items-center" style={{ gap: '8px' }}>
-                                              <div className="flex-shrink-0 rounded-full overflow-hidden" style={{ width: '40px', height: '40px', background: `linear-gradient(135deg, ${colors.main} 0%, ${colors.secondary} 100%)` }}>
-                                                <img src={comment.avatar} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
-                                              </div>
-                                              <div className="flex flex-col" style={{ gap: '2px' }}>
-                                                <div className="flex items-center" style={{ gap: '4px' }}>
-                                                  <span style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '14px', lineHeight: '1.36em', letterSpacing: '-0.021em', color: '#151517' }}>{comment.author}</span>
-                                                </div>
-                                                <span style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '14px', lineHeight: '1.14em', letterSpacing: '-0.029em', color: '#99A1AF' }}>{formatCommentDate(comment.timestamp)}</span>
-                                              </div>
-                                            </div>
-                                          </div>
-                                          <p style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '15px', lineHeight: '1.33em', letterSpacing: '-0.02em', color: '#151517', margin: 0 }}>{comment.text}</p>
-                                          <div className="flex justify-end items-center">
-                                            <div className="flex items-center" style={{ gap: '12px' }}>
-                                              <button className="flex items-center" style={{ gap: '4px' }} onClick={() => handleCommentReaction(comment.id, 'like')}>
-                                                <img src="/images/comment-like.svg" alt="like" style={{ width: '12px', height: '12px', opacity: comment.userReaction === 'like' ? 1 : 0.5 }} />
-                                                <span style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '16px', lineHeight: '1.5em', letterSpacing: '-0.02em', color: comment.userReaction === 'like' ? '#2B7FFF' : '#99A1AF' }}>{comment.likes || 0}</span>
-                                              </button>
-                                              <button className="flex items-center" style={{ gap: '4px' }} onClick={() => handleCommentReaction(comment.id, 'dislike')}>
-                                                <img src="/images/comment-dislike.svg" alt="dislike" style={{ width: '12px', height: '12px', opacity: comment.userReaction === 'dislike' ? 1 : 0.5 }} />
-                                                <span style={{ fontFamily: 'Inter', fontWeight: comment.userReaction === 'dislike' ? 700 : 500, fontSize: '16px', lineHeight: '1.5em', letterSpacing: '-0.02em', color: comment.userReaction === 'dislike' ? '#2B7FFF' : '#99A1AF' }}>{comment.dislikes || 0}</span>
-                                              </button>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
+                                {/* More Comments 버튼 */}
+                                {visibleCommentCount < localComments.length && (
+                                  <div style={{ padding: '20px 25px' }}>
+                                    <button
+                                      onClick={() => setVisibleCommentCount(prev => prev + 5)}
+                                      className="w-full flex items-center justify-center transition-colors hover:bg-gray-50"
+                                      style={{
+                                        padding: '14px 40px',
+                                        borderRadius: '9999px',
+                                        border: '1px solid #E5E7EB',
+                                        background: '#FFFFFF',
+                                        gap: '10px',
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      <span style={{ fontFamily: 'Inter', fontWeight: 500, fontSize: '14px', lineHeight: '20px', letterSpacing: '-0.15px', color: '#374151' }}>
+                                        More Comments
+                                      </span>
+                                    </button>
                                   </div>
                                 )}
                               </>
