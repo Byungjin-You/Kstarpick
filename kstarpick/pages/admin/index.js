@@ -85,13 +85,38 @@ export default function AdminDashboard() {
   // TOP 콘텐츠 탭
   const [topContentTab, setTopContentTab] = useState('trending');
 
-  // GA 기간 선택 (Traffic Sources, Countries)
-  const [gaPeriod, setGaPeriod] = useState(30);
+  // 섹션별 독립 기간 필터
+  const [gaPeriod, setGaPeriod] = useState(30); // Demographics & Pages
+  const [dauChartPeriod, setDauChartPeriod] = useState(30);
+  const [userFlowPeriod, setUserFlowPeriod] = useState(30);
+  const [engagementPeriod, setEngagementPeriod] = useState(30);
   const [gaCustomDate, setGaCustomDate] = useState('');
+  const [gaDataByPeriod, setGaDataByPeriod] = useState({}); // { 7: data, 14: data, 30: data }
+
+  // 기간별 데이터 fetch & 캐시
+  const fetchGADataForPeriod = async (period) => {
+    if (gaDataByPeriod[period]) return gaDataByPeriod[period];
+    try {
+      const response = await fetch(`/api/analytics/ga-realtime?period=${period}`, { credentials: 'include' });
+      const data = await response.json();
+      if (data.success) {
+        setGaDataByPeriod(prev => ({ ...prev, [period]: data.data }));
+        return data.data;
+      }
+    } catch (err) {
+      console.error('Error fetching GA data for period:', period, err);
+    }
+    return null;
+  };
+
   const handleGaPeriodChange = (period) => {
     setGaPeriod(period);
     setGaCustomDate('');
     fetchGAData(period);
+  };
+  const handleSectionPeriodChange = (setter, period) => {
+    setter(period);
+    fetchGADataForPeriod(period);
   };
   const handleGaDateChange = (dateStr) => {
     setGaCustomDate(dateStr);
@@ -154,12 +179,10 @@ export default function AdminDashboard() {
   const getScaledData = () => {
     if (!gaData) return null;
 
-    const scale = (value) => {
-      if (dataMultiplier <= 1) return Math.round(value * dataMultiplier);
-      const base = value * dataMultiplier;
-      // 값 기반 시드로 ±3% 노이즈 (같은 값은 항상 같은 노이즈)
-      const noise = 1 + (seededRandom(dauSeed, Math.abs(Math.round(value)) % 9999) - 0.5) * 0.06;
-      return Math.round(base * noise);
+    // 시드 기반 의사 난수 생성 함수 (0~1 사이 값)
+    const seededRandom = (seed, index = 0) => {
+      const x = Math.sin(seed + index * 9999) * 10000;
+      return x - Math.floor(x);
     };
 
     // DAU 값 (D-1 기준, 배율 적용 전 원본 값)
@@ -173,10 +196,23 @@ export default function AdminDashboard() {
     // DAU를 시드에 포함 (DAU 변화에 따라 다른 변동값)
     const dauSeed = dateSeed + Math.floor(scaledDAU);
 
-    // 시드 기반 의사 난수 생성 함수 (0~1 사이 값)
-    const seededRandom = (seed, index = 0) => {
-      const x = Math.sin(seed + index * 9999) * 10000;
-      return x - Math.floor(x);
+    // realtime 전용 고정 시드 (기간 필터와 무관하게 항상 동일)
+    const realtimeSeed = dateSeed + 7777;
+
+    const scale = (value) => {
+      if (dataMultiplier <= 1) return Math.round(value * dataMultiplier);
+      const base = value * dataMultiplier;
+      // 값 기반 시드로 ±3% 노이즈 (같은 값은 항상 같은 노이즈)
+      const noise = 1 + (seededRandom(dauSeed, Math.abs(Math.round(value)) % 9999) - 0.5) * 0.06;
+      return Math.round(base * noise);
+    };
+
+    // realtime 전용 scale (기간 필터 변경에 영향받지 않음)
+    const scaleRealtime = (value) => {
+      if (dataMultiplier <= 1) return Math.round(value * dataMultiplier);
+      const base = value * dataMultiplier;
+      const noise = 1 + (seededRandom(realtimeSeed, Math.abs(Math.round(value)) % 9999) - 0.5) * 0.06;
+      return Math.round(base * noise);
     };
 
     // 비율 값에 변동 적용 함수 (기본값, 변동범위%, DAU보정 활성화 여부)
@@ -212,23 +248,23 @@ export default function AdminDashboard() {
     return {
       ...gaData,
       realtime: {
-        activeUsers: scale(gaData.realtime.activeUsers),
+        activeUsers: scaleRealtime(gaData.realtime.activeUsers),
       },
       summary: {
         dau: {
-          users: scale(gaData.summary.dau.users),
-          sessions: scale(gaData.summary.dau.sessions),
-          pageViews: scale(gaData.summary.dau.pageViews),
+          users: scaleRealtime(gaData.summary.dau.users),
+          sessions: scaleRealtime(gaData.summary.dau.sessions),
+          pageViews: scaleRealtime(gaData.summary.dau.pageViews),
         },
         wau: {
-          users: scale(gaData.summary.wau.users),
-          sessions: scale(gaData.summary.wau.sessions),
-          pageViews: scale(gaData.summary.wau.pageViews),
+          users: scaleRealtime(gaData.summary.wau.users),
+          sessions: scaleRealtime(gaData.summary.wau.sessions),
+          pageViews: scaleRealtime(gaData.summary.wau.pageViews),
         },
         mau: {
-          users: scale(gaData.summary.mau.users),
-          sessions: scale(gaData.summary.mau.sessions),
-          pageViews: scale(gaData.summary.mau.pageViews),
+          users: scaleRealtime(gaData.summary.mau.users),
+          sessions: scaleRealtime(gaData.summary.mau.sessions),
+          pageViews: scaleRealtime(gaData.summary.mau.pageViews),
         },
       },
       engagement: {
@@ -434,6 +470,52 @@ export default function AdminDashboard() {
   };
 
   const scaledGaData = getScaledData();
+
+  // 섹션별 독립 기간 데이터: 해당 기간의 캐시 데이터에서 scale 적용
+  const getScaledSectionData = (period) => {
+    const raw = gaDataByPeriod[period] || gaData;
+    if (!raw) return null;
+    const scaleVal = (value) => {
+      if (dataMultiplier <= 1) return Math.round(value * dataMultiplier);
+      const base = value * dataMultiplier;
+      const x = Math.sin(realtimeFixedSeed + Math.abs(Math.round(value)) % 9999 * 9999) * 10000;
+      const noise = 1 + ((x - Math.floor(x)) - 0.5) * 0.06;
+      return Math.round(base * noise);
+    };
+    return {
+      dailyTrends: raw.dailyTrends?.filter(day => {
+        const today = new Date().toISOString().split('T')[0];
+        return day.date !== today;
+      }).map(day => ({
+        ...day,
+        dau: scaleVal(day.dau),
+        sessions: scaleVal(day.sessions),
+        pageViews: scaleVal(day.pageViews),
+      })),
+      userFlow: {
+        ...raw.userFlow,
+        landingPages: raw.userFlow?.landingPages?.map(lp => ({ ...lp, sessions: scaleVal(lp.sessions), bounceRate: lp.bounceRate })),
+        exitPages: raw.userFlow?.exitPages?.map(ep => {
+          const sv = scaleVal(ep.pageViews), se = scaleVal(ep.exits);
+          return { ...ep, pageViews: sv, exits: se, exitRate: sv > 0 ? ((se / sv) * 100).toFixed(1) : '0.0' };
+        }),
+        sessionMetrics: raw.userFlow?.sessionMetrics,
+        navigationPaths: raw.userFlow?.navigationPaths?.map(np => ({ ...np, pageViews: scaleVal(np.pageViews), users: scaleVal(np.users) }))?.sort((a, b) => b.pageViews - a.pageViews),
+        landingToNextPaths: raw.userFlow?.landingToNextPaths?.map(lnp => ({ ...lnp, sessions: scaleVal(lnp.sessions) }))?.sort((a, b) => b.sessions - a.sessions),
+      },
+      engagementMetrics: {
+        ...raw.engagementMetrics,
+        dailyEngagement: raw.engagementMetrics?.dailyEngagement || [],
+      },
+    };
+  };
+  // 날짜 고정 시드 (섹션별 scale에 사용)
+  const realtimeFixedSeed = (() => { const t = new Date(); return t.getFullYear() * 10000 + (t.getMonth() + 1) * 100 + t.getDate() + 7777; })();
+
+  // 섹션별 scaled 데이터
+  const dauSectionData = getScaledSectionData(dauChartPeriod);
+  const flowSectionData = getScaledSectionData(userFlowPeriod);
+  const engagementSectionData = getScaledSectionData(engagementPeriod);
 
   // URL에서 탭 파라미터 가져오기
   useEffect(() => {
@@ -655,6 +737,11 @@ export default function AdminDashboard() {
       console.log('[GA Data] artistPopularity:', data.data?.artistPopularity ? 'exists' : 'missing');
       if (data.success) {
         setGaData(data.data);
+        // 기간별 캐시에도 저장
+        const p = period || gaPeriod || 30;
+        if (!startDate) {
+          setGaDataByPeriod(prev => ({ ...prev, [p]: data.data }));
+        }
       }
     } catch (err) {
       console.error('Error fetching GA data:', err);
@@ -1038,15 +1125,15 @@ export default function AdminDashboard() {
                           </div>
                           <div>
                             <h3 className="text-xl font-bold text-white">Daily Active Users</h3>
-                            <p className="text-sm text-slate-400">Last 30 days performance</p>
+                            <p className="text-sm text-slate-400">Last {dauChartPeriod} days performance</p>
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-6">
-                        {scaledGaData.dailyTrends && scaledGaData.dailyTrends.length > 0 && (() => {
-                          const maxDAU = Math.max(...scaledGaData.dailyTrends.map(d => d.dau));
-                          const minDAU = Math.min(...scaledGaData.dailyTrends.map(d => d.dau));
-                          const avgDAU = Math.floor(scaledGaData.dailyTrends.reduce((sum, d) => sum + d.dau, 0) / scaledGaData.dailyTrends.length);
+                        {dauSectionData?.dailyTrends && dauSectionData.dailyTrends.length > 0 && (() => {
+                          const maxDAU = Math.max(...dauSectionData.dailyTrends.map(d => d.dau));
+                          const minDAU = Math.min(...dauSectionData.dailyTrends.map(d => d.dau));
+                          const avgDAU = Math.floor(dauSectionData.dailyTrends.reduce((sum, d) => sum + d.dau, 0) / dauSectionData.dailyTrends.length);
                           return (
                             <>
                               <div className="text-center px-4 py-2 bg-slate-800/50 rounded-xl border border-slate-700/50">
@@ -1064,13 +1151,20 @@ export default function AdminDashboard() {
                             </>
                           );
                         })()}
+                        <div className="flex items-center gap-1 bg-slate-700/50 rounded-lg p-0.5">
+                          {[{ days: 7, label: '7D' }, { days: 14, label: '14D' }, { days: 30, label: '30D' }].map(opt => (
+                            <button key={opt.days} onClick={() => handleSectionPeriodChange(setDauChartPeriod, opt.days)}
+                              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${dauChartPeriod === opt.days ? 'bg-gradient-to-r from-violet-500 to-cyan-500 text-white shadow-lg shadow-violet-500/30' : 'text-slate-400 hover:text-slate-300'}`}
+                            >{opt.label}</button>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
                     {/* Chart */}
                     <div className="relative" style={{ height: '320px' }}>
                       {(() => {
-                        const data = scaledGaData.dailyTrends;
+                        const data = dauSectionData?.dailyTrends;
                         if (!data || data.length === 0) return null;
                         const maxDAU = Math.max(...data.map(d => d.dau));
                         const minDAU = Math.min(...data.map(d => d.dau));
@@ -1384,7 +1478,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* User Flow Section - Dark Theme */}
-                {scaledGaData.userFlow && (
+                {(flowSectionData?.userFlow || (flowSectionData?.userFlow || scaledGaData.userFlow)) && (
                   <div className="mt-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 border border-slate-700/50 shadow-2xl overflow-hidden relative">
                     {/* Animated background */}
                     <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -1394,18 +1488,27 @@ export default function AdminDashboard() {
 
                     <div className="relative z-10">
                       {/* Section Header */}
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2.5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-lg shadow-green-500/30">
-                          <MousePointer className="w-5 h-5 text-white" />
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-lg shadow-green-500/30">
+                            <MousePointer className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-white">User Flow Analysis</h3>
+                            <p className="text-xs text-slate-400">Navigation patterns and page transitions</p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-white">User Flow Analysis</h3>
-                          <p className="text-xs text-slate-400">Navigation patterns and page transitions</p>
+                        <div className="flex items-center gap-1 bg-slate-700/50 rounded-lg p-0.5">
+                          {[{ days: 7, label: '7D' }, { days: 14, label: '14D' }, { days: 30, label: '30D' }].map(opt => (
+                            <button key={opt.days} onClick={() => handleSectionPeriodChange(setUserFlowPeriod, opt.days)}
+                              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${userFlowPeriod === opt.days ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/30' : 'text-slate-400 hover:text-slate-300'}`}
+                            >{opt.label}</button>
+                          ))}
                         </div>
                       </div>
 
                       {/* Session Metrics Chart */}
-                      {scaledGaData.dailyTrends?.length > 1 && (
+                      {(flowSectionData?.dailyTrends || scaledGaData.dailyTrends)?.length > 1 && (
                         <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50 mb-4">
                           <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
@@ -1413,7 +1516,7 @@ export default function AdminDashboard() {
                               <h4 className="text-sm font-bold text-white">Session Metrics</h4>
                             </div>
                             {(() => {
-                              const trends = scaledGaData.dailyTrends || [];
+                              const trends = flowSectionData?.dailyTrends || scaledGaData.dailyTrends || [];
                               const totalSessions = trends.reduce((s, d) => s + d.sessions, 0);
                               const totalPV = trends.reduce((s, d) => s + d.pageViews, 0);
                               const totalDAU = trends.reduce((s, d) => s + d.dau, 0);
@@ -1434,7 +1537,7 @@ export default function AdminDashboard() {
                             })()}
                           </div>
                           {(() => {
-                            const data = scaledGaData.dailyTrends;
+                            const data = flowSectionData?.dailyTrends || scaledGaData.dailyTrends;
                             const cW = 1000, cH = 200, pT = 10, pB = 0;
                             const uH = cH - pT - pB;
                             // 일별 비율 계산
@@ -1612,8 +1715,8 @@ export default function AdminDashboard() {
                       )}
 
                       {/* Engagement Metrics Chart */}
-                      {scaledGaData.engagementMetrics?.dailyEngagement?.length > 1 && (() => {
-                        const eData = scaledGaData.engagementMetrics.dailyEngagement;
+                      {(engagementSectionData?.engagementMetrics || scaledGaData.engagementMetrics)?.dailyEngagement?.length > 1 && (() => {
+                        const eData = (engagementSectionData?.engagementMetrics || scaledGaData.engagementMetrics).dailyEngagement;
                         const eW = 1000, eH = 200, ePT = 10, ePB = 0;
                         const eUH = eH - ePT - ePB;
                         // 듀얼 축: 왼쪽 = 시간(초), 오른쪽 = 퍼센트
@@ -1662,6 +1765,13 @@ export default function AdminDashboard() {
                               <div className="flex items-center gap-2 bg-slate-700/30 px-3 py-1.5 rounded-lg">
                                 <span className="text-xs text-slate-500">Bounce</span>
                                 <span className="text-sm font-bold text-rose-400">{avgBnc.toFixed(1)}%</span>
+                              </div>
+                              <div className="flex items-center gap-1 bg-slate-700/50 rounded-lg p-0.5">
+                                {[{ days: 7, label: '7D' }, { days: 14, label: '14D' }, { days: 30, label: '30D' }].map(opt => (
+                                  <button key={opt.days} onClick={() => handleSectionPeriodChange(setEngagementPeriod, opt.days)}
+                                    className={`px-2 py-0.5 text-[11px] font-semibold rounded-md transition-all ${engagementPeriod === opt.days ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30' : 'text-slate-400 hover:text-slate-300'}`}
+                                  >{opt.label}</button>
+                                ))}
                               </div>
                             </div>
                           </div>
@@ -1794,8 +1904,8 @@ export default function AdminDashboard() {
                             <span className="text-xs text-slate-500 ml-auto">Entry Points</span>
                           </div>
                           <div className="space-y-2">
-                            {scaledGaData.userFlow.landingPages.slice(0, 5).map((lp, i) => {
-                              const totalSessions = scaledGaData.userFlow.landingPages.reduce((sum, x) => sum + x.sessions, 0);
+                            {(flowSectionData?.userFlow || scaledGaData.userFlow).landingPages.slice(0, 5).map((lp, i) => {
+                              const totalSessions = (flowSectionData?.userFlow || scaledGaData.userFlow).landingPages.reduce((sum, x) => sum + x.sessions, 0);
                               const percentage = totalSessions > 0 ? ((lp.sessions / totalSessions) * 100).toFixed(1) : 0;
                               const colors = [
                                 { bg: 'bg-emerald-500/20', text: 'text-emerald-400' },
@@ -1832,8 +1942,8 @@ export default function AdminDashboard() {
                             <span className="text-xs text-slate-500 ml-auto">Where users leave</span>
                           </div>
                           <div className="space-y-2">
-                            {scaledGaData.userFlow.exitPages.slice(0, 5).map((ep, i) => {
-                              const totalExits = scaledGaData.userFlow.exitPages.reduce((sum, x) => sum + x.exits, 0);
+                            {(flowSectionData?.userFlow || scaledGaData.userFlow).exitPages.slice(0, 5).map((ep, i) => {
+                              const totalExits = (flowSectionData?.userFlow || scaledGaData.userFlow).exitPages.reduce((sum, x) => sum + x.exits, 0);
                               const percentage = totalExits > 0 ? ((ep.exits / totalExits) * 100).toFixed(1) : 0;
                               const colors = [
                                 { bg: 'bg-red-500/20', text: 'text-red-400' },
@@ -1864,7 +1974,7 @@ export default function AdminDashboard() {
                       </div>
 
                       {/* Navigation Paths Section */}
-                      {scaledGaData.userFlow.navigationPaths && scaledGaData.userFlow.navigationPaths.length > 0 && (
+                      {(flowSectionData?.userFlow || scaledGaData.userFlow).navigationPaths && (flowSectionData?.userFlow || scaledGaData.userFlow).navigationPaths.length > 0 && (
                         <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
                           {/* Page Navigation Flow */}
                           <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
@@ -1876,7 +1986,7 @@ export default function AdminDashboard() {
                               <span className="text-xs text-slate-500">From → To</span>
                             </div>
                             <div className="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
-                              {scaledGaData.userFlow.navigationPaths.slice(0, 8).map((path, i) => (
+                              {(flowSectionData?.userFlow || scaledGaData.userFlow).navigationPaths.slice(0, 8).map((path, i) => (
                                 <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
                                   <div className="flex items-center gap-2 flex-1 min-w-0">
                                     <span className="text-xs font-bold text-slate-500 w-5">#{i + 1}</span>
@@ -1895,14 +2005,14 @@ export default function AdminDashboard() {
                           </div>
 
                           {/* Landing to Next Page */}
-                          {scaledGaData.userFlow.landingToNextPaths && scaledGaData.userFlow.landingToNextPaths.length > 0 && (
+                          {(flowSectionData?.userFlow || scaledGaData.userFlow).landingToNextPaths && (flowSectionData?.userFlow || scaledGaData.userFlow).landingToNextPaths.length > 0 && (
                             <div className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
                               <div className="flex items-center justify-between mb-4">
                                 <h5 className="text-sm font-bold text-white">Entry Flow</h5>
                                 <span className="text-xs text-slate-500">First → Second</span>
                               </div>
                               <div className="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
-                                {scaledGaData.userFlow.landingToNextPaths.slice(0, 8).map((path, i) => (
+                                {(flowSectionData?.userFlow || scaledGaData.userFlow).landingToNextPaths.slice(0, 8).map((path, i) => (
                                   <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
                                     <div className="flex items-center gap-2 flex-1 min-w-0">
                                       <span className="text-xs font-bold text-slate-500 w-5">#{i + 1}</span>
