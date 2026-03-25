@@ -46,8 +46,9 @@ export default async function handler(req, res) {
     const imageRecord = await db.collection('image_hashes').findOne({ hash });
 
     if (!imageRecord) {
-      if (process.env.NODE_ENV === 'development') {
-        // 로컬 dev: 프로덕션 서버에서 이미지 가져오기
+      // 로컬 환경: 프로덕션 서버에서 이미지 가져오기
+      const isLocal = (process.env.MONGODB_URI || '').includes('localhost');
+      if (isLocal) {
         return res.redirect(307, `http://43.202.38.79:13001/api/proxy/hash-image?hash=${hash}`);
       }
       return res.status(404).json({ error: 'Image hash not found' });

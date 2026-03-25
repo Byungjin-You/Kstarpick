@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import useScrollRestore from '../hooks/useScrollRestore';
+// useScrollRestore 제거 - _app.js에서 전역 스크롤 복원 처리
 import Head from 'next/head';
 import MainLayout from '../components/MainLayout';
 import CommentTicker from '../components/home/CommentTicker';
@@ -53,7 +53,7 @@ export default function SearchPage({ recentComments = [], rankingNews = [], tren
     }
   }, [router.isReady, router.query.q]);
 
-  useScrollRestore('searchScrollPosition', 'isBackToSearch', { deps: [router.asPath] });
+  // 스크롤 복원은 _app.js에서 전역 처리
 
   const navigateToPage = (path) => {
     router.push(path);
