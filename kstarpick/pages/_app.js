@@ -121,6 +121,7 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
     // 뒤로가기 감지
     const handlePopState = () => {
       isNavigatingBack = true;
+      isScrollSavePaused = true; // 뒤로가기 즉시 스크롤 저장 차단
       sessionStorage.setItem('_navWasBack', 'true');
       setTimeout(() => { isNavigatingBack = false; }, 2000);
     };

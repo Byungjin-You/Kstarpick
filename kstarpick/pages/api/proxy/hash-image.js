@@ -47,7 +47,8 @@ export default async function handler(req, res) {
 
     if (!imageRecord) {
       if (process.env.NODE_ENV === 'development') {
-        return res.redirect(307, '/images/news/default-news.jpg');
+        // 로컬 dev: 프로덕션 서버에서 이미지 가져오기
+        return res.redirect(307, `http://43.202.38.79:13001/api/proxy/hash-image?hash=${hash}`);
       }
       return res.status(404).json({ error: 'Image hash not found' });
     }
