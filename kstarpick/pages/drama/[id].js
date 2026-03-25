@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -1195,6 +1196,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
   }
 
   return (
+    <>
     <MainLayout>
       <Seo
         title={currentDrama.title || "TV/Film Details"}
@@ -2852,39 +2854,40 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
         </div>
 
 
-        {/* Trailer Modal */}
-        {showTrailer && (
-          <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        {/* Trailer Modal - portal to body to avoid swipe transform */}
+        {showTrailer && typeof document !== 'undefined' && createPortal(
+          <div className="fixed inset-0 bg-black/90 z-[10000] flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="relative w-full max-w-5xl bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/10">
               <div className="aspect-video">
-                <iframe 
-                  width="100%" 
-                  height="100%" 
-                  src={`https://www.youtube.com/embed/${selectedVideoId || youtubeId}?autoplay=1`} 
-                  title="YouTube video player" 
-                  frameBorder="0" 
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                <iframe
+                  width="100%"
+                  height="100%"
+                  src={`https://www.youtube.com/embed/${selectedVideoId || youtubeId}?autoplay=1`}
+                  title="YouTube video player"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
                   className="absolute inset-0"
                 ></iframe>
               </div>
-              <button 
+              <button
                 onClick={() => setShowTrailer(false)}
                 className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors backdrop-blur-sm"
               >
                 <X className="w-6 h-6" />
               </button>
-              
+
             </div>
-          </div>
+          </div>,
+          document.body
         )}
         
-        {/* 리뷰 모달 */}
-        {showReviewModal && selectedReview && (
-          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={closeReviewModal}>
-            {/* 이전 리뷰 버튼 - 모달 컨테이너 바깥으로 이동 */}
+        {/* 리뷰 모달 - portal to body */}
+        {showReviewModal && selectedReview && typeof document !== 'undefined' && createPortal(
+          <div className="fixed inset-0 bg-black/80 z-[10000] flex items-center justify-center p-4 backdrop-blur-sm" onClick={closeReviewModal}>
+            {/* 이전 리뷰 버튼 */}
             {reviews.length > 1 && (
-              <button 
+              <button
                 onClick={(e) => {
                   e.stopPropagation();
                   goToPrevReview();
@@ -2895,10 +2898,10 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
                 <ChevronLeft className="w-6 h-6" />
               </button>
             )}
-            
-            {/* 다음 리뷰 버튼 - 모달 컨테이너 바깥으로 이동 */}
+
+            {/* 다음 리뷰 버튼 */}
             {reviews.length > 1 && (
-              <button 
+              <button
                 onClick={(e) => {
                   e.stopPropagation();
                   goToNextReview();
@@ -2909,7 +2912,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
                 <ChevronRight className="w-6 h-6" />
               </button>
             )}
-            
+
             <div
               className="relative w-full max-w-3xl bg-white rounded-xl overflow-hidden shadow-2xl mx-4 my-4 sm:my-8"
               style={{ border: '1px solid rgba(35, 60, 250, 0.2)' }}
@@ -3030,9 +3033,10 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
                 </div>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
-        
+
         {/* Tab Navigation - Modernized (mobile/tablet only) */}
         <div className="sticky top-0 z-10 bg-white border-b border-gray-100 lg:hidden">
           <div className="container mx-auto px-4 lg:px-8">
@@ -4000,11 +4004,13 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
           </div>
         </div>
       </div>
-      {/* 공유 모달 */}
-      {showShareMenu && (
+    </MainLayout>
+
+      {/* 공유 모달 - portal to body */}
+      {showShareMenu && typeof document !== 'undefined' && createPortal(
         <>
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 transition-opacity" onClick={() => setShowShareMenu(false)} />
-          <div className="fixed bottom-0 left-0 right-0 md:bottom-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:max-w-md md:w-full bg-white rounded-t-3xl md:rounded-2xl z-50 shadow-2xl">
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-[10000] transition-opacity" onClick={() => setShowShareMenu(false)} />
+          <div className="fixed bottom-0 left-0 right-0 md:bottom-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:max-w-md md:w-full bg-white rounded-t-3xl md:rounded-2xl z-[10001] shadow-2xl">
             <div className="p-6">
               <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-6 md:hidden"></div>
               <div className="flex items-center justify-between mb-6">
@@ -4031,16 +4037,18 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
               </div>
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
 
-      {/* 링크 복사 토스트 */}
-      {isLinkCopied && (
-        <div className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-8 py-4 rounded-lg shadow-lg z-50 whitespace-nowrap text-base">
+      {/* 링크 복사 토스트 - portal to body */}
+      {isLinkCopied && typeof document !== 'undefined' && createPortal(
+        <div className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-8 py-4 rounded-lg shadow-lg z-[10000] whitespace-nowrap text-base">
           Link copied to clipboard!
-        </div>
+        </div>,
+        document.body
       )}
-    </MainLayout>
+    </>
   );
 }
 
