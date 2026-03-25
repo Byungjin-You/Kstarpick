@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import React from 'react';
 import { X } from 'lucide-react';
 import MainLayout from '../components/MainLayout';
@@ -371,6 +372,7 @@ function Home({ initialData }) {
 
 
   return (
+    <>
     <MainLayout>
       <Seo
         title="KstarPick - Your Ultimate K-Pop News Portal"
@@ -595,10 +597,12 @@ function Home({ initialData }) {
         </div>
       </main>
 
-      {/* YouTube Modal */}
-      {showYoutubeModal && (
+    </MainLayout>
+
+      {/* YouTube Modal - portal to body to avoid swipe transform */}
+      {showYoutubeModal && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 p-4"
           onClick={closeYoutubeModal}
         >
           <div className="relative w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
@@ -621,10 +625,10 @@ function Home({ initialData }) {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-
-    </MainLayout>
+    </>
   );
 }
 // 캐시 문제 해결을 위해 서버 사이드 렌더링으로 임시 변경
