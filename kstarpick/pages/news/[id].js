@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -1270,20 +1271,66 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
     }
   }, [newsArticle, userId]);
 
-  // Load user's own reaction selection from cookie
+  // Reset reactions & user reaction when navigating to a different article
+  // reactions count를 쿠키에 저장하는 헬퍼
+  const saveReactionsCounts = (id, counts) => {
+    try {
+      const raw = Cookies.get('newsReactionsCounts');
+      const map = raw ? JSON.parse(raw) : {};
+      map[id] = counts;
+      Cookies.set('newsReactionsCounts', JSON.stringify(map), { expires: 365 });
+    } catch (e) {}
+  };
+
+  // 기사 변경 시 reactions/userReaction 동기화
+  const articleId = newsArticle?._id;
   useEffect(() => {
-    if (typeof window !== 'undefined' && newsArticle?._id) {
-      const userReactionsFromCookie = Cookies.get('newsReactions');
-      if (userReactionsFromCookie) {
-        try {
-          const userReactions = JSON.parse(userReactionsFromCookie);
-          if (userReactions[newsArticle._id]) {
-            setUserReaction(userReactions[newsArticle._id]);
+    if (!articleId) return;
+    // 1) 쿠키에서 유저 반응 상태 로드
+    setUserReaction(null);
+    let cookieReactions = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const cookie = Cookies.get('newsReactions');
+        if (cookie) {
+          const map = JSON.parse(cookie);
+          if (map[articleId]) setUserReaction(map[articleId]);
+        }
+      } catch (e) {}
+      // 쿠키에 저장된 reactions count 로드 (API 응답 전 즉시 표시)
+      try {
+        const countsCookie = Cookies.get('newsReactionsCounts');
+        if (countsCookie) {
+          const countsMap = JSON.parse(countsCookie);
+          if (countsMap[articleId]) {
+            cookieReactions = countsMap[articleId];
+            setReactions(cookieReactions);
           }
-        } catch (e) {}
-      }
+        }
+      } catch (e) {}
     }
-  }, [newsArticle]);
+    // 쿠키에 없으면 SSR 값 사용
+    if (!cookieReactions) {
+      setReactions({
+        like: newsArticle?.reactions?.like || 0,
+        dislike: newsArticle?.reactions?.dislike || 0
+      });
+    }
+    // 2) API에서 최신 reactions 가져와서 보정
+    fetch(`/api/news/reactions?newsId=${articleId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.reactions) {
+          const hasData = (data.reactions.like || 0) > 0 || (data.reactions.dislike || 0) > 0;
+          // API가 실제 데이터를 반환한 경우에만 업데이트 (0,0 이면 쿠키값 유지)
+          if (hasData) {
+            setReactions(data.reactions);
+            saveReactionsCounts(articleId, data.reactions);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [articleId, router.asPath]);
 
   // 스크롤 이벤트 등록 - 패시브 이벤트로 성능 향상
   useEffect(() => {
@@ -2229,6 +2276,7 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                     }
                     setReactions(newReactions);
                     setUserReaction(newUserReaction);
+                    saveReactionsCounts(newsArticle._id, newReactions);
 
                     if (typeof window !== 'undefined' && newsArticle?._id) {
                       const userReactionsFromCookie = Cookies.get('newsReactions');
@@ -2254,6 +2302,7 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                       const data = await res.json();
                       if (data.reactions) {
                         setReactions(data.reactions);
+                        saveReactionsCounts(newsArticle._id, data.reactions);
                       }
                     } catch (err) {
                       console.error('Reaction API error:', err);
@@ -2733,6 +2782,7 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                                   }
                                   setReactions(newReactions);
                                   setUserReaction(newUserReaction);
+                                  saveReactionsCounts(newsArticle._id, newReactions);
 
                                   if (typeof window !== 'undefined' && newsArticle?._id) {
                                     const userReactionsFromCookie = Cookies.get('newsReactions');
@@ -2756,7 +2806,10 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                                       })
                                     });
                                     const data = await res.json();
-                                    if (data.reactions) setReactions(data.reactions);
+                                    if (data.reactions) {
+                                      setReactions(data.reactions);
+                                      saveReactionsCounts(newsArticle._id, data.reactions);
+                                    }
                                   } catch (err) {
                                     console.error('Reaction API error:', err);
                                   }
@@ -3124,13 +3177,14 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
         </>
       )}
 
-      {/* URL Copied 토스트 팝업 */}
-      {showCopiedToast && (
-        <div className={`fixed top-6 left-0 right-0 z-50 flex justify-center px-4 ${isCopiedToastHiding ? 'animate-slide-up-hide' : 'animate-slide-down-show'}`}>
+      {/* URL Copied 토스트 팝업 - portal to body to escape header overflow */}
+      {showCopiedToast && typeof document !== 'undefined' && createPortal(
+        <div className={`fixed left-0 right-0 z-[9999] flex justify-center px-4 ${isCopiedToastHiding ? 'animate-slide-up-hide' : 'animate-slide-down-show'}`} style={{ top: '96px' }}>
           <div className="py-2.5 px-5 rounded-full shadow-2xl border-2" style={{ backgroundColor: '#332c49', borderColor: '#233CFA' }}>
             <p className="text-sm font-bold text-white whitespace-nowrap">URL Copied</p>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Want to know more news? 섹션 - 모바일 전용 */}

@@ -99,7 +99,7 @@ const TrendingNow = ({ items = [], onNavigate, showCard = true }) => {
                 }}
               >
                 <div className="overflow-hidden">
-                  <div className="px-3 py-3">
+                  <div className="px-3 py-3 cursor-pointer" onClick={() => onNavigate(`/news/${item.slug || item._id}`)}>
                     <div className="flex items-start gap-3">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-[#101828] line-clamp-2 leading-[1.43]">{item.title}</p>

@@ -66,14 +66,17 @@ export default async function handler(req, res) {
         { $set: { reactions: { like: 0, dislike: 0 } } }
       );
 
-      const result = await db.collection('news').findOneAndUpdate(
+      await db.collection('news').updateOne(
         { _id: new ObjectId(newsId) },
-        { $inc: update },
-        { returnDocument: 'after', projection: { reactions: 1 } }
+        { $inc: update }
       );
 
-      const doc = result.value || result;
-      const reactions = doc?.reactions || { like: 0, dislike: 0 };
+      const updated = await db.collection('news').findOne(
+        { _id: new ObjectId(newsId) },
+        { projection: { reactions: 1 } }
+      );
+
+      const reactions = updated?.reactions || { like: 0, dislike: 0 };
 
       // 음수 방지
       const sanitized = {};

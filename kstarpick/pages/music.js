@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/router';
 import { X, Eye } from 'lucide-react';
 import MainLayout from '../components/MainLayout';
@@ -208,6 +209,7 @@ export default function Music({ musicNews = [], topSongs = [], watchNews = [], r
   const glanceSongs = processedSongs.slice(0, 19);
 
   return (
+    <>
     <MainLayout>
       <Seo
         title="K-Pop Music | Korean Music Charts & Latest Songs"
@@ -619,10 +621,12 @@ export default function Music({ musicNews = [], topSongs = [], watchNews = [], r
         </main>
       </div>
 
-      {/* YouTube Modal */}
-      {showYoutubeModal && (
+    </MainLayout>
+
+      {/* YouTube Modal - portal to body to avoid transform containing block from swipe navigation */}
+      {showYoutubeModal && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 p-4"
           onClick={closeYoutubeModal}
         >
           <div className="relative w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
@@ -645,9 +649,10 @@ export default function Music({ musicNews = [], topSongs = [], watchNews = [], r
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </MainLayout>
+    </>
   );
 }
 
@@ -673,7 +678,7 @@ export async function getServerSideProps(context) {
 
     const [newsRes, musicRes, watchRes, commentsRes, rankingRes, trendingRes, editorsPickRes] = await Promise.all([
       fetch(`${prodUrl}/api/news?category=kpop&limit=100&${listFields}`),
-      fetch(`${prodUrl}/api/music/popular?limit=20`),
+      fetch(`${process.env.NODE_ENV === 'development' ? 'http://43.202.38.79:13001' : prodUrl}/api/music/popular?limit=20`),
       fetch(`${prodUrl}/api/news?limit=200&${listFields}`),
       fetch(`${baseUrl}/api/comments/recent?limit=10`),
       fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&category=kpop&${listFields}`),

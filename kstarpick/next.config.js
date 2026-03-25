@@ -84,7 +84,7 @@ const nextConfig = {
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     unoptimized: false, // 이미지 최적화 활성화
     dangerouslyAllowSVG: true,
-    contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.instagram.com https://platform.twitter.com https://www.riddle.com https://cdn.riddle.com; frame-src 'self' https://www.instagram.com https://platform.twitter.com https://www.riddle.com; connect-src 'self' https://www.riddle.com https://cdn.riddle.com; object-src 'none'; style-src 'self' 'unsafe-inline';",
+    contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.instagram.com https://platform.twitter.com https://www.riddle.com https://cdn.riddle.com; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://www.instagram.com https://platform.twitter.com https://www.riddle.com; connect-src 'self' https://www.riddle.com https://cdn.riddle.com; object-src 'none'; style-src 'self' 'unsafe-inline';",
   },
   
   experimental: {

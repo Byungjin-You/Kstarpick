@@ -2315,9 +2315,29 @@ export default function AdminDashboard() {
                             {(() => {
                               const topContent = dashboardStats.topContent || {};
                               const articles = (topContent[topContentTab] || dashboardStats.popularArticles || []).slice(0, 10);
-                              const maxViews = Math.max(...articles.map(a => (a.viewCount || 0) * dataMultiplier), 1);
+                              // 기사별 고유 시드로 자연스러운 조회수 생성
+                              const scaleArticleViews = (article, index, total) => {
+                                if (dataMultiplier <= 1) return Math.round((article.viewCount || 0) * dataMultiplier);
+                                const base = (article.viewCount || 0) * dataMultiplier;
+                                // 기사 ID 기반 고유 시드 (같은 기사는 항상 같은 값)
+                                const idSeed = (article._id || '').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+                                const seed = idSeed + index * 137;
+                                const rand = Math.abs(Math.sin(seed * 9999) * 10000) % 1;
+                                // 순위가 높을수록(index 작을수록) 조회수 많게 + 순위별 감소 곡선
+                                const rankBoost = 1 + (total - index) / total * 0.3; // 1위: +30%, 10위: +3%
+                                const noise = 0.88 + rand * 0.24; // 0.88~1.12 범위 (±12%)
+                                return Math.round(base * rankBoost * noise);
+                              };
+                              const scaledViews = articles.map((a, i) => scaleArticleViews(a, i, articles.length));
+                              // 순위 순서 보장: 상위 기사가 항상 더 높은 조회수
+                              for (let i = 1; i < scaledViews.length; i++) {
+                                if (scaledViews[i] >= scaledViews[i - 1]) {
+                                  scaledViews[i] = scaledViews[i - 1] - Math.max(1, Math.round(scaledViews[i - 1] * 0.03));
+                                }
+                              }
+                              const maxViews = Math.max(scaledViews[0] || 1, 1);
                               return articles.map((article, i) => {
-                                const views = (article.viewCount || 0) * dataMultiplier;
+                                const views = scaledViews[i];
                                 const reactions = article.totalReactions || 0;
                                 const viewPercent = Math.round((views / maxViews) * 100);
                                 const daysAgo = article.createdAt ? Math.max(1, Math.floor((Date.now() - new Date(article.createdAt).getTime()) / 86400000)) : 1;
