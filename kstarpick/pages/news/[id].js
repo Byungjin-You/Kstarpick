@@ -3555,7 +3555,7 @@ export async function getServerSideProps({ params, req, res }) {
         })
         .sort({ createdAt: -1 })
         .limit(12)
-        .project({ _id: 1, slug: 1, title: 1, coverImage: 1, thumbnailUrl: 1, category: 1, createdAt: 1, summary: 1 })
+        .project({ _id: 1, slug: 1, title: 1, coverImage: 1, thumbnailUrl: 1, category: 1, createdAt: 1, summary: 1, content: 1 })
         .toArray(),
       // 2) OG 이미지 해시 조회
       hashMatch
@@ -3575,7 +3575,7 @@ export async function getServerSideProps({ params, req, res }) {
         .find({ _id: { $nin: [newsArticle._id, ...relatedArticles.map(a => a._id)] } })
         .sort({ createdAt: -1 })
         .limit(6 - relatedArticles.length)
-        .project({ _id: 1, slug: 1, title: 1, coverImage: 1, thumbnailUrl: 1, category: 1, createdAt: 1, summary: 1 })
+        .project({ _id: 1, slug: 1, title: 1, coverImage: 1, thumbnailUrl: 1, category: 1, createdAt: 1, summary: 1, content: 1 })
         .toArray();
       finalRelatedArticles = [...relatedArticles, ...additionalArticles];
     }
@@ -3611,7 +3611,8 @@ export async function getServerSideProps({ params, req, res }) {
         ...a,
         _id: a._id.toString(),
         createdAt: a.createdAt ? (a.createdAt instanceof Date ? a.createdAt.toISOString() : a.createdAt) : null,
-        thumbnailUrl: a.thumbnailUrl || a.coverImage
+        thumbnailUrl: a.thumbnailUrl || a.coverImage,
+        content: a.content ? a.content.replace(/<[^>]*>/g, '').trim().slice(0, 200) : ''
       }));
 
     return {

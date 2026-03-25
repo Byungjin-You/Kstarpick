@@ -4189,8 +4189,7 @@ export async function getServerSideProps({ params, req, res: sRes, query, resolv
             ...item,
             coverImage: fixImageUrl(item.coverImage) || fixImageUrl(item.thumbnailUrl) || '/images/news/default-news.jpg',
             thumbnailUrl: fixImageUrl(item.thumbnailUrl),
-            description: stripHtml(item.content).slice(0, 200),
-            content: null,
+            content: stripHtml(item.content).slice(0, 200),
           }));
         }
       }
