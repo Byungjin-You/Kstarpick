@@ -401,7 +401,7 @@ export async function getServerSideProps(context) {
       ? process.env.NEXT_PUBLIC_API_URL || 'http://localhost:13001'
       : 'http://localhost:3000';
 
-    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
+    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,content,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
 
     const [commentsResponse, rankingResponse, trendingResponse, editorsPickResponse] = await Promise.all([
       fetch(`${server}/api/comments/recent?limit=10`),

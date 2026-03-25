@@ -327,7 +327,18 @@ async function getNews(req, res) {
     const total = await db.collection('news').countDocuments(query);
     
     console.log(`[News API] 뉴스 조회 완료: ${news.length}개, 전체: ${total}개`);
-    
+
+    // 목록 조회 시 content를 200자로 잘라서 전송 (성능 최적화)
+    if (fields && !fields.includes('contentFull')) {
+      news = news.map(n => {
+        if (n.content && typeof n.content === 'string') {
+          const text = n.content.replace(/<[^>]*>/g, '').trim();
+          return { ...n, content: text.slice(0, 200) };
+        }
+        return n;
+      });
+    }
+
     return res.status(200).json({
       success: true,
       data: {

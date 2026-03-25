@@ -664,7 +664,7 @@ export async function getServerSideProps(context) {
     const baseUrl = `${protocol}://${context.req.headers.host}`;
     const prodUrl = baseUrl;
 
-    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
+    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,content,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
 
     const fixImageUrl = (url) => {
       if (!url) return url;

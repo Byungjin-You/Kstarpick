@@ -4138,7 +4138,7 @@ export async function getServerSideProps({ params, req, res: sRes, query, resolv
       return url;
     };
 
-    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
+    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,content,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
 
     // 각 API를 개별 try/catch로 감싸서 하나가 실패해도 나머지 데이터는 유지
     const [newsRes, commentsRes, rankingRes, trendingRes, editorsPickRes] = await Promise.allSettled([

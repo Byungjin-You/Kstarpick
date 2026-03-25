@@ -2826,7 +2826,7 @@ export default function TVFilmDetail({ tvfilm, relatedNews, recentComments, rank
 // 데이터 가져오기
 export async function getServerSideProps({ params, req, res: sRes, query, resolvedUrl }) {
   const { id } = params;
-  const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
+  const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,content,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
 
   try {
     // 뒤로가기 시 브라우저 캐시 사용 → 서버 요청 없이 즉시 렌더링

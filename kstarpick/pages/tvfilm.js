@@ -910,7 +910,7 @@ export async function getServerSideProps(context) {
 
     // Use production API for movie/tvfilm data (local DB may not have movie category data)
     const prodUrl = baseUrl;
-    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
+    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,content,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
 
     // Fetch all data in parallel
     // comments/recent may not exist on production, use local for that

@@ -646,7 +646,7 @@ export async function getServerSideProps(context) {
     sevenDaysAgo.setHours(0, 0, 0, 0);
 
     // 홈에서 필요한 필드만 지정 (content 제외 → MongoDB 프로젝션으로 DB 부하 감소)
-    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
+    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,content,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
 
     // 병렬로 핵심 API 호출 (Watch News + Recent Comments 추가)
     // 모든 API를 병렬로 호출 (editors-pick 포함)

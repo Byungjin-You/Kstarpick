@@ -938,7 +938,7 @@ export async function getServerSideProps(context) {
     // Use production API for data (local DB may not have all data)
     const prodUrl = baseUrl;
 
-    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
+    const listFields = 'fields=_id,title,slug,coverImage,thumbnailUrl,category,source,sourceUrl,timeText,summary,content,createdAt,publishedAt,updatedAt,viewCount,featured,tags,author,youtubeUrl,articleUrl';
 
     // Fetch all data in parallel
     const [celebResponse, celebNewsResponse, commentsResponse, rankingResponse, allNewsResponse, trendingResponse, editorsPickResponse] = await Promise.all([
