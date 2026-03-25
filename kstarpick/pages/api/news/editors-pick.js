@@ -2,9 +2,15 @@ import { ObjectId } from 'mongodb';
 import { connectToDatabase } from '@/utils/mongodb';
 
 const NEWS_FIELDS = {
-  _id: 1, slug: 1, title: 1, summary: 1, coverImage: 1,
+  _id: 1, slug: 1, title: 1, summary: 1, content: 1, coverImage: 1,
   thumbnailUrl: 1, category: 1, viewCount: 1, createdAt: 1, publishedAt: 1,
 };
+const trimContent = (articles) => articles.map(a => {
+  if (a.content && typeof a.content === 'string') {
+    return { ...a, content: a.content.replace(/<[^>]*>/g, '').trim().slice(0, 200) };
+  }
+  return a;
+});
 
 /**
  * GET /api/news/editors-pick
@@ -135,7 +141,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       success: true,
-      data: safeResults,
+      data: trimContent(safeResults),
       count: safeResults.length,
     });
   } catch (error) {

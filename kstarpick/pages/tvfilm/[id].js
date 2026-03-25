@@ -1614,8 +1614,8 @@ export default function TVFilmDetail({ tvfilm, relatedNews, recentComments, rank
                       <h3 className="line-clamp-2" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '18px', lineHeight: '1.25em', color: '#101828', margin: 0 }}>
                         {relatedNews[0]?.title || ''}
                       </h3>
-                      <p className="line-clamp-3" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '12px', lineHeight: '1.5em', color: '#6A7282', margin: 0 }}>
-                        {relatedNews[0]?.description || relatedNews[0]?.summary || ''}
+                      <p className="line-clamp-2" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '12px', lineHeight: '1.5em', color: '#6A7282', margin: 0 }}>
+                        {relatedNews[0]?.content ? relatedNews[0].content.replace(/<[^>]*>/g, '').slice(0, 150) : (relatedNews[0]?.summary || '')}
                       </p>
                     </div>
                   </div>

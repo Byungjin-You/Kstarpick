@@ -3012,8 +3012,8 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                                     </h4>
                                   </div>
                                   <div style={{ position: 'absolute', top: '291px', width: '100%' }}>
-                                    <p className="line-clamp-3" style={{ fontFamily: 'Pretendard', fontWeight: 400, fontSize: '14px', lineHeight: '1.625em', letterSpacing: '-0.01em', color: '#6A7282' }}>
-                                      {news.description || news.summary || ''}
+                                    <p className="line-clamp-2" style={{ fontFamily: 'Pretendard', fontWeight: 400, fontSize: '14px', lineHeight: '1.625em', letterSpacing: '-0.01em', color: '#6A7282' }}>
+                                      {news.content ? news.content.replace(/<[^>]*>/g, '').slice(0, 150) : (news.summary || '')}
                                     </p>
                                   </div>
                                   <div style={{ position: 'absolute', top: '371px' }}>
