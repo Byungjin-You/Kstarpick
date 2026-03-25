@@ -97,7 +97,7 @@ const RelatedContent = ({
             </div>
             
             <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2 mb-1">
+              <h4 className="text-sm font-medium text-gray-900 transition-colors line-clamp-2 mb-1">
                 {item.title || item.name || '제목 없음'}
               </h4>
               

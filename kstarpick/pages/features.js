@@ -141,7 +141,7 @@ export default function Features() {
                       <span>{feature.date}</span>
                       <span>{feature.readTime}</span>
                     </div>
-                    <h3 className="text-lg font-semibold mb-2 group-hover:text-[#ff3e8e] transition-colors">{feature.title}</h3>
+                    <h3 className="text-lg font-semibold mb-2 transition-colors">{feature.title}</h3>
                     <p className="text-gray-600 text-sm mb-4 flex-grow">{feature.summary}</p>
                     <div className="text-[#ff3e8e] text-sm font-medium flex items-center mt-auto">
                       Read article <ArrowRight size={14} className="ml-1" />
@@ -182,7 +182,7 @@ export default function Features() {
                         </span>
                       </div>
                       <h3 className="text-lg font-semibold mb-2">
-                        <Link href={`/features/article/${item.id}`} className="hover:text-[#ff3e8e] transition-colors">
+                        <Link href={`/features/article/${item.id}`} className="transition-colors">
                           {item.title}
                         </Link>
                       </h3>

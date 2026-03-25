@@ -68,7 +68,7 @@ const ArticleCardGrid = ({ articles = [], onNavigate }) => {
               </div>
               <div className="flex-1 min-w-0 flex flex-col justify-center">
                 <h4
-                  className="font-bold text-[#101828] line-clamp-2 group-hover:text-ksp-accent transition-colors"
+                  className="font-bold text-[#101828] line-clamp-2 transition-colors"
                   style={{ fontFamily: 'Inter, sans-serif', fontSize: '16px', lineHeight: '20px', letterSpacing: '-0.21px' }}
                 >
                   {article.title}
@@ -100,7 +100,7 @@ const ArticleCardGrid = ({ articles = [], onNavigate }) => {
               <CategoryTag category={article.category} variant="overlay" className="absolute top-3 left-3" />
             </div>
             <h3
-              className="font-bold text-lg leading-[1.375] text-[#101828] line-clamp-2 mb-2 group-hover:text-ksp-accent transition-colors"
+              className="font-bold text-lg leading-[1.375] text-[#101828] line-clamp-2 mb-2 transition-colors"
               style={{ letterSpacing: '-0.0244em' }}
             >
               {article.title}

@@ -3007,7 +3007,7 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                                     />
                                   </div>
                                   <div style={{ position: 'absolute', top: '229px', width: '100%' }}>
-                                    <h4 className="line-clamp-2 group-hover:text-[#2B7FFF] transition-colors" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.375em', letterSpacing: '-0.024em', color: '#101828' }}>
+                                    <h4 className="line-clamp-2 transition-colors" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.375em', letterSpacing: '-0.024em', color: '#101828' }}>
                                       {news.title}
                                     </h4>
                                   </div>
@@ -3071,7 +3071,7 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                                         {formatCommentDate(item.createdAt || item.publishedAt)}
                                       </span>
                                     </div>
-                                    <h4 className="font-bold text-[15px] leading-[1.375] text-[#121212] line-clamp-2 group-hover:text-ksp-accent transition-colors">
+                                    <h4 className="font-bold text-[15px] leading-[1.375] text-[#121212] line-clamp-2 transition-colors">
                                       {item.title}
                                     </h4>
                                   </div>

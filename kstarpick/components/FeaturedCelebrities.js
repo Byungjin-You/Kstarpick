@@ -131,7 +131,7 @@ export default function FeaturedCelebrities({ celebrities = [] }) {
                   
                   {/* Info */}
                   <div className="p-3">
-                    <h3 className="font-bold text-gray-800 group-hover:text-[#ff3e8e] transition-colors line-clamp-1">
+                    <h3 className="font-bold text-gray-800 transition-colors line-clamp-1">
                       {celeb.name}
                     </h3>
                     
@@ -141,7 +141,7 @@ export default function FeaturedCelebrities({ celebrities = [] }) {
                         count && SocialIconMap[platform] ? (
                           <div 
                             key={platform}
-                            className="flex items-center space-x-1 text-xs cursor-pointer hover:text-[#ff3e8e]"
+                            className="flex items-center space-x-1 text-xs cursor-pointer"
                             onClick={(e) => handleSocialLinkClick(e, celeb.socialMedia && celeb.socialMedia[platform])}
                           >
                             {SocialIconMap[platform]}

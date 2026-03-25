@@ -93,7 +93,7 @@ const WatchNewsSection = ({ articles = [], onNavigate, onPlayVideo }) => {
             {/* Content */}
             <div className="flex-1 min-w-0 flex flex-col justify-center gap-2">
               <h4
-                className="font-bold text-[#101828] lg:text-base lg:leading-[1.375] line-clamp-2 group-hover:text-ksp-accent transition-colors"
+                className="font-bold text-[#101828] lg:text-base lg:leading-[1.375] line-clamp-2 transition-colors"
                 style={{ fontFamily: 'Inter, sans-serif', fontSize: '16px', lineHeight: '20px', letterSpacing: '-0.21px' }}
               >
                 {item.title?.replace(/^Watch:\s*/i, '') || item.title}

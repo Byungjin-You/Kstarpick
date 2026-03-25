@@ -224,7 +224,7 @@ const CardNews = React.memo(({ cards, featured }) => {
                 </div>
                 
                 <div className="p-4">
-                  <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#006fff] transition-colors">
+                  <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] transition-colors">
                     {card.title}
                   </h3>
 
@@ -352,7 +352,7 @@ const CardNews = React.memo(({ cards, featured }) => {
                     </div>
 
                     <div className="p-4 bg-transparent md:bg-white">
-                      <h3 className="font-bold text-white md:text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] md:group-hover:text-[#006fff] transition-colors">
+                      <h3 className="font-bold text-white md:text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] md:transition-colors">
                         {card.title}
                       </h3>
 

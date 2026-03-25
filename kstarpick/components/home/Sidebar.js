@@ -55,7 +55,7 @@ const Sidebar = ({ rankingNews = [], trendingNews = [], popularArticles = [], re
                       {getTimeAgo(item.createdAt || item.publishedAt)}
                     </span>
                   </div>
-                  <h4 className="font-bold text-[15px] leading-[1.375] text-[#121212] line-clamp-2 group-hover:text-ksp-accent transition-colors">
+                  <h4 className="font-bold text-[15px] leading-[1.375] text-[#121212] line-clamp-2 transition-colors">
                     {item.title}
                   </h4>
                 </div>

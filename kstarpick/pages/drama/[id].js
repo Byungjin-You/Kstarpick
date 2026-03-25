@@ -1828,7 +1828,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
                                 )}
                               </div>
                               <div style={{ marginTop: '16px' }}>
-                                <p className="line-clamp-1 group-hover:text-[#2B7FFF] transition-colors" style={{ fontFamily: 'Inter', fontWeight: 500, fontSize: '22px', lineHeight: '1.45em', color: '#0A0A0A' }}>
+                                <p className="line-clamp-1 transition-colors" style={{ fontFamily: 'Inter', fontWeight: 500, fontSize: '22px', lineHeight: '1.45em', color: '#0A0A0A' }}>
                                   {actor.name || 'Unknown'}
                                 </p>
                                 <p className="line-clamp-1" style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '16px', lineHeight: '1.875em', letterSpacing: '0.015em', color: '#6A7282' }}>
@@ -1889,7 +1889,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
                                 />
                               </div>
                               <div style={{ position: 'absolute', top: '229px', width: '100%' }}>
-                                <h4 className="line-clamp-2 group-hover:text-[#2B7FFF] transition-colors" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.375em', letterSpacing: '-0.024em', color: '#101828' }}>
+                                <h4 className="line-clamp-2 transition-colors" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.375em', letterSpacing: '-0.024em', color: '#101828' }}>
                                   {news.title}
                                 </h4>
                               </div>
@@ -1922,7 +1922,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
                                   />
                                 </div>
                                 <div style={{ position: 'absolute', top: '229px', width: '100%' }}>
-                                  <h4 className="line-clamp-2 group-hover:text-[#2B7FFF] transition-colors" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.375em', letterSpacing: '-0.024em', color: '#101828' }}>
+                                  <h4 className="line-clamp-2 transition-colors" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.375em', letterSpacing: '-0.024em', color: '#101828' }}>
                                     {news.title}
                                   </h4>
                                 </div>
@@ -1991,7 +1991,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
                                     {getTimeAgo(item.createdAt || item.publishedAt)}
                                   </span>
                                 </div>
-                                <h4 className="font-bold text-[15px] leading-[1.375] text-[#121212] line-clamp-2 group-hover:text-ksp-accent transition-colors">
+                                <h4 className="font-bold text-[15px] leading-[1.375] text-[#121212] line-clamp-2 transition-colors">
                                   {item.title}
                                 </h4>
                               </div>
@@ -3958,7 +3958,7 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
                           </div>
 
                           <div className="p-4">
-                            <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] group-hover:text-[#006fff] transition-colors">
+                            <h3 className="font-bold text-gray-800 text-xl md:text-2xl mb-2 line-clamp-2 min-h-[3.5rem] transition-colors">
                               {news.title}
                             </h3>
 

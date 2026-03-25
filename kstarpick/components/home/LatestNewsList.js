@@ -54,7 +54,7 @@ const LatestNewsList = ({ articles = [], onNavigate, title = 'Latest News' }) =>
                   {getTimeAgo(article.createdAt || article.publishedAt)}
                 </span>
               </div>
-              <h4 className="font-bold text-[16px] leading-[1.375] text-[#101828] line-clamp-2 group-hover:text-ksp-accent transition-colors" style={{ letterSpacing: '-0.0195em' }}>
+              <h4 className="font-bold text-[16px] leading-[1.375] text-[#101828] line-clamp-2 transition-colors" style={{ letterSpacing: '-0.0195em' }}>
                 {article.title}
               </h4>
               {article.source && (

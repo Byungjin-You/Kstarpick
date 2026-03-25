@@ -329,7 +329,7 @@ export default function Ranking({ todayNews = [], weekNews = [], monthNews = [],
                     {/* Content */}
                     <div className="flex-1 min-w-0 flex flex-col justify-between self-stretch" style={{ padding: '8px 0', gap: '8px' }}>
                       <h4
-                        className="line-clamp-2 group-hover:text-ksp-accent transition-colors"
+                        className="line-clamp-2 transition-colors"
                         style={{
                           fontFamily: 'Inter, sans-serif',
                           fontWeight: 700,
@@ -487,7 +487,7 @@ export default function Ranking({ todayNews = [], weekNews = [], monthNews = [],
                                 {/* Title */}
                                 <div style={{ marginTop: '10px' }}>
                                   <h3
-                                    className="font-bold line-clamp-2 text-[#101828] group-hover:text-ksp-accent transition-colors"
+                                    className="font-bold line-clamp-2 text-[#101828] transition-colors"
                                     style={{
                                       fontFamily: 'Pretendard, sans-serif',
                                       fontWeight: 700,
@@ -573,7 +573,7 @@ export default function Ranking({ todayNews = [], weekNews = [], monthNews = [],
                             {/* Content */}
                             <div className="flex-1 min-w-0 flex flex-col justify-between self-stretch" style={{ padding: '8px 0' }}>
                               <h3
-                                className="line-clamp-3 text-[#101828] group-hover:text-ksp-accent transition-colors"
+                                className="line-clamp-3 text-[#101828] transition-colors"
                                 style={{
                                   fontFamily: 'Inter, sans-serif',
                                   fontWeight: 700,
@@ -651,7 +651,7 @@ export default function Ranking({ todayNews = [], weekNews = [], monthNews = [],
                                     {getTimeAgo(item.createdAt || item.publishedAt)}
                                   </span>
                                 </div>
-                                <h4 className="font-bold text-[15px] leading-[1.375] text-[#121212] line-clamp-2 group-hover:text-ksp-accent transition-colors">
+                                <h4 className="font-bold text-[15px] leading-[1.375] text-[#121212] line-clamp-2 transition-colors">
                                   {item.title}
                                 </h4>
                               </div>

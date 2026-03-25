@@ -52,7 +52,7 @@ const NewsCardGrid = ({ articles = [], onNavigate }) => {
           </div>
 
           {/* Title */}
-          <h3 className="font-medium lg:font-bold text-[15px] lg:text-lg leading-[1.375] lg:leading-[1.56] text-[#101828] line-clamp-2 mb-1 lg:mb-2 group-hover:text-ksp-accent transition-colors" style={{ fontFamily: 'Pretendard, Inter, sans-serif', letterSpacing: '-0.015625em' }}>
+          <h3 className="font-medium lg:font-bold text-[15px] lg:text-lg leading-[1.375] lg:leading-[1.56] text-[#101828] line-clamp-2 mb-1 lg:mb-2 transition-colors" style={{ fontFamily: 'Pretendard, Inter, sans-serif', letterSpacing: '-0.015625em' }}>
             {article.title}
           </h3>
 

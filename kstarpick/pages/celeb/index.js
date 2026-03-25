@@ -818,7 +818,7 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
                             </div>
                             {/* Text */}
                             <div className="flex-1 min-w-0 flex flex-col gap-2">
-                              <h4 className="font-bold text-[16px] leading-[1.375] text-[#101828] line-clamp-2 group-hover:text-ksp-accent transition-colors" style={{ letterSpacing: '-0.02em' }}>
+                              <h4 className="font-bold text-[16px] leading-[1.375] text-[#101828] line-clamp-2 transition-colors" style={{ letterSpacing: '-0.02em' }}>
                                 {news.title}
                               </h4>
                               <div className="flex items-center gap-2">
@@ -878,7 +878,7 @@ export default function CelebrityListPage({ celebrities = [], celebNews = [], re
                                     {getTimeAgo(item.createdAt || item.publishedAt)}
                                   </span>
                                 </div>
-                                <h4 className="font-bold text-[15px] leading-[1.375] text-[#121212] line-clamp-2 group-hover:text-ksp-accent transition-colors">
+                                <h4 className="font-bold text-[15px] leading-[1.375] text-[#121212] line-clamp-2 transition-colors">
                                   {item.title}
                                 </h4>
                               </div>

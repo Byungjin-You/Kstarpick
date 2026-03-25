@@ -51,7 +51,7 @@ const NewsCard = ({ news }) => {
 
       {/* 콘텐츠 섹션 */}
       <div className="p-4">
-        <h3 className="font-bold text-lg mb-2 line-clamp-2 hover:text-blue-600 transition-colors">
+        <h3 className="font-bold text-lg mb-2 line-clamp-2 transition-colors">
           <a href={`/news/${news.slug || news._id}`} className="no-underline">
             {news.title}
           </a>

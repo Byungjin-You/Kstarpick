@@ -387,7 +387,7 @@ const MoreNews = ({ initialNews = [], category = '', storageKey = '' }) => {
 
             {/* Title */}
             <h3
-              className="font-bold text-lg leading-[1.375] text-[#101828] line-clamp-2 mb-2 group-hover:text-ksp-accent transition-colors"
+              className="font-bold text-lg leading-[1.375] text-[#101828] line-clamp-2 mb-2 transition-colors"
               style={{ letterSpacing: '-0.0244em' }}
             >
               {news.title}

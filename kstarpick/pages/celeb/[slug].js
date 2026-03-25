@@ -1684,7 +1684,7 @@ export default function CelebrityDetailPage({ celebrity = null, recentComments, 
                             </div>
                           </div>
                           <div className="pt-[16px]">
-                            <h3 className="font-medium text-[16px] line-clamp-2 group-hover:text-[#2B7FFF] transition-colors" style={{ color: '#111111', fontFamily: 'Roboto, sans-serif', lineHeight: '1.2em' }}>
+                            <h3 className="font-medium text-[16px] line-clamp-2 transition-colors" style={{ color: '#111111', fontFamily: 'Roboto, sans-serif', lineHeight: '1.2em' }}>
                               {video.title}
                             </h3>
                             <p className="text-[16px] mt-[3px]" style={{ color: '#99A1AF', fontFamily: 'Roboto, sans-serif', fontWeight: 400, lineHeight: '1.2em' }}>
@@ -1727,7 +1727,7 @@ export default function CelebrityDetailPage({ celebrity = null, recentComments, 
                               </div>
                             </div>
                             <div className="pt-2">
-                              <h3 className="font-medium text-[16px] line-clamp-2 group-hover:text-[#2B7FFF] transition-colors" style={{ color: '#111111', fontFamily: 'Roboto, sans-serif', lineHeight: '1.2em' }}>
+                              <h3 className="font-medium text-[16px] line-clamp-2 transition-colors" style={{ color: '#111111', fontFamily: 'Roboto, sans-serif', lineHeight: '1.2em' }}>
                                 {video.title}
                               </h3>
                               <p className="text-[14px] mt-1" style={{ color: '#99A1AF', fontFamily: 'Roboto, sans-serif' }}>
@@ -1786,7 +1786,7 @@ export default function CelebrityDetailPage({ celebrity = null, recentComments, 
                               onError={handleImageError}
                             />
                           </div>
-                          <h3 className="text-[16px] text-center line-clamp-1 group-hover:text-[#2B7FFF] transition-colors" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 500, color: '#111111', lineHeight: '1.2em', paddingTop: '8px' }}>{artist.name}</h3>
+                          <h3 className="text-[16px] text-center line-clamp-1 transition-colors" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 500, color: '#111111', lineHeight: '1.2em', paddingTop: '8px' }}>{artist.name}</h3>
                           <p className="text-[16px] text-center" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 400, color: '#99A1AF', lineHeight: '1.2em', paddingTop: '3px' }}>{artist.group || (artist.category === 'solo' ? 'Solo' : 'K-POP')}</p>
                         </Link>
                       ))}
@@ -1817,7 +1817,7 @@ export default function CelebrityDetailPage({ celebrity = null, recentComments, 
                                 />
                               </div>
                               <div style={{ position: 'absolute', top: '229px', width: '100%' }}>
-                                <h4 className="line-clamp-2 group-hover:text-[#2B7FFF] transition-colors" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.375em', letterSpacing: '-0.024em', color: '#101828' }}>
+                                <h4 className="line-clamp-2 transition-colors" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.375em', letterSpacing: '-0.024em', color: '#101828' }}>
                                   {news.title}
                                 </h4>
                               </div>
@@ -1850,7 +1850,7 @@ export default function CelebrityDetailPage({ celebrity = null, recentComments, 
                                   />
                                 </div>
                                 <div style={{ position: 'absolute', top: '229px', width: '100%' }}>
-                                  <h4 className="line-clamp-2 group-hover:text-[#2B7FFF] transition-colors" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.375em', letterSpacing: '-0.024em', color: '#101828' }}>
+                                  <h4 className="line-clamp-2 transition-colors" style={{ fontFamily: 'Inter', fontWeight: 700, fontSize: '18px', lineHeight: '1.375em', letterSpacing: '-0.024em', color: '#101828' }}>
                                     {news.title}
                                   </h4>
                                 </div>
@@ -1915,7 +1915,7 @@ export default function CelebrityDetailPage({ celebrity = null, recentComments, 
                                     {getTimeAgo(item.createdAt || item.publishedAt)}
                                   </span>
                                 </div>
-                                <h4 className="font-bold text-[15px] leading-[1.375] text-[#121212] line-clamp-2 group-hover:text-ksp-accent transition-colors">
+                                <h4 className="font-bold text-[15px] leading-[1.375] text-[#121212] line-clamp-2 transition-colors">
                                   {item.title}
                                 </h4>
                               </div>

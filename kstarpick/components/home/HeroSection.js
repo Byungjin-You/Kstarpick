@@ -84,7 +84,7 @@ const HeroSection = ({ article, onNavigate, children }) => {
 
             {/* Headline */}
             <h1
-              className="text-[18px] leading-[1.33] lg:text-[36px] lg:leading-[1.25] font-bold lg:font-black text-[#0A0A0A] lg:text-[#101828] cursor-pointer hover:text-ksp-accent transition-colors line-clamp-2 lg:line-clamp-3"
+              className="text-[18px] leading-[1.33] lg:text-[36px] lg:leading-[1.25] font-bold lg:font-black text-[#0A0A0A] lg:text-[#101828] cursor-pointer transition-colors line-clamp-2 lg:line-clamp-3"
               style={{ fontFamily: 'Pretendard, Inter, sans-serif', letterSpacing: '-0.0244em' }}
               onClick={handleClick}
             >

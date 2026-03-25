@@ -114,7 +114,7 @@ const KpopRankingSection = ({ songs = [], onPlayVideo }) => {
               </div>
             </div>
             <h4
-              className="font-bold text-xl text-left text-[#101828] line-clamp-1 w-[342px] group-hover:text-ksp-accent transition-colors"
+              className="font-bold text-xl text-left text-[#101828] line-clamp-1 w-[342px] transition-colors"
               style={{ letterSpacing: '-0.022em' }}
             >
               {song.title || song.name}
