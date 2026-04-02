@@ -55,7 +55,7 @@ function InfoRow({ icon: Icon, label, children }) {
       <Icon size={20} className="text-[#98A2B3] flex-shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
         <p className="text-[13px] text-[#98A2B3] font-medium uppercase tracking-wider mb-1">{label}</p>
-        <div className="text-[#000000]" style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '16px', lineHeight: '1.75em' }}>{children}</div>
+        <div className="text-[#000000] break-all overflow-hidden" style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '16px', lineHeight: '1.75em' }}>{children}</div>
       </div>
     </div>
   );
