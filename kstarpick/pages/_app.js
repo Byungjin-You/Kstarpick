@@ -67,6 +67,7 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       '/celeb': { key: 'celebScrollPosition', flag: 'isBackToCeleb', hasMoreNews: true },
       '/celeb/[slug]': { key: 'celebDetailScrollPosition', flag: 'isBackToCelebDetail' },
       '/ranking': { key: 'rankingScrollPosition', flag: 'isBackToRanking', hasMoreNews: true },
+      '/schedule': { key: 'scheduleScrollPosition', flag: 'isBackToSchedule' },
       '/search': { key: 'searchScrollPosition', flag: 'isBackToSearch' },
     };
 
@@ -78,6 +79,7 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       if (path.startsWith('/drama/') && path !== '/drama') return pageScrollConfig['/drama/[id]'];
       if (path.startsWith('/tvfilm/') && path !== '/tvfilm') return pageScrollConfig['/tvfilm/[id]'];
       if (path.startsWith('/celeb/') && path !== '/celeb') return pageScrollConfig['/celeb/[slug]'];
+      if (path.startsWith('/schedule/') && path !== '/schedule') return { key: 'scheduleDetailScrollPosition' };
       // 뉴스 상세: 슬러그별 개별 키
       if (path.startsWith('/news/') && path !== '/news') {
         const slug = path.split('/news/')[1];
@@ -524,7 +526,7 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const menuPages = ['/', '/drama', '/tvfilm', '/music', '/celeb', '/ranking'];
+    const menuPages = ['/', '/drama', '/tvfilm', '/music', '/celeb', '/schedule', '/ranking'];
     let startX = 0, startY = 0, moveX = 0;
     let swiping = false, dirLocked = false, isHorizontal = false;
 

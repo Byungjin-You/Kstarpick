@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useSession, signOut } from 'next-auth/react';
-import { Home, FileText, Video, Users, Settings, LogOut, Menu, X, AlertCircle, Film, Newspaper, Tv, Layers, Music, Star, Vote, Sparkles, TrendingUp } from 'lucide-react';
+import { Home, FileText, Video, Users, Settings, LogOut, Menu, X, AlertCircle, Film, Newspaper, Tv, Layers, Music, Star, Vote, Sparkles, TrendingUp, Calendar } from 'lucide-react';
 
 const AdminLayout = ({ children }) => {
   const router = useRouter();
@@ -54,6 +54,7 @@ const AdminLayout = ({ children }) => {
     { href: '/admin/news', icon: <FileText size={20} />, label: 'News' },
     { href: '/admin/drama', icon: <Video size={20} />, label: 'Dramas' },
     { href: '/admin/music', icon: <Music size={20} />, label: 'Music' },
+    { href: '/admin/schedules', icon: <Calendar size={20} />, label: 'Schedules' },
     { href: '/admin/users', icon: <Users size={20} />, label: 'Users' },
     { href: '/admin/settings', icon: <Settings size={20} />, label: 'Settings' },
   ];
@@ -138,6 +139,15 @@ const AdminLayout = ({ children }) => {
                 >
                   <Star className="mr-3 h-5 w-5" />
                   셀럽 관리
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/schedules"
+                  className={`flex items-center px-4 py-2 rounded-lg ${router.pathname.startsWith('/admin/schedules') ? 'bg-blue-600 text-white' : 'text-gray-800 hover:bg-blue-100'}`}
+                >
+                  <Calendar className="mr-3 h-5 w-5" />
+                  스케줄 관리
                 </Link>
               </li>
 

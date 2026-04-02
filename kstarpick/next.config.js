@@ -24,6 +24,14 @@ const nextConfig = {
     
     // Webpack 설정 수정
     config.optimization.usedExports = false;
+
+    // Hot Reload 무한 루프 방지 - node_modules, .next, logs 감시 제외
+    config.watchOptions = {
+      ignored: ['**/node_modules/**', '**/.next/**', '**/logs/**', '**/.git/**'],
+      poll: 1000,
+      aggregateTimeout: 300,
+    };
+
     return config;
   },
   

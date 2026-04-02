@@ -261,6 +261,7 @@ const Header = () => {
     { path: '/tvfilm', label: 'TV/Film' },
     { path: '/music', label: 'Music' },
     { path: '/celeb', label: 'Celeb' },
+    { path: '/schedule', label: 'Schedule' },
     { path: '/ranking', label: 'Ranking' },
   ];
 

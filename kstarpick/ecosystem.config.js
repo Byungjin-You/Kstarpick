@@ -35,6 +35,22 @@ module.exports = {
       error_file: '/doohub/service/kstarpick/logs/news-crawler-error.log',
       out_file: '/doohub/service/kstarpick/logs/news-crawler-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+    },
+    {
+      name: 'schedule-crawler',
+      script: './scripts/schedule-crawler.js',
+      cwd: '/doohub/service/kstarpick',
+      env: {
+        NODE_ENV: 'production',
+        API_BASE: 'http://localhost:13001'
+      },
+      exec_mode: 'fork',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      error_file: '/doohub/service/kstarpick/logs/schedule-crawler-error.log',
+      out_file: '/doohub/service/kstarpick/logs/schedule-crawler-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
     }
   ]
 };
