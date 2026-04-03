@@ -97,6 +97,21 @@ module.exports = {
       error_file: '/doohub/service/kstarpick/logs/celeb-updater-error.log',
       out_file: '/doohub/service/kstarpick/logs/celeb-updater-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+    },
+    {
+      name: 'music-chart',
+      script: './scripts/music-chart-updater.js',
+      cwd: '/doohub/service/kstarpick',
+      env: {
+        NODE_ENV: 'production'
+      },
+      exec_mode: 'fork',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      error_file: '/doohub/service/kstarpick/logs/music-chart-error.log',
+      out_file: '/doohub/service/kstarpick/logs/music-chart-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
     }
   ]
 };
