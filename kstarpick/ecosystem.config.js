@@ -51,6 +51,36 @@ module.exports = {
       error_file: '/doohub/service/kstarpick/logs/schedule-crawler-error.log',
       out_file: '/doohub/service/kstarpick/logs/schedule-crawler-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+    },
+    {
+      name: 'seed-reactions',
+      script: './scripts/seed-reactions-runner.js',
+      cwd: '/doohub/service/kstarpick',
+      env: {
+        NODE_ENV: 'production'
+      },
+      exec_mode: 'fork',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      error_file: '/doohub/service/kstarpick/logs/seed-reactions-error.log',
+      out_file: '/doohub/service/kstarpick/logs/seed-reactions-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+    },
+    {
+      name: 'seed-comments',
+      script: './scripts/seed-comments-runner.js',
+      cwd: '/doohub/service/kstarpick',
+      env: {
+        NODE_ENV: 'production'
+      },
+      exec_mode: 'fork',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      error_file: '/doohub/service/kstarpick/logs/seed-comments-error.log',
+      out_file: '/doohub/service/kstarpick/logs/seed-comments-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
     }
   ]
 };
