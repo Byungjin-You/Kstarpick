@@ -58,10 +58,52 @@ function generateSlug(title, artist) {
   return baseSlug || `music-${Date.now()}`;
 }
 
-// ─── 1. 매일: 조회수 업데이트 + 순위 재정렬 ───
+// ─── YouTube API로 실제 조회수 가져오기 ───
+function extractVideoId(url) {
+  if (!url) return null;
+  const match = url.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : null;
+}
+
+async function fetchRealViewCounts(videoIds) {
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  if (!apiKey) {
+    console.error('YOUTUBE_API_KEY not configured');
+    return {};
+  }
+
+  const results = {};
+  // YouTube API는 한 번에 최대 50개
+  for (let i = 0; i < videoIds.length; i += 50) {
+    const batch = videoIds.slice(i, i + 50);
+    try {
+      const url = `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${batch.join(',')}&key=${apiKey}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error(`YouTube API error ${res.status}:`, errText.substring(0, 200));
+        continue;
+      }
+      const data = await res.json();
+      if (data.items) {
+        for (const item of data.items) {
+          results[item.id] = {
+            viewCount: parseInt(item.statistics?.viewCount) || 0,
+            likeCount: parseInt(item.statistics?.likeCount) || 0
+          };
+        }
+      }
+    } catch (err) {
+      console.error('YouTube API fetch error:', err.message);
+    }
+  }
+  return results;
+}
+
+// ─── 1. 매일: 실제 YouTube 조회수 업데이트 + 순위 재정렬 ───
 async function updateViewsAndRank() {
   const timestamp = new Date().toISOString();
-  console.log(`\n[${timestamp}] 조회수 업데이트 + 순위 정렬 시작`);
+  console.log(`\n[${timestamp}] 실제 조회수 업데이트 + 순위 정렬 시작`);
 
   let client;
   try {
@@ -76,38 +118,68 @@ async function updateViewsAndRank() {
       return;
     }
 
-    console.log(`${allMusic.length}개 음악 조회수 업데이트 중...`);
+    console.log(`${allMusic.length}개 음악 실제 조회수 가져오는 중...`);
 
-    // Step 1: 조회수 업데이트
+    // Step 1: YouTube videoId 추출
+    const videoIdMap = {}; // videoId → music._id[]
+    for (const music of allMusic) {
+      const youtubeUrl = music.youtubeUrl || music.musicVideo || '';
+      const videoId = extractVideoId(youtubeUrl);
+      if (videoId) {
+        videoIdMap[videoId] = music._id;
+      }
+    }
+
+    const videoIds = Object.keys(videoIdMap);
+    if (videoIds.length === 0) {
+      console.log('YouTube URL이 있는 음악이 없음. 종료.');
+      await client.close();
+      return;
+    }
+
+    // Step 2: YouTube API로 실제 조회수 가져오기
+    const realStats = await fetchRealViewCounts(videoIds);
+    console.log(`YouTube API: ${Object.keys(realStats).length}/${videoIds.length}개 영상 조회수 확인`);
+
+    // Step 3: DB 업데이트
     const bulkOps = [];
     for (const music of allMusic) {
-      const oldViews = typeof music.views === 'number' ? music.views : parseInt(music.views) || 0;
-      const viewsIncrease = Math.max(100, Math.round(oldViews * (Math.random() * 0.05)));
-      const newViews = oldViews + viewsIncrease;
-      const newDailyViews = Math.max(50, Math.round(newViews * (Math.random() * 0.02 + 0.01)));
+      const youtubeUrl = music.youtubeUrl || music.musicVideo || '';
+      const videoId = extractVideoId(youtubeUrl);
+      const stats = videoId ? realStats[videoId] : null;
 
-      bulkOps.push({
-        updateOne: {
-          filter: { _id: music._id },
-          update: {
-            $set: {
-              views: newViews,
-              totalViews: newViews,
-              dailyViews: newDailyViews,
-              dailyview: newDailyViews,
-              dailyView: newDailyViews,
-              updatedAt: new Date()
+      if (stats) {
+        const oldViews = typeof music.views === 'number' ? music.views : parseInt(music.views) || 0;
+        const newViews = stats.viewCount;
+        // dailyViews = 오늘 조회수 - 어제 조회수 (증가분)
+        const dailyViews = Math.max(0, newViews - oldViews);
+
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: music._id },
+            update: {
+              $set: {
+                views: newViews,
+                totalViews: newViews,
+                dailyViews: dailyViews,
+                dailyview: dailyViews,
+                dailyView: dailyViews,
+                likes: stats.likeCount,
+                updatedAt: new Date()
+              }
             }
           }
-        }
-      });
+        });
+      }
     }
 
     if (bulkOps.length > 0) {
       await db.collection('musics').bulkWrite(bulkOps);
     }
 
-    // Step 2: 일일 조회수 기준 순위 재정렬
+    console.log(`${bulkOps.length}개 음악 실제 조회수 업데이트 완료`);
+
+    // Step 4: dailyViews 기준 순위 재정렬
     const sorted = await db.collection('musics').find({}).sort({ dailyViews: -1 }).toArray();
     const rankOps = [];
     let changed = 0;
