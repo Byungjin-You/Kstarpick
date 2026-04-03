@@ -112,21 +112,6 @@ module.exports = {
       error_file: '/doohub/service/kstarpick/logs/music-chart-error.log',
       out_file: '/doohub/service/kstarpick/logs/music-chart-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
-    },
-    {
-      name: 'drama-crawler',
-      script: './scripts/drama-crawler.js',
-      cwd: '/doohub/service/kstarpick',
-      env: {
-        NODE_ENV: 'production'
-      },
-      exec_mode: 'fork',
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      error_file: '/doohub/service/kstarpick/logs/drama-crawler-error.log',
-      out_file: '/doohub/service/kstarpick/logs/drama-crawler-out.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
     }
   ]
 };
