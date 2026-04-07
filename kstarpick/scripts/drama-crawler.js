@@ -481,8 +481,8 @@ function parseDetailPage(html, dramaUrl, mdlId) {
   $('.show-genres a').each((_, el) => genres.push($(el).text().trim()));
 
   // cast는 별도 cast 페이지에서 parseCastFromHtml로 파싱 (mainRoles, supportRoles 객체 형태)
-  // 빈 객체로 초기화
-  const cast = { mainRoles: [], supportRoles: [] };
+  // parseDetailPage에서는 cast를 만들지 않음 — crawlSource에서 비어있지 않을 때만 detail.cast 설정
+  // 이렇게 해야 cast 페이지 fetch 실패 시 기존 cast 데이터 보존됨
 
   const tags = [];
   $('.show-tags a').each((_, el) => tags.push($(el).text().trim()));
@@ -505,7 +505,6 @@ function parseDetailPage(html, dramaUrl, mdlId) {
     mdlPopularity,
     mdlWatchers,
     genres,
-    cast,
     tags,
     status: (metaData['status'] || 'completed').toLowerCase(),
     releaseDate: metaData['aired'] || metaData['released'] || '',
