@@ -41,6 +41,40 @@ const MDL_SOURCES = [
   { name: 'Movie',    category: 'movie', url: 'https://mydramalist.com/search?adv=titles&ty=77&co=3&so=newest&or=asc&page=1' }
 ];
 const DELAY_BETWEEN_DRAMAS = 5000; // 5초
+const API_BASE = process.env.API_BASE || process.env.NEXTAUTH_URL || 'http://localhost:13001';
+
+// ─── YouTube 영상 자동 검색 ───
+async function searchYouTubeVideos(title, originalTitle, category) {
+  try {
+    const keyword = category === 'movie' ? '영화' : '드라마';
+    const searchQuery = originalTitle ? `${originalTitle} ${keyword}` : `${title} ${keyword}`;
+    const url = `${API_BASE}/api/youtube/search-videos?title=${encodeURIComponent(searchQuery)}&maxResults=5`;
+
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.log(`  YouTube 검색 실패: HTTP ${res.status}`);
+      return [];
+    }
+    const data = await res.json();
+    if (!data.success || !Array.isArray(data.data) || data.data.length === 0) {
+      return [];
+    }
+    return data.data.map(v => ({
+      title: v.title,
+      type: v.title.toLowerCase().includes('trailer') ? 'trailer'
+          : v.title.toLowerCase().includes('teaser') ? 'teaser'
+          : 'other',
+      url: v.url,
+      videoId: v.videoId,
+      thumbnailUrl: v.thumbnailUrl,
+      viewCount: v.viewCount,
+      publishedAt: v.publishedAt,
+    }));
+  } catch (err) {
+    console.log(`  YouTube 검색 에러: ${err.message}`);
+    return [];
+  }
+}
 
 async function connectToDatabase() {
   const uri = process.env.MONGODB_URI;
@@ -533,6 +567,23 @@ async function crawlSource(db, source, totals) {
     }
     const reviewsWithRating = allReviews.filter(r => r.rating > 0);
 
+    // YouTube 영상 자동 검색 (신규/업데이트 모두 — videos 비어있을 때만)
+    // 기존 데이터 보존을 위해 saveDrama 전에 existing 확인
+    const existing = await db.collection('dramas').findOne({ mdlUrl: detail.mdlUrl });
+    const needsVideos = !existing || !existing.videos || existing.videos.length === 0;
+    if (needsVideos) {
+      const videos = await searchYouTubeVideos(detail.title, detail.originalTitle, detail.category);
+      if (videos.length > 0) {
+        detail.videos = videos;
+        // 첫 번째 trailer/teaser를 trailerUrl로 (existing.trailerUrl 없을 때만)
+        if (!existing?.trailerUrl) {
+          const firstTrailer = videos.find(v => v.type === 'trailer') || videos[0];
+          detail.trailerUrl = firstTrailer.url;
+        }
+        console.log(`  🎬 YouTube 영상 ${videos.length}개 자동 검색됨`);
+      }
+    }
+
     // DB 저장
     const saveResult = await saveDrama(db, detail);
     if (saveResult.action === 'inserted') {
@@ -602,6 +653,11 @@ if (process.env.RUN_ONCE === '1') {
 
   console.log('[Drama Crawler] 스케줄러 시작됨 - 매일 04:00 KST (안전 모드)');
 
-  // 시작 시 즉시 1회 실행
-  runDramaCrawl();
+  // PM2 재시작 시 즉시 실행 방지 — 환경변수로 명시적으로 활성화한 경우만 실행
+  if (process.env.RUN_ON_BOOT === '1') {
+    console.log('[Drama Crawler] RUN_ON_BOOT=1, 시작 시 즉시 1회 실행');
+    runDramaCrawl();
+  } else {
+    console.log('[Drama Crawler] 다음 실행 대기 중 (매일 04:00 KST)');
+  }
 }
