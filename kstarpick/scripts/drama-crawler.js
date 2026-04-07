@@ -423,9 +423,13 @@ async function saveReviews(db, reviews, dramaId) {
 // ─── 점수 계산 (Bayesian + 시간 가중치) ───
 function calculateAutoScore(item) {
   const v = item.raters || 0;
+  const R = item.reviewRating || 0;
+
+  // 평점이 없거나 평점자가 너무 적으면 점수 0 (랭킹에서 사실상 제외)
+  if (R <= 0 || v < 5) return 0;
+
   const m = 50;       // 최소 평점자 임계값
   const C = 7.0;      // 전체 평균 평점 (MDL 평균)
-  const R = item.reviewRating || 0;
 
   // Bayesian Weighted Rating
   const bayesian = (v / (v + m)) * R + (m / (v + m)) * C;
@@ -440,15 +444,16 @@ function calculateAutoScore(item) {
 }
 
 // ─── orderNumber 일괄 재계산 (category별 분리, Bayesian + 시간 가중치) ───
+// 비-featured 모든 항목 대상 (rating 없는 것도 포함, score 0으로 뒤로 밀림)
 async function recalculateOrderNumbers(db) {
   console.log('\n[Drama Crawler] orderNumber 일괄 재계산 시작 (category별)...');
 
   // category별로 처리
   for (const category of ['drama', 'movie']) {
+    // featured: true인 것만 자동 영역에서 제외 (수동 큐레이션 보존)
     const items = await db.collection('dramas').find({
       category,
       featured: { $ne: true },
-      reviewRating: { $gt: 0 }
     }).project({
       _id: 1, title: 1, category: 1, reviewRating: 1, raters: 1, createdAt: 1
     }).toArray();
@@ -463,6 +468,7 @@ async function recalculateOrderNumbers(db) {
     scored.sort((a, b) => b.score - a.score);
 
     // orderNumber 부여 (100부터 — featured 1~99 보존)
+    // 모든 비-featured 항목을 100번대로 새로 부여하여 옛날 orderNumber 잔재 제거
     const bulkOps = scored.map((d, i) => ({
       updateOne: {
         filter: { _id: d._id },
