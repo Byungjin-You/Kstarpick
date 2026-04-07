@@ -10,7 +10,7 @@ import Seo from '../../components/Seo';
 import StructuredData from '../../components/StructuredData';
 import Analytics from '../../components/Analytics';
 import { generateNewsArticleJsonLd, generateMetaTags, generateKeywords } from '../../utils/seoHelpers';
-import { Heart, Share2, Clock, ChevronRight, ArrowUp, Send, X, Smile } from 'lucide-react';
+import { Heart, Share2, Clock, ChevronRight, ArrowUp, Send, X, Smile, ThumbsUp, ThumbsDown, MessageCircle } from 'lucide-react';
 import Cookies from 'js-cookie';
 import { connectToDatabase } from "../../utils/mongodb";
 import { ObjectId } from 'mongodb';
@@ -2045,18 +2045,30 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                   {newsArticle.title}
                 </h1>
               </div>
-              <div className="flex justify-between items-end">
-                <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '12px', lineHeight: '1.33em', letterSpacing: '-0.0333em', color: '#99A1AF' }}>
-                  {(() => {
-                    const date = new Date(newsArticle.createdAt);
-                    const year = date.getFullYear();
-                    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-                    const day = date.getDate().toString().padStart(2, '0');
-                    const hours = date.getHours().toString().padStart(2, '0');
-                    const minutes = date.getMinutes().toString().padStart(2, '0');
-                    return `${year}.${month}.${day} ${hours}:${minutes}`;
-                  })()}
-                </span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '12px', lineHeight: '1.33em', letterSpacing: '-0.0333em', color: '#99A1AF' }}>
+                {(() => {
+                  const date = new Date(newsArticle.createdAt);
+                  const year = date.getFullYear();
+                  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                  const day = date.getDate().toString().padStart(2, '0');
+                  const hours = date.getHours().toString().padStart(2, '0');
+                  const minutes = date.getMinutes().toString().padStart(2, '0');
+                  return `${year}.${month}.${day} ${hours}:${minutes}`;
+                })()}
+              </span>
+              <div className="flex justify-between items-center" style={{ marginTop: '6px' }}>
+                <div className="flex items-center" style={{ gap: '14px' }}>
+                  <div className="flex items-center" style={{ gap: '4px', color: '#6B7280', fontSize: '13px', fontWeight: 500 }}>
+                    <img src="/images/like-thumb-blue.svg" alt="like" style={{ width: '16px', height: '16px' }} />
+                    <span>{(reactions?.like || 0) + (reactions?.dislike || 0)}</span>
+                  </div>
+                  <div className="flex items-center" style={{ gap: '4px', color: '#6B7280', fontSize: '13px', fontWeight: 500 }}>
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M10 1.733a7.933 7.933 0 11-3.707 14.948l-2.56.854a1.267 1.267 0 01-1.601-1.603l.852-2.558A7.934 7.934 0 0110 1.734zm0 1a6.934 6.934 0 00-6.132 10.173l.2.378-.135.406-.853 2.559a.267.267 0 00.337.337l2.56-.853.405-.136.379.2a6.933 6.933 0 0010.172-6.13A6.933 6.933 0 0010 2.733zM6.75 8.696a.938.938 0 110 1.876.938.938 0 010-1.876zm3.25 0a.938.938 0 110 1.876.938.938 0 010-1.876zm3.25 0a.938.938 0 110 1.876.938.938 0 010-1.876z" fill="#6B7280"/>
+                    </svg>
+                    <span>{localComments?.length || 0}</span>
+                  </div>
+                </div>
                 <div className="flex items-center" style={{ gap: '12px', height: '18px' }}>
                   <button onClick={handleShareFacebook} className="hover:opacity-70 transition-opacity" title="Share to Facebook">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="#99A1AF"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
@@ -2698,13 +2710,25 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
                               {newsArticle.title}
                             </h1>
                           </div>
-                          <div className="flex justify-between items-end">
-                            <span style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '13px', lineHeight: '1.23em', letterSpacing: '-0.031em', color: '#99A1AF' }}>
-                              {newsArticle.createdAt ? (() => {
-                                const d = new Date(newsArticle.createdAt);
-                                return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-                              })() : ''}
-                            </span>
+                          <span style={{ fontFamily: 'Inter', fontWeight: 400, fontSize: '13px', lineHeight: '1.23em', letterSpacing: '-0.031em', color: '#99A1AF' }}>
+                            {newsArticle.createdAt ? (() => {
+                              const d = new Date(newsArticle.createdAt);
+                              return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                            })() : ''}
+                          </span>
+                          <div className="flex justify-between items-center" style={{ marginTop: '8px' }}>
+                            <div className="flex items-center" style={{ gap: '16px' }}>
+                              <div className="flex items-center" style={{ gap: '5px', color: '#6B7280', fontSize: '14px', fontWeight: 500 }}>
+                                <img src="/images/like-thumb-blue.svg" alt="like" style={{ width: '18px', height: '18px' }} />
+                                <span>{(reactions?.like || 0) + (reactions?.dislike || 0)}</span>
+                              </div>
+                              <div className="flex items-center" style={{ gap: '5px', color: '#6B7280', fontSize: '14px', fontWeight: 500 }}>
+                                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M10 1.733a7.933 7.933 0 11-3.707 14.948l-2.56.854a1.267 1.267 0 01-1.601-1.603l.852-2.558A7.934 7.934 0 0110 1.734zm0 1a6.934 6.934 0 00-6.132 10.173l.2.378-.135.406-.853 2.559a.267.267 0 00.337.337l2.56-.853.405-.136.379.2a6.933 6.933 0 0010.172-6.13A6.933 6.933 0 0010 2.733zM6.75 8.696a.938.938 0 110 1.876.938.938 0 010-1.876zm3.25 0a.938.938 0 110 1.876.938.938 0 010-1.876zm3.25 0a.938.938 0 110 1.876.938.938 0 010-1.876z" fill="#6B7280"/>
+                                </svg>
+                                <span>{localComments?.length || 0}</span>
+                              </div>
+                            </div>
                             <div className="flex" style={{ gap: '12px' }}>
                               <button onClick={handleShareFacebook} className="hover:opacity-70 transition-opacity" title="Share to Facebook">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="#99A1AF"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>

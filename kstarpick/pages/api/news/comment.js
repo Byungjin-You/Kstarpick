@@ -38,39 +38,37 @@ export default async function handler(req, res) {
 // 댓글 조회 처리 함수
 async function getComments(req, res) {
   try {
-    console.log(`[Comment API] Getting comments for news ID: ${req.query.id}`);
-    
-    const { id, page = 1, limit = 200 } = req.query;
-    
+    const { id, page = 1, limit = 200, type = 'news' } = req.query;
+    console.log(`[Comment API] Getting comments for ${type} ID: ${id}`);
+
     if (!id) {
-      return res.status(400).json({ success: false, message: 'News ID is required' });
+      return res.status(400).json({ success: false, message: 'Content ID is required' });
     }
 
-    // Check if news article exists
     const { db } = await connectToDatabase();
-    let newsArticle;
-    let newsId;
-    
-    try {
-      if (ObjectId.isValid(id)) {
-        newsArticle = await db.collection('news').findOne({ _id: new ObjectId(id) });
-        newsId = newsArticle?._id;
+
+    // contentId 결정: type이 news면 기존 로직, 그 외엔 ObjectId 직접 사용
+    let contentId;
+    if (type === 'news') {
+      let newsArticle;
+      try {
+        if (ObjectId.isValid(id)) {
+          newsArticle = await db.collection('news').findOne({ _id: new ObjectId(id) });
+          contentId = newsArticle?._id;
+        }
+        if (!newsArticle) {
+          newsArticle = await db.collection('news').findOne({ slug: id });
+          contentId = newsArticle?._id;
+        }
+      } catch (error) {
+        console.error('[Comment API] Error finding news article:', error);
       }
-      
       if (!newsArticle) {
-        newsArticle = await db.collection('news').findOne({ slug: id });
-        newsId = newsArticle?._id;
+        contentId = ObjectId.isValid(id) ? new ObjectId(id) : id;
       }
-    } catch (error) {
-      console.error('[Comment API] Error finding news article:', error);
-    }
-    
-    // 뉴스가 로컬 DB에 없어도 댓글 조회 허용
-    if (!newsArticle) {
-      newsId = ObjectId.isValid(id) ? new ObjectId(id) : id;
-      console.log(`[Comment API] News not found locally, using ID directly: ${newsId}`);
     } else {
-      console.log(`[Comment API] Found news article: ${newsArticle.title}`);
+      // schedule, drama 등: ObjectId만 직접 사용
+      contentId = ObjectId.isValid(id) ? new ObjectId(id) : id;
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -78,8 +76,8 @@ async function getComments(req, res) {
     // Get comments using native MongoDB driver instead of Mongoose
     const comments = await db.collection('comments')
       .find({
-        contentId: newsId instanceof ObjectId ? newsId : new ObjectId(newsId),
-        contentType: 'news'
+        contentId: contentId instanceof ObjectId ? contentId : new ObjectId(contentId),
+        contentType: type
       })
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -169,9 +167,9 @@ async function getComments(req, res) {
     });
 
     // Get total count for pagination
-    const total = await db.collection('comments').countDocuments({ 
-      contentId: newsId instanceof ObjectId ? newsId : new ObjectId(newsId), 
-      contentType: 'news'
+    const total = await db.collection('comments').countDocuments({
+      contentId: contentId instanceof ObjectId ? contentId : new ObjectId(contentId),
+      contentType: type
     });
 
     return res.status(200).json({
@@ -195,44 +193,46 @@ async function addComment(req, res) {
   try {
     console.log('[Comment API] Adding new comment');
     console.log('[Comment API] Raw request body:', req.body);
-    
-    const { id, content, guestName } = req.body;
+
+    const { id, content, guestName, type = 'news' } = req.body;
 
     if (!id || !content) {
       console.log('[Comment API] Missing required fields:', { id, content });
-      return res.status(400).json({ 
-        success: false, 
-        message: 'News ID and comment content are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Content ID and content are required'
       });
     }
 
     // Validate content length
     if (content.trim().length < 1) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Comment cannot be empty' 
+      return res.status(400).json({
+        success: false,
+        message: 'Comment cannot be empty'
       });
     }
 
-    // Check if news article exists
     const { db } = await connectToDatabase();
-    let newsArticle;
-    
-    try {
-      if (ObjectId.isValid(id)) {
-        newsArticle = await db.collection('news').findOne({ _id: new ObjectId(id) });
-      }
-      
-      if (!newsArticle) {
-        newsArticle = await db.collection('news').findOne({ slug: id });
-      }
-    } catch (error) {
-      console.error('[Comment API] Error finding news article:', error);
-    }
 
-    // 뉴스가 로컬 DB에 없어도 댓글 저장 허용 (프로덕션 fallback 데이터 대응)
-    const newsId = newsArticle ? newsArticle._id : (ObjectId.isValid(id) ? new ObjectId(id) : id);
-    console.log(`[Comment API] Using newsId: ${newsId} (article found: ${!!newsArticle})`);
+    // contentId 결정: type이 news면 기존 로직, 그 외엔 ObjectId 직접 사용
+    let contentId;
+    if (type === 'news') {
+      let newsArticle;
+      try {
+        if (ObjectId.isValid(id)) {
+          newsArticle = await db.collection('news').findOne({ _id: new ObjectId(id) });
+        }
+        if (!newsArticle) {
+          newsArticle = await db.collection('news').findOne({ slug: id });
+        }
+      } catch (error) {
+        console.error('[Comment API] Error finding news article:', error);
+      }
+      contentId = newsArticle ? newsArticle._id : (ObjectId.isValid(id) ? new ObjectId(id) : id);
+    } else {
+      contentId = ObjectId.isValid(id) ? new ObjectId(id) : id;
+    }
+    console.log(`[Comment API] Using contentId: ${contentId} (type: ${type})`);
 
     // Get session to check if user is logged in
     const session = await getSession({ req });
@@ -259,8 +259,8 @@ async function addComment(req, res) {
     // Create comment with MongoDB native driver
     const comment = {
       content: content.trim(),
-      contentId: newsId,
-      contentType: 'news',
+      contentId: contentId,
+      contentType: type,
       createdAt: new Date()
     };
     
