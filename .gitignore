@@ -27,6 +27,10 @@ kstarpick/public/uploads/
 .DS_Store
 *.pem
 *.tar.gz
+*~
+
+# Logs
+logs/*.log
 
 # Temp files
 kstarpick/check_news.js
