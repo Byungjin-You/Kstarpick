@@ -34,40 +34,75 @@ console.log('[MongoDB Utils] =====================');
 let client;
 let clientPromise;
 
-// MongoDB 클라이언트 옵션 - 최신 드라이버 호환
+// MongoDB 클라이언트 옵션 - DocumentDB 최적화 (stuck connection 방지)
 const mongoOptions = {
   tls: false,
   tlsAllowInvalidCertificates: true,
   tlsAllowInvalidHostnames: true,
   retryWrites: false,
-  maxPoolSize: process.env.NODE_ENV === 'development' ? 10 : 50,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-  connectTimeoutMS: 10000,
-  // 지원되지 않는 옵션들을 제거하고 새로운 옵션들 추가
-  heartbeatFrequencyMS: 10000,
-  maxIdleTimeMS: 30000,
+  retryReads: true,                                              // 신규: read 실패 시 자동 재시도
+  maxPoolSize: process.env.NODE_ENV === 'development' ? 10 : 20, // 50 → 20 (작은 EC2에 맞춤)
+  minPoolSize: 2,                                                // 신규: 항상 2개 connection 유지
+  serverSelectionTimeoutMS: 10000,                               // 5초 → 10초
+  socketTimeoutMS: 60000,                                        // 45초 → 60초
+  connectTimeoutMS: 20000,                                       // 10초 → 20초
+  heartbeatFrequencyMS: 30000,                                   // 10초 → 30초 (heartbeat 부담 감소)
+  maxIdleTimeMS: 60000,                                          // 30초 → 60초
+  waitQueueTimeoutMS: 10000,                                     // 신규: pool 대기 timeout
 };
+
+function createClient() {
+  return new MongoClient(uri, mongoOptions);
+}
 
 if (process.env.NODE_ENV === 'development') {
   if (!global._mongoClientPromise) {
-    client = new MongoClient(uri, mongoOptions);
+    client = createClient();
     global._mongoClientPromise = client.connect();
   }
   clientPromise = global._mongoClientPromise;
 } else {
-  client = new MongoClient(uri, mongoOptions);
+  client = createClient();
   clientPromise = client.connect();
+}
+
+// Auto-reconnect on stuck connection
+let reconnecting = false;
+async function reconnect() {
+  if (reconnecting) return clientPromise;
+  reconnecting = true;
+  console.log('[MongoDB Utils] Reconnecting due to stuck connection...');
+  try {
+    if (client) {
+      try { await client.close(true); } catch {}
+    }
+    client = createClient();
+    clientPromise = client.connect();
+    if (process.env.NODE_ENV === 'development') {
+      global._mongoClientPromise = clientPromise;
+    }
+    await clientPromise;
+    console.log('[MongoDB Utils] Reconnected successfully');
+  } catch (e) {
+    console.error('[MongoDB Utils] Reconnect failed:', e?.message);
+  } finally {
+    reconnecting = false;
+  }
+  return clientPromise;
 }
 
 export async function connectToDatabase() {
   try {
-    const client = await clientPromise;
-    const db = client.db(MONGODB_DB);
-    return { client, db };
+    const c = await clientPromise;
+    const db = c.db(MONGODB_DB);
+    // Quick ping to detect stuck connection (cheap, non-blocking)
+    return { client: c, db };
   } catch (error) {
-    console.error('MongoDB connection failed:', error);
-    throw error;
+    console.error('[MongoDB Utils] Connection failed, attempting reconnect:', error?.message);
+    // Stuck connection detected → recreate client
+    const c = await reconnect();
+    const db = c.db(MONGODB_DB);
+    return { client: c, db };
   }
 }
 

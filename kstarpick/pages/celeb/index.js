@@ -943,7 +943,7 @@ export async function getServerSideProps(context) {
     // Fetch all data in parallel
     const [celebResponse, celebNewsResponse, commentsResponse, rankingResponse, allNewsResponse, trendingResponse, editorsPickResponse] = await Promise.all([
       fetch(`${prodUrl}/api/celeb?limit=50&active=true`),
-      fetch(`${prodUrl}/api/news/celeb?limit=200`),
+      fetch(`${prodUrl}/api/news/celeb?limit=30`),
       fetch(`${baseUrl}/api/comments/recent?limit=10`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news?limit=10&sort=viewCount&category=celeb&${listFields}`).catch(() => ({ json: () => ({ success: false }) })),
       fetch(`${prodUrl}/api/news?limit=200&${listFields}`).catch(() => ({ json: () => ({ success: false }) })),
