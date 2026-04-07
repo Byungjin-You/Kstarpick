@@ -116,6 +116,7 @@ module.exports = {
     {
       name: 'drama-crawler',
       script: './scripts/drama-crawler.js',
+      node_args: '--expose-gc',
       cwd: '/doohub/service/kstarpick',
       env: {
         NODE_ENV: 'production'
