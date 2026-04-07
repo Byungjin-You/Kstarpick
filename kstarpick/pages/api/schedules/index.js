@@ -54,7 +54,7 @@ async function handleGet(req, res) {
     }
 
     const [schedules, totalItems] = await Promise.all([
-      db.collection('schedules').find(filter).sort({ startDate: 1 }).skip(skip).limit(limitNum).toArray(),
+      db.collection('schedules').find(filter).sort({ startDate: 1 }).batchSize(100).skip(skip).limit(limitNum).toArray(),
       db.collection('schedules').countDocuments(filter)
     ]);
 

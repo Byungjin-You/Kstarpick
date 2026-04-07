@@ -604,6 +604,7 @@ export async function getServerSideProps({ query }) {
         ]
       })
       .sort({ startDate: 1 })
+      .batchSize(100)
       .limit(2000)
       .toArray();
 
