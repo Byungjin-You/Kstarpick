@@ -2448,7 +2448,7 @@ export default function AdminDashboard() {
                               const maxViews = Math.max(scaledViews[0] || 1, 1);
                               return articles.map((article, i) => {
                                 const views = scaledViews[i];
-                                const reactions = article.reactions?.like || 0;
+                                const reactions = article.totalReactions || 0;
                                 const viewPercent = Math.round((views / maxViews) * 100);
                                 const daysAgo = article.createdAt ? Math.max(1, Math.floor((Date.now() - new Date(article.createdAt).getTime()) / 86400000)) : 1;
                                 const viewsPerDay = Math.round(views / daysAgo);
