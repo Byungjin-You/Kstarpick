@@ -19,6 +19,7 @@ import DirectRiddleContent from '../../components/DirectRiddleContent';
 import CommentTicker from '../../components/home/CommentTicker';
 import TrendingNow from '../../components/home/TrendingNow';
 import MoreNews from '../../components/MoreNews';
+import AnimatedReactionButton from '../../components/AnimatedReactionButton';
 
 // Riddle 임베드 지원을 위한 뉴스 페이지
 
@@ -1499,6 +1500,54 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
 
   }, [router]);
 
+  // 통합 reaction 핸들러 (모바일/PC 공통)
+  const handleReactionClick = async (key) => {
+    const isCancel = userReaction === key;
+    const newUserReaction = isCancel ? null : key;
+    const previousReaction = userReaction || null;
+
+    const newReactions = { ...reactions };
+    if (previousReaction) {
+      newReactions[previousReaction] = Math.max(0, newReactions[previousReaction] - 1);
+    }
+    if (!isCancel) {
+      newReactions[key] = (newReactions[key] || 0) + 1;
+    }
+    setReactions(newReactions);
+    setUserReaction(newUserReaction);
+    saveReactionsCounts(newsArticle._id, newReactions);
+
+    if (typeof window !== 'undefined' && newsArticle?._id) {
+      const userReactionsFromCookie = Cookies.get('newsReactions');
+      const userReactionsMap = userReactionsFromCookie ? JSON.parse(userReactionsFromCookie) : {};
+      if (newUserReaction) {
+        userReactionsMap[newsArticle._id] = newUserReaction;
+      } else {
+        delete userReactionsMap[newsArticle._id];
+      }
+      Cookies.set('newsReactions', JSON.stringify(userReactionsMap), { expires: 365 });
+    }
+
+    try {
+      const res = await fetch('/api/news/reactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          newsId: newsArticle._id,
+          reactionType: isCancel ? null : key,
+          previousReaction
+        })
+      });
+      const data = await res.json();
+      if (data.reactions) {
+        setReactions(data.reactions);
+        saveReactionsCounts(newsArticle._id, data.reactions);
+      }
+    } catch (err) {
+      console.error('Reaction API error:', err);
+    }
+  };
+
   // Handle like functionality
   const handleLike = () => {
     // 좋아요 상태 토글
@@ -2268,113 +2317,24 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
 
             {/* Section 5: Like it / Not for me */}
             <div className="flex justify-center" style={{ padding: '36px 16px', gap: '10px' }}>
-              {[
-                { key: 'like', label: 'Like it!', icon: '/images/like-thumb-blue.svg', borderColor: '#2B7FFF', textColor: '#2B7FFF', iconPosition: 'left' },
-                { key: 'dislike', label: 'Not for me', icon: '/images/notforme-thumb-gray.svg', borderColor: '#A7A7A7', textColor: '#7D7F85', iconPosition: 'right' }
-              ].map(({ key, label, icon, borderColor, textColor, iconPosition }) => (
-                <button
-                  key={key}
-                  onClick={async () => {
-                    const isCancel = userReaction === key;
-                    const newUserReaction = isCancel ? null : key;
-                    const previousReaction = userReaction || null;
-
-                    const newReactions = { ...reactions };
-                    if (previousReaction) {
-                      newReactions[previousReaction] = Math.max(0, newReactions[previousReaction] - 1);
-                    }
-                    if (!isCancel) {
-                      newReactions[key] = (newReactions[key] || 0) + 1;
-                    }
-                    setReactions(newReactions);
-                    setUserReaction(newUserReaction);
-                    saveReactionsCounts(newsArticle._id, newReactions);
-
-                    if (typeof window !== 'undefined' && newsArticle?._id) {
-                      const userReactionsFromCookie = Cookies.get('newsReactions');
-                      const userReactionsMap = userReactionsFromCookie ? JSON.parse(userReactionsFromCookie) : {};
-                      if (newUserReaction) {
-                        userReactionsMap[newsArticle._id] = newUserReaction;
-                      } else {
-                        delete userReactionsMap[newsArticle._id];
-                      }
-                      Cookies.set('newsReactions', JSON.stringify(userReactionsMap), { expires: 365 });
-                    }
-
-                    try {
-                      const res = await fetch('/api/news/reactions', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          newsId: newsArticle._id,
-                          reactionType: isCancel ? null : key,
-                          previousReaction
-                        })
-                      });
-                      const data = await res.json();
-                      if (data.reactions) {
-                        setReactions(data.reactions);
-                        saveReactionsCounts(newsArticle._id, data.reactions);
-                      }
-                    } catch (err) {
-                      console.error('Reaction API error:', err);
-                    }
-                  }}
-                  style={{
-                    position: 'relative',
-                    flex: 1,
-                    maxWidth: '194px',
-                    height: '71px',
-                    backgroundColor: userReaction === key ? (key === 'like' ? 'rgba(43,127,255,0.05)' : 'rgba(125,127,133,0.05)') : '#FFFFFF',
-                    border: `1px solid ${userReaction === key ? borderColor : borderColor}`,
-                    borderRadius: '10px',
-                    overflow: 'hidden',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {/* Decorative thumb icon */}
-                  <img
-                    src={icon}
-                    alt=""
-                    style={{
-                      position: 'absolute',
-                      top: iconPosition === 'left' ? '8px' : '-18px',
-                      [iconPosition === 'left' ? 'left' : 'right']: '-14px',
-                      width: iconPosition === 'left' ? '70px' : '65px',
-                      height: iconPosition === 'left' ? '83px' : '80px',
-                      pointerEvents: 'none',
-                    }}
-                  />
-                  {/* Text content */}
-                  <div style={{
-                    position: 'absolute',
-                    top: '28px',
-                    left: iconPosition === 'left' ? '57px' : '36px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '9px',
-                  }}>
-                    <span style={{
-                      fontFamily: 'Inter, sans-serif',
-                      fontWeight: 900,
-                      fontSize: '16px',
-                      lineHeight: '1em',
-                      color: textColor,
-                    }}>
-                      {reactions[key] || 0}
-                    </span>
-                    <span style={{
-                      fontFamily: 'Inter, sans-serif',
-                      fontWeight: 600,
-                      fontSize: '16px',
-                      lineHeight: '1em',
-                      color: textColor,
-                    }}>
-                      {label}
-                    </span>
-                  </div>
-                </button>
-              ))}
+              <AnimatedReactionButton
+                variant="like"
+                size="mobile"
+                count={reactions.like || 0}
+                isActive={userReaction === 'like'}
+                onClick={() => handleReactionClick('like')}
+                label="Like it!"
+                icon="/images/like-thumb-blue.svg"
+              />
+              <AnimatedReactionButton
+                variant="dislike"
+                size="mobile"
+                count={reactions.dislike || 0}
+                isActive={userReaction === 'dislike'}
+                onClick={() => handleReactionClick('dislike')}
+                label="Not for me"
+                icon="/images/notforme-thumb-gray.svg"
+              />
             </div>
 
             {/* Section 7: Comments */}
@@ -2782,89 +2742,24 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
 
                         {/* Like it / Not for me */}
                         <div className="flex justify-center" style={{ padding: '20px 0', gap: '30px' }}>
-                          {[
-                            { key: 'like', label: 'Like it!', activeColor: '#2B7FFF', activeBg: 'rgba(43, 127, 255, 0.4)' },
-                            { key: 'dislike', label: 'Not for me', activeColor: '#2B7FFF', activeBg: 'rgba(43, 127, 255, 0.4)' }
-                          ].map(({ key, label, activeColor }) => {
-                            const isSelected = userReaction === key;
-                            const borderColor = isSelected ? activeColor : '#A7A7A7';
-                            const textColor = isSelected ? activeColor : '#7D7F85';
-                            return (
-                              <button
-                                key={key}
-                                onClick={async () => {
-                                  const isCancel = userReaction === key;
-                                  const newUserReaction = isCancel ? null : key;
-                                  const previousReaction = userReaction || null;
-
-                                  const newReactions = { ...reactions };
-                                  if (previousReaction) {
-                                    newReactions[previousReaction] = Math.max(0, newReactions[previousReaction] - 1);
-                                  }
-                                  if (!isCancel) {
-                                    newReactions[key] = (newReactions[key] || 0) + 1;
-                                  }
-                                  setReactions(newReactions);
-                                  setUserReaction(newUserReaction);
-                                  saveReactionsCounts(newsArticle._id, newReactions);
-
-                                  if (typeof window !== 'undefined' && newsArticle?._id) {
-                                    const userReactionsFromCookie = Cookies.get('newsReactions');
-                                    const userReactionsMap = userReactionsFromCookie ? JSON.parse(userReactionsFromCookie) : {};
-                                    if (newUserReaction) {
-                                      userReactionsMap[newsArticle._id] = newUserReaction;
-                                    } else {
-                                      delete userReactionsMap[newsArticle._id];
-                                    }
-                                    Cookies.set('newsReactions', JSON.stringify(userReactionsMap), { expires: 365 });
-                                  }
-
-                                  try {
-                                    const res = await fetch('/api/news/reactions', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({
-                                        newsId: newsArticle._id,
-                                        reactionType: isCancel ? null : key,
-                                        previousReaction
-                                      })
-                                    });
-                                    const data = await res.json();
-                                    if (data.reactions) {
-                                      setReactions(data.reactions);
-                                      saveReactionsCounts(newsArticle._id, data.reactions);
-                                    }
-                                  } catch (err) {
-                                    console.error('Reaction API error:', err);
-                                  }
-                                }}
-                                className="relative overflow-hidden bg-white transition-all duration-200 hover:scale-[1.02]"
-                                style={{ width: '232px', height: '85px', borderRadius: '10px', border: `1.5px solid ${borderColor}` }}
-                              >
-                                {/* Thumbs icon (clipped, positioned like Figma) */}
-                                <img
-                                  src={key === 'like' ? '/images/like-hand.png' : '/images/notforme-hand.png'}
-                                  alt=""
-                                  className="absolute pointer-events-none"
-                                  style={{
-                                    [key === 'like' ? 'left' : 'right']: '-20px',
-                                    top: key === 'like' ? '7px' : '-17px',
-                                    width: key === 'like' ? '80px' : '74px',
-                                    height: key === 'like' ? '95px' : '91px',
-                                  }}
-                                />
-                                {/* Text content */}
-                                <div className="absolute flex items-center" style={{ left: key === 'like' ? '74px' : '58px', top: '50%', transform: 'translateY(-50%)', gap: '9px' }}>
-                                  <span style={{ fontFamily: 'Inter', fontWeight: 900, fontSize: '18px', lineHeight: '1em', color: textColor }}>
-                                    {reactions[key] || 0}
-                                  </span>
-                                  <span style={{ fontFamily: 'Inter', fontWeight: 600, fontSize: '16px', lineHeight: '1em', color: textColor }}>
-                                    {label}
-                                  </span>
-                                </div>
-                              </button>
-                            );
-                          })}
+                          <AnimatedReactionButton
+                            variant="like"
+                            size="pc"
+                            count={reactions.like || 0}
+                            isActive={userReaction === 'like'}
+                            onClick={() => handleReactionClick('like')}
+                            label="Like it!"
+                            icon="/images/like-hand.png"
+                          />
+                          <AnimatedReactionButton
+                            variant="dislike"
+                            size="pc"
+                            count={reactions.dislike || 0}
+                            isActive={userReaction === 'dislike'}
+                            onClick={() => handleReactionClick('dislike')}
+                            label="Not for me"
+                            icon="/images/notforme-hand.png"
+                          />
                         </div>
 
                       </div>
