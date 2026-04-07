@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import MainLayout from '../../components/MainLayout';
 import Seo from '../../components/Seo';
 import { Calendar, Clock, MapPin, Music, Ticket, ExternalLink, Star } from 'lucide-react';
@@ -8,6 +9,7 @@ import { ObjectId } from 'mongodb';
 import { UpcomingComebacks, ConcertsList } from '../../components/schedule/ScheduleSidebar';
 import ScheduleCard from '../../components/schedule/ScheduleCard';
 import MoreNews from '../../components/MoreNews';
+import Comments from '../../components/Comments';
 
 const TYPE_COLORS = {
   release: '#E11D6E', comeback: '#7C3AED', debut: '#2563EB', teaser: '#D97706',
@@ -98,7 +100,7 @@ function renderDescription(s) {
   return { cleanText, ytUrls, streamLinks };
 }
 
-export default function ScheduleDetail({ schedule, relatedSchedules, trendingNews, upcomingComebacks, upcomingConcerts }) {
+export default function ScheduleDetail({ schedule, relatedSchedules, relatedNews = [], trendingNews, upcomingComebacks, upcomingConcerts }) {
   const router = useRouter();
   const sidebarRef = useRef(null);
   const [sidebarStickyTop, setSidebarStickyTop] = useState(92);
@@ -562,6 +564,49 @@ export default function ScheduleDetail({ schedule, relatedSchedules, trendingNew
 
           {/* Separator */}
           <div className="h-2 bg-[#F3F4F6]" />
+
+          {/* Comments */}
+          <div className="bg-white">
+            <Comments contentId={schedule._id} contentType="schedule" />
+          </div>
+
+          {/* Related News */}
+          {relatedNews.length > 0 && (
+            <div className="flex flex-col bg-white" style={{ padding: '25px 16px 0', gap: '16px' }}>
+              <div className="flex items-center justify-between">
+                <h2 style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '18px', lineHeight: '1.56em', letterSpacing: '-0.024em', color: '#101828', margin: 0 }}>
+                  <span style={{ color: '#2B7FFF' }}>Related</span> News
+                </h2>
+              </div>
+              <div className="flex flex-col" style={{ gap: '16px' }}>
+                {relatedNews.slice(0, 5).map((news, idx) => (
+                  <Link href={`/news/${news.slug || news._id}`} key={news._id || `rn-${idx}`}>
+                    <div className="flex items-center gap-[10px] cursor-pointer">
+                      <div className="w-[78px] h-[78px] flex-shrink-0 rounded-[10px] overflow-hidden bg-[#F3F4F6]">
+                        <img
+                          src={news.coverImage || '/images/placeholder.jpg'}
+                          alt={news.title}
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.target.onerror = null; e.target.src = '/images/placeholder.jpg'; }}
+                        />
+                      </div>
+                      <div className="flex-1 flex flex-col" style={{ gap: '10px' }}>
+                        <h3 className="line-clamp-2" style={{ fontFamily: 'Pretendard, Inter, sans-serif', fontWeight: 500, fontSize: '14px', lineHeight: '1.25em', letterSpacing: '-0.0107em', color: '#333333', margin: 0 }}>
+                          {news.title}
+                        </h3>
+                        <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: '12px', lineHeight: '1.33em', letterSpacing: '-0.0333em', color: '#99A1AF' }}>
+                          {(() => { const d = new Date(news.createdAt); return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}. ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })()}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Separator */}
+          <div className="h-2 bg-[#F3F4F6] mt-5" />
 
           {/* More News */}
           <div className="bg-white py-5 px-4">
@@ -1055,6 +1100,69 @@ export default function ScheduleDetail({ schedule, relatedSchedules, trendingNew
 
               </div>
 
+              {/* Comments - 별도 카드 */}
+              <div className="bg-white border-[1.5px] border-ksp-border rounded-xl mt-8">
+                <Comments contentId={schedule._id} contentType="schedule" />
+              </div>
+
+              {/* Related News - MoreNews 카드 디자인 */}
+              {relatedNews.length > 0 && (
+                <div className="bg-white border-[1.5px] border-ksp-border rounded-xl py-8 px-6 mt-8">
+                  <div className="flex items-center justify-between mb-7">
+                    <div className="flex items-center gap-2.5">
+                      <h2 className="text-[26px] font-black text-[#101828]">Related News</h2>
+                      <span className="text-2xl">🔥</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {relatedNews.slice(0, 3).map((news, idx) => (
+                      <Link
+                        key={news._id || `rn-pc-${idx}`}
+                        href={`/news/${news.slug || news._id}`}
+                        className="cursor-pointer group"
+                      >
+                        <div className="relative rounded-card overflow-hidden mb-4 bg-[#F3F4F6]">
+                          <img
+                            src={news.coverImage || news.thumbnailUrl || '/images/news/default-news.jpg'}
+                            alt={news.title}
+                            className="w-full h-[209px] object-cover group-hover:scale-105 transition-transform duration-300"
+                            onError={(e) => { e.target.onerror = null; e.target.src = '/images/news/default-news.jpg'; }}
+                          />
+                        </div>
+                        <h3
+                          className="font-bold text-lg leading-[1.375] text-[#101828] line-clamp-2 mb-2 transition-colors"
+                          style={{ letterSpacing: '-0.0244em' }}
+                        >
+                          {news.title}
+                        </h3>
+                        {news.content && (
+                          <p
+                            className="text-sm leading-[1.625] line-clamp-2 mb-2"
+                            style={{ color: '#6A7282', letterSpacing: '-0.0107em', fontFamily: 'Pretendard, Inter, sans-serif' }}
+                          >
+                            {news.content.replace(/<[^>]*>/g, '').slice(0, 120)}
+                          </p>
+                        )}
+                        <span className="text-xs text-ksp-meta">
+                          {(() => {
+                            const d = new Date(news.createdAt);
+                            const now = new Date();
+                            const diffMin = Math.floor((now - d) / 60000);
+                            const diffHr = Math.floor(diffMin / 60);
+                            const diffDay = Math.floor(diffHr / 24);
+                            if (diffMin < 1) return 'Just now';
+                            if (diffMin < 60) return `${diffMin} min ago`;
+                            if (diffHr < 24) return `${diffHr} hr ago`;
+                            if (diffDay < 7) return `${diffDay}d ago`;
+                            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                          })()}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* More News - 별도 카드 */}
               <div className="bg-white border-[1.5px] border-ksp-border rounded-xl py-8 px-6 mt-8">
                 <MoreNews category="kpop" storageKey="schedule_detail_pc" />
@@ -1098,6 +1206,23 @@ export async function getServerSideProps({ params }) {
         .toArray();
     }
 
+    // Related news (artistName 매칭만, fallback 없음)
+    let relatedNews = [];
+    const newsProjection = { title: 1, slug: 1, coverImage: 1, thumbnailUrl: 1, category: 1, createdAt: 1, content: 1 };
+    if (schedule.artistName) {
+      relatedNews = await db.collection('news')
+        .find({
+          $or: [
+            { tags: { $regex: schedule.artistName, $options: 'i' } },
+            { title: { $regex: schedule.artistName, $options: 'i' } }
+          ]
+        })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .project(newsProjection)
+        .toArray();
+    }
+
     // Upcoming comebacks (kpopofficial 소스 우선, 이미지 있는 것)
     const now = new Date();
     const kstToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), -9));
@@ -1135,6 +1260,7 @@ export async function getServerSideProps({ params }) {
       props: {
         schedule: JSON.parse(JSON.stringify(schedule)),
         relatedSchedules: JSON.parse(JSON.stringify(relatedSchedules)),
+        relatedNews: JSON.parse(JSON.stringify(relatedNews)),
         upcomingComebacks: JSON.parse(JSON.stringify(upcomingComebacks)),
         upcomingConcerts: JSON.parse(JSON.stringify(uniqueConcerts))
       }
