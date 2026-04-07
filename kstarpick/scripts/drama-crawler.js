@@ -131,7 +131,7 @@ async function fetchHtmlOnce(url) {
   }
 }
 
-// 상세 페이지 + 리뷰 페이지(최대 3페이지) 한 브라우저로 처리
+// 상세 + 리뷰(최대 3페이지) + 캐스트 페이지를 한 브라우저로 처리
 async function fetchDetailAndReviews(dramaUrl, mdlId) {
   let browser;
   try {
@@ -164,16 +164,140 @@ async function fetchDetailAndReviews(dramaUrl, mdlId) {
       }
     }
 
+    // 3) 캐스트 페이지 (Main/Support/Guest 배우 정보)
+    let castHtml = null;
+    try {
+      const castUrl = `${dramaUrl}/cast`;
+      await page.goto(castUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+      await sleep(600);
+      castHtml = await page.content();
+    } catch (err) {
+      console.log(`  캐스트 페이지 로드 실패: ${err.message}`);
+    }
+
     await page.close();
-    return { detailHtml, reviewHtmls };
+    return { detailHtml, reviewHtmls, castHtml };
   } catch (err) {
-    console.log(`  상세/리뷰 로드 실패 (${dramaUrl}): ${err.message}`);
-    return { detailHtml: null, reviewHtmls: [] };
+    console.log(`  상세/리뷰/캐스트 로드 실패 (${dramaUrl}): ${err.message}`);
+    return { detailHtml: null, reviewHtmls: [], castHtml: null };
   } finally {
     if (browser) {
       try { await browser.close(); } catch {}
     }
   }
+}
+
+// ─── 캐스트 페이지 HTML 파싱 (Main/Support/Guest Role) ───
+// stealth-crawler.js의 mergeCastInfo 셀렉터 패턴 사용
+function parseCastFromHtml(castHtml) {
+  const cast = { mainRoles: [], supportRoles: [] };
+  if (!castHtml) return cast;
+
+  try {
+    const $ = cheerio.load(castHtml);
+
+    // Main Role
+    $('h3.header:contains("Main Role")').next('ul.list').find('li.list-item').each((_, el) => {
+      const name = $(el).find('a.text-primary b').text().trim();
+      if (!name) return;
+      let role = '';
+      const smallTitle = $(el).find('small[title]');
+      if (smallTitle.length) {
+        role = smallTitle.text().trim() || smallTitle.attr('title')?.trim() || '';
+      }
+      const image = $(el).find('img.img-responsive').attr('src') || '';
+      cast.mainRoles.push({ name, role: role || '주연', image });
+    });
+
+    // Support Role
+    $('h3.header:contains("Support Role")').next('ul.list').find('li.list-item').each((_, el) => {
+      const name = $(el).find('a.text-primary b').text().trim();
+      if (!name) return;
+      let role = '';
+      const smallTitle = $(el).find('small[title]');
+      if (smallTitle.length) {
+        role = smallTitle.text().trim() || smallTitle.attr('title')?.trim() || '';
+      }
+      const image = $(el).find('img.img-responsive').attr('src') || '';
+      cast.supportRoles.push({ name, role: role || '조연', image });
+    });
+
+    // Guest Role → supportRoles에 추가
+    $('h3.header:contains("Guest Role")').next('ul.list').find('li.list-item').each((_, el) => {
+      const name = $(el).find('a.text-primary b').text().trim();
+      if (!name) return;
+      let role = '';
+      const smallTitle = $(el).find('small[title]');
+      if (smallTitle.length) {
+        role = smallTitle.text().trim() || smallTitle.attr('title')?.trim() || '';
+      }
+      const image = $(el).find('img.img-responsive').attr('src') || '';
+      cast.supportRoles.push({ name, role: role || '게스트', image });
+    });
+  } catch (err) {
+    console.log(`  cast 파싱 에러: ${err.message}`);
+  }
+
+  return cast;
+}
+
+// ─── "Where to Watch" 스트리밍 서비스 파싱 ───
+// stealth-crawler.js의 parseStreamingServices 로직 그대로
+function parseStreamingServices(detailHtml) {
+  const services = [];
+  if (!detailHtml) return services;
+
+  try {
+    const $ = cheerio.load(detailHtml);
+    const wts = $('.box-body.wts');
+    if (!wts.length) return services;
+
+    wts.find('.row .col-xs-12.col-lg-4.m-b-sm').each((_, el) => {
+      try {
+        const $el = $(el);
+        const link = $el.find('a[rel="external nofollow"]').first();
+        if (!link.length) return;
+
+        // 서비스 URL (mydramalist redirect 처리)
+        const rawUrl = link.attr('href') || '';
+        let serviceUrl = '';
+        if (rawUrl.includes('/redirect?q=')) {
+          const m = rawUrl.match(/\/redirect\?q=([^&]+)/);
+          if (m && m[1]) serviceUrl = decodeURIComponent(m[1]);
+        } else {
+          serviceUrl = rawUrl;
+        }
+
+        const name = $el.find('a.text-primary b').text().trim();
+        const type = $el.find('.p-l div:nth-child(2)').text().trim();
+
+        let logo = $el.find('img.img-responsive').attr('src') || '';
+        if (name.toLowerCase() === 'wavve') logo = 'https://i.mydramalist.com/pgAd8_3m.jpg';
+        else if (name.toLowerCase() === 'viki') logo = 'https://i.mydramalist.com/kEBdrm.jpg';
+
+        if (!name || !serviceUrl) return;
+
+        const normalizedLogo = logo?.startsWith('http')
+          ? logo
+          : `https://i.mydramalist.com${logo?.startsWith('/') ? '' : '/'}${logo}`;
+
+        const info = { name, url: serviceUrl, type, logo: normalizedLogo };
+        const lower = name.toLowerCase();
+        if (lower === 'netflix') info.providerKey = 'netflix';
+        else if (lower === 'apple tv+' || lower === 'apple tv') info.providerKey = 'apple';
+        else if (lower === 'disney+') info.providerKey = 'disney';
+        else if (lower === 'viki') info.providerKey = 'viki';
+        else if (lower === 'wavve') info.providerKey = 'wavve';
+        else info.providerKey = lower.replace(/\s+/g, '_');
+
+        services.push(info);
+      } catch {}
+    });
+  } catch (err) {
+    console.log(`  streaming 파싱 에러: ${err.message}`);
+  }
+
+  return services;
 }
 
 // ─── 리뷰 HTML 파싱 ───
@@ -356,13 +480,9 @@ function parseDetailPage(html, dramaUrl, mdlId) {
   const genres = [];
   $('.show-genres a').each((_, el) => genres.push($(el).text().trim()));
 
-  const cast = [];
-  $('.box-body ul.list li.cast-item').each((_, el) => {
-    const name = $(el).find('.text-primary.text-ellipsis a').text().trim();
-    const role = $(el).find('.text-muted').text().trim();
-    const image = $(el).find('img').attr('src') || '';
-    if (name) cast.push({ name, role, image });
-  });
+  // cast는 별도 cast 페이지에서 parseCastFromHtml로 파싱 (mainRoles, supportRoles 객체 형태)
+  // 빈 객체로 초기화
+  const cast = { mainRoles: [], supportRoles: [] };
 
   const tags = [];
   $('.show-tags a').each((_, el) => tags.push($(el).text().trim()));
@@ -545,7 +665,7 @@ async function crawlSource(db, source, totals) {
 
     await sleep(DELAY_BETWEEN_DRAMAS);
 
-    const { detailHtml, reviewHtmls } = await fetchDetailAndReviews(item.url, item.mdlId);
+    const { detailHtml, reviewHtmls, castHtml } = await fetchDetailAndReviews(item.url, item.mdlId);
     if (!detailHtml) {
       totals.skipped++;
       continue;
@@ -559,6 +679,35 @@ async function crawlSource(db, source, totals) {
 
     // 검색 소스의 category로 강제 지정 (episodes 추출 실패 케이스 대응)
     detail.category = source.category;
+
+    // 캐스트 페이지에서 Main/Support/Guest Role 파싱 → 객체 형태로 저장
+    // (기존 parseDetailPage에서 만든 cast 배열은 덮어쓰기)
+    const castData = parseCastFromHtml(castHtml);
+    if (castData.mainRoles.length > 0 || castData.supportRoles.length > 0) {
+      detail.cast = castData;
+      console.log(`  👥 캐스트 ${castData.mainRoles.length} main + ${castData.supportRoles.length} support`);
+    }
+
+    // Where to Watch 스트리밍 서비스 파싱
+    const streamingServices = parseStreamingServices(detailHtml);
+    if (streamingServices.length > 0) {
+      detail.streamingServices = streamingServices;
+      detail.whereToWatch = streamingServices.map(s => ({
+        name: s.name,
+        link: s.url,
+        imageUrl: s.logo,
+        type: s.type,
+      }));
+      // streamingLinks (provider key 매핑)
+      const links = {};
+      streamingServices.forEach(s => {
+        if (s.providerKey) links[s.providerKey] = s.url;
+      });
+      if (Object.keys(links).length > 0) {
+        detail.streamingLinks = links;
+      }
+      console.log(`  📺 스트리밍 ${streamingServices.length}개 서비스`);
+    }
 
     // 리뷰 HTML 파싱
     const allReviews = [];
