@@ -1,10 +1,10 @@
 import React from 'react';
 import Head from 'next/head';
 
-const Seo = ({ 
-  title, 
-  description, 
-  image, 
+const Seo = ({
+  title,
+  description,
+  image,
   url,
   type = 'website',
   publishedTime,
@@ -12,7 +12,8 @@ const Seo = ({
   tags = [],
   author,
   category,
-  jsonLd
+  jsonLd,
+  noindex = false
 }) => {
   const siteTitle = 'KstarPick';
   const siteName = 'KstarPick - K-Pop News Portal';
@@ -102,8 +103,8 @@ const Seo = ({
       <meta name="description" content={fullDescription} />
       <meta name="keywords" content={`K-Pop, Korean Pop, Korean Wave, Hallyu, K-Drama, BTS, BLACKPINK, aespa, NewJeans, IVE, Korean Entertainment, ${tags.join(', ')}`} />
       <meta name="author" content={author || siteTitle} />
-      <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
-      <meta name="googlebot" content="index, follow" />
+      <meta name="robots" content={noindex ? "noindex, follow" : "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1"} />
+      <meta name="googlebot" content={noindex ? "noindex, follow" : "index, follow"} />
       
       {/* Language and region */}
       <meta name="language" content="English" />

@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import MainLayout from '../components/MainLayout';
-import Seo from '../components/Seo';
+import MainLayout from '../../components/MainLayout';
+import Seo from '../../components/Seo';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { UpcomingComebacks, ConcertsList } from '../components/schedule/ScheduleSidebar';
-import MoreNews from '../components/MoreNews';
+import { UpcomingComebacks, ConcertsList } from '../../components/schedule/ScheduleSidebar';
+import MoreNews from '../../components/MoreNews';
 
 const TYPE_COLORS = {
   release: { bg: '#FFF1F5', text: '#E11D6E', dot: '#E11D6E' },
@@ -41,6 +41,95 @@ const FILTER_TABS = [
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+// schedule.type → schema.org @type 매핑
+// 콘서트류는 MusicEvent (location 가능), 발매/컴백류는 일반 Event
+const MUSIC_EVENT_TYPES = new Set(['concert', 'fan_meeting', 'festival']);
+const EVENT_TYPES = new Set(['release', 'pre_release', 'comeback', 'debut', 'teaser', 'concept_photo', 'mv', 'tracklist', 'highlight_medley']);
+
+// schedule 1건 → schema.org Event 객체
+function scheduleToEventLd(s, baseUrl) {
+  if (!s || !s.startDate || !s.title) return null;
+  const isMusicEvent = MUSIC_EVENT_TYPES.has(s.type);
+  const isEvent = EVENT_TYPES.has(s.type);
+  if (!isMusicEvent && !isEvent) return null;
+
+  const event = {
+    '@type': isMusicEvent ? 'MusicEvent' : 'Event',
+    name: s.title,
+    startDate: new Date(s.startDate).toISOString(),
+    eventStatus: 'https://schema.org/EventScheduled',
+    eventAttendanceMode: isMusicEvent
+      ? 'https://schema.org/OfflineEventAttendanceMode'
+      : 'https://schema.org/OnlineEventAttendanceMode',
+    url: `${baseUrl}/schedule/${s._id}`
+  };
+  if (s.artistName) {
+    event.performer = { '@type': 'MusicGroup', name: s.artistName };
+  }
+  if (s.imageUrl || s.ogImage) {
+    event.image = s.imageUrl || s.ogImage;
+  }
+  if (s.albumName) {
+    event.description = `${s.artistName || ''} - ${s.albumName}`.trim();
+  }
+  if (isMusicEvent && s.venue) {
+    event.location = { '@type': 'Place', name: s.venue };
+  } else if (isMusicEvent) {
+    // MusicEvent는 location이 권장 필드 → 미상이면 가상 placeholder
+    event.location = { '@type': 'VirtualLocation', url: `${baseUrl}/schedule/${s._id}` };
+  }
+  return event;
+}
+
+// 페이지 전체 JSON-LD: CollectionPage + BreadcrumbList + ItemList(Events)
+function buildScheduleJsonLd({ year, month, schedules, canonicalUrl }) {
+  const baseUrl = 'https://kstarpick.com';
+  const fullUrl = canonicalUrl.startsWith('http') ? canonicalUrl : `${baseUrl}${canonicalUrl}`;
+  const monthLabel = `${MONTH_NAMES[month - 1]} ${year}`;
+
+  // Event 후보 (생일/기념일은 SEO 가치 낮아 제외, 최대 100건)
+  const events = (schedules || [])
+    .map(s => scheduleToEventLd(s, baseUrl))
+    .filter(Boolean)
+    .slice(0, 100);
+
+  const itemList = {
+    '@type': 'ItemList',
+    name: `K-Pop Schedule ${monthLabel}`,
+    numberOfItems: events.length,
+    itemListElement: events.map((e, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      item: e
+    }))
+  };
+
+  const breadcrumb = {
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
+      { '@type': 'ListItem', position: 2, name: 'Schedule', item: `${baseUrl}/schedule` },
+      { '@type': 'ListItem', position: 3, name: monthLabel, item: fullUrl }
+    ]
+  };
+
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        '@id': fullUrl,
+        url: fullUrl,
+        name: `K-Pop Schedule ${monthLabel}`,
+        description: `K-pop comebacks, releases, concerts, and fan events for ${monthLabel}.`,
+        isPartOf: { '@type': 'WebSite', name: 'KstarPick', url: baseUrl },
+        mainEntity: itemList
+      },
+      breadcrumb
+    ]
+  };
+}
 
 const toKSTDateKey = (utcStr) => {
   const d = new Date(utcStr);
@@ -135,7 +224,7 @@ function ScheduleCard({ schedule: s }) {
 }
 
 // ==================== MAIN PAGE ====================
-export default function SchedulePage({ initialSchedules, initialYear, initialMonth }) {
+export default function SchedulePage({ initialSchedules, initialYear, initialMonth, canonicalUrl = '/schedule', noindex = false }) {
   const router = useRouter();
   const navigateToPage = (path) => router.push(path);
   const [schedules, setSchedules] = useState(initialSchedules || []);
@@ -210,13 +299,12 @@ export default function SchedulePage({ initialSchedules, initialYear, initialMon
     const d = new Date(year, month - 1 + delta, 1);
     const newY = d.getFullYear();
     const newM = d.getMonth() + 1;
-    setYear(newY);
-    setMonth(newM);
-    // 오늘이 해당 월이면 오늘, 아니면 선택 해제
-    const today = getTodayKST();
-    const [ty, tm] = today.split('-').map(Number);
-    setSelectedDate(ty === newY && tm === newM ? today : null);
-    fetchSchedules(newY, newM);
+    // 현재월이면 /schedule, 아니면 /schedule/YYYY/MM 으로 라우팅
+    const now = new Date();
+    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const isCurrent = newY === kstNow.getUTCFullYear() && newM === (kstNow.getUTCMonth() + 1);
+    const targetUrl = isCurrent ? '/schedule' : `/schedule/archive/${newY}/${String(newM).padStart(2, '0')}`;
+    router.push(targetUrl);
   };
 
   // Filter
@@ -290,9 +378,12 @@ export default function SchedulePage({ initialSchedules, initialYear, initialMon
   return (
     <MainLayout>
       <Seo
-        title={`K-POP Schedule ${MONTH_NAMES[month - 1]} ${year} | KstarPick`}
-        description={`K-POP comeback schedule for ${MONTH_NAMES[month - 1]} ${year}. Track all K-pop releases, comebacks, and events.`}
-        url="/schedule"
+        title={`K-Pop Schedule ${MONTH_NAMES[month - 1]} ${year} - Comebacks, Releases & Concerts`}
+        description={`Complete K-pop schedule for ${MONTH_NAMES[month - 1]} ${year}. Track upcoming comebacks, album releases, debuts, concerts, fan meetings, and birthdays from BTS, BLACKPINK, NewJeans, aespa, IVE, and more Korean artists.`}
+        url={canonicalUrl}
+        image="https://kstarpick.com/images/og-image.jpg"
+        noindex={noindex}
+        jsonLd={buildScheduleJsonLd({ year, month, schedules: initialSchedules, canonicalUrl })}
       />
 
       {/* ============ MOBILE LAYOUT ============ */}
@@ -581,42 +672,26 @@ export default function SchedulePage({ initialSchedules, initialYear, initialMon
   );
 }
 
-export async function getServerSideProps({ query }) {
-  const { dbConnect } = await import('../utils/mongodb');
+// /schedule (evergreen 현재월) — canonical: /schedule
+export async function getServerSideProps({ res }) {
+  const { fetchSchedulesForMonth } = await import('../../lib/scheduleSSR');
   const now = new Date();
   const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const year = parseInt(query.year) || kstNow.getUTCFullYear();
-  const month = parseInt(query.month) || kstNow.getUTCMonth() + 1;
+  const year = kstNow.getUTCFullYear();
+  const month = kstNow.getUTCMonth() + 1;
 
-  try {
-    const { db } = await dbConnect();
-    const kstStart = new Date(Date.UTC(year, month - 1, 1, -9));
-    const kstEnd = new Date(Date.UTC(year, month, 1, -9));
+  // CDN/브라우저 캐시: 5분 fresh, 10분 stale-while-revalidate
+  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
 
-    const kstStartStr = kstStart.toISOString();
-    const kstEndStr = kstEnd.toISOString();
-    const schedules = await db.collection('schedules')
-      .find({
-        status: { $ne: 'hidden' },
-        $or: [
-          { startDate: { $gte: kstStart, $lt: kstEnd } },
-          { dates: { $elemMatch: { $gte: kstStartStr, $lt: kstEndStr } } }
-        ]
-      })
-      .sort({ startDate: 1 })
-      .batchSize(100)
-      .limit(2000)
-      .toArray();
+  const initialSchedules = await fetchSchedulesForMonth(year, month);
 
-    return {
-      props: {
-        initialSchedules: JSON.parse(JSON.stringify(schedules)),
-        initialYear: year,
-        initialMonth: month
-      }
-    };
-  } catch(e) {
-    console.error('[Schedule SSR] Error:', e.message);
-    return { props: { initialSchedules: [], initialYear: year, initialMonth: month } };
-  }
+  return {
+    props: {
+      initialSchedules,
+      initialYear: year,
+      initialMonth: month,
+      canonicalUrl: '/schedule',
+      noindex: false
+    }
+  };
 }

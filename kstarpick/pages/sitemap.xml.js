@@ -67,6 +67,33 @@ export async function getServerSideProps({ res }) {
         priority: '0.8'
       },
       {
+        url: '/schedule',
+        lastmod: new Date().toISOString(),
+        changefreq: 'daily',
+        priority: '0.8'
+      },
+      // 월별 아카이브: 현재월 ±6개월 (Phase 2)
+      ...(() => {
+        const out = [];
+        const now = new Date();
+        const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+        const curY = kstNow.getUTCFullYear();
+        const curM = kstNow.getUTCMonth() + 1;
+        for (let delta = -6; delta <= 6; delta++) {
+          if (delta === 0) continue; // 현재월은 /schedule이 대표
+          const d = new Date(curY, curM - 1 + delta, 1);
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          out.push({
+            url: `/schedule/archive/${y}/${m}`,
+            lastmod: new Date().toISOString(),
+            changefreq: delta < 0 ? 'monthly' : 'daily',
+            priority: delta < 0 ? '0.5' : '0.7'
+          });
+        }
+        return out;
+      })(),
+      {
         url: '/search',
         lastmod: new Date().toISOString(),
         changefreq: 'monthly',
