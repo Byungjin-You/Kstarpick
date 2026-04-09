@@ -20,7 +20,7 @@ const KO_TO_EN = {
   "영파씨": "YOUNG POSSE", "오마이걸": "OH MY GIRL", "온앤오프": "ONF",
   "우주소녀": "WJSN", "원어스": "ONEUS", "위너": "WINNER",
   "위클리": "Weeekly", "유니스": "UNIS", "이달의 소녀": "LOONA",
-  "이븐": "EVEN", "이즈나": "izna", "이펙스": "EPEX",
+  "이븐": "EVNNE", "이즈나": "izna", "이펙스": "EPEX",
   "임영웅": "Lim Young Woong", "전소미": "JEON SOMI", "정세운": "JEONG SEWOON",
   "제로베이스원": "ZEROBASEONE", "최예나": "YENA", "카드": "KARD",
   "케플러": "Kep1er", "코르티스": "CORTIS", "크래비티": "CRAVITY",
