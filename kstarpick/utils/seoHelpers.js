@@ -457,7 +457,8 @@ export function generateMetaTags({
   author,
   category
 }) {
-  const fullTitle = title ? `${title} | ${SITE_CONFIG.name}` : SITE_CONFIG.fullName;
+  // Seo 컴포넌트가 " | KstarPick" 접미를 자동으로 붙이므로 여기서는 title만 반환
+  const fullTitle = title || SITE_CONFIG.fullName;
   const fullDescription = description || SITE_CONFIG.description;
   const fullImage = image || `${SITE_CONFIG.url}/images/og-image.jpg`;
   const fullUrl = url ? `${SITE_CONFIG.url}${url}` : SITE_CONFIG.url;

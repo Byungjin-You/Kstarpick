@@ -1964,56 +1964,16 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <Head>
+        {/* title, description, og:*, twitter:*, robots, canonical은 <Seo> 컴포넌트에서 출력.
+            여기서는 Seo가 다루지 않는 항목만 출력한다. */}
         {newsArticle ? (
           <>
-            <title>{cleanTextForMeta(newsArticle.title, 90)} | KstarPick</title>
-            <meta name="description" content={cleanTextForMeta(newsArticle.description || newsArticle.content?.substring(0, 200), 280) || 'Latest Korean entertainment news from KstarPick'} />
-            
-            {/* Open Graph 메타태그 */}
-            <meta property="og:title" content={cleanTextForMeta(newsArticle.title, 90)} />
-            <meta property="og:description" content={cleanTextForMeta(newsArticle.description || newsArticle.content?.substring(0, 200), 280) || 'Latest Korean entertainment news from KstarPick'} />
-            <meta property="og:image" content={getNewsImage(newsArticle)} />
-            <meta property="og:image:width" content="1200" />
-            <meta property="og:image:height" content="630" />
-            <meta property="og:image:type" content="image/jpeg" />
-            <meta property="og:image:alt" content={cleanTextForMeta(newsArticle.title, 90)} />
-            <meta property="og:url" content={`https://www.kstarpick.com/news/${newsArticle.slug || newsArticle._id}`} />
-            <meta property="og:type" content="article" />
-            <meta property="og:site_name" content="KstarPick - K-Pop News Portal" />
-            <meta property="og:locale" content="en_US" />
-            
-            {/* Twitter 메타태그 */}
-            <meta name="twitter:card" content="summary_large_image" />
-            <meta name="twitter:title" content={cleanTextForMeta(newsArticle.title, 90)} />
-            <meta name="twitter:description" content={cleanTextForMeta(newsArticle.description || newsArticle.content?.substring(0, 200), 280) || 'Latest Korean entertainment news from KstarPick'} />
-            <meta name="twitter:image" content={getNewsImage(newsArticle)} />
-            <meta name="twitter:url" content={`https://www.kstarpick.com/news/${newsArticle.slug || newsArticle._id}`} />
-            
-            {/* 추가 메타태그 */}
-            <meta name="author" content={newsArticle.author?.name || 'KstarPick'} />
-            <meta name="keywords" content={keywords.join(', ')} />
-            <meta property="article:published_time" content={newsArticle.createdAt} />
-            <meta property="article:modified_time" content={newsArticle.updatedAt} />
-            <meta property="article:section" content={newsArticle.category} />
-            <meta name="robots" content="index, follow" />
-            
-            <link rel="canonical" href={`https://www.kstarpick.com/news/${newsArticle.slug || newsArticle._id}`} />
             {/* 커버 이미지 프리로드 — HTML 파싱 시점에 즉시 다운로드 시작 */}
             {newsArticle.coverImage && (
               <link rel="preload" as="image" href={newsArticle.coverImage} fetchpriority="high" />
             )}
           </>
-        ) : (
-          <>
-            <title>Loading Article... | KstarPick</title>
-            <meta name="description" content="Loading Korean entertainment news from KstarPick" />
-            <meta property="og:title" content="Loading Article... | KstarPick" />
-            <meta property="og:description" content="Loading Korean entertainment news from KstarPick" />
-            <meta property="og:image" content="https://www.kstarpick.com/images/default-news.jpg" />
-            <meta property="og:type" content="website" />
-            <meta name="robots" content="noindex, nofollow" />
-          </>
-        )}
+        ) : null}
         
         {/* Riddle 로딩 애니메이션을 위한 CSS */}
         <style dangerouslySetInnerHTML={{__html: `
