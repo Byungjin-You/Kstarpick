@@ -200,7 +200,7 @@ function ScheduleCard({ schedule: s }) {
           <div className="mt-2 flex items-center">
             {(s.imageUrl || s.ogImage) && (
               <div className="relative mr-1.5 w-[18px] h-[18px] flex-shrink-0 overflow-hidden rounded-sm">
-                <img alt="" src={s.imageUrl || s.ogImage} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+                <img alt={`${s.artistName || ''} ${TYPE_LABELS[s.type] || ''}`.trim() || s.title || ''} src={s.imageUrl || s.ogImage} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
               </div>
             )}
             {s.artistName && (
@@ -215,7 +215,7 @@ function ScheduleCard({ schedule: s }) {
         {/* Right: Image */}
         {(s.imageUrl || s.ogImage) && (
           <div className="flex-shrink-0 w-[80px] self-stretch rounded-lg overflow-hidden -m-4 ml-0">
-            <img src={s.imageUrl || s.ogImage} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+            <img src={s.imageUrl || s.ogImage} alt={[s.artistName, s.albumName, TYPE_LABELS[s.type]].filter(Boolean).join(' - ') || s.title || ''} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
           </div>
         )}
       </div>

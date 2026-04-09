@@ -25,7 +25,70 @@ const TYPE_LABELS = {
   pre_release: 'Pre-Release', concert: 'Concert', fan_meeting: 'Fan Meeting', festival: 'Festival', other: 'Other'
 };
 
+const MUSIC_EVENT_TYPES = new Set(['concert', 'fan_meeting', 'festival']);
+
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+// schedule 1건 → schema.org Event/MusicEvent + Breadcrumb JSON-LD
+function buildScheduleDetailJsonLd(s) {
+  if (!s || !s.startDate) return null;
+  const baseUrl = 'https://kstarpick.com';
+  const fullUrl = `${baseUrl}/schedule/${s._id}`;
+  const isMusicEvent = MUSIC_EVENT_TYPES.has(s.type);
+
+  const eventNode = {
+    '@type': isMusicEvent ? 'MusicEvent' : 'Event',
+    '@id': fullUrl,
+    name: s.title || s.eventName || `${s.artistName || ''} ${TYPE_LABELS[s.type] || ''}`.trim(),
+    startDate: new Date(s.startDate).toISOString(),
+    eventStatus: 'https://schema.org/EventScheduled',
+    eventAttendanceMode: isMusicEvent
+      ? 'https://schema.org/OfflineEventAttendanceMode'
+      : 'https://schema.org/OnlineEventAttendanceMode',
+    url: fullUrl,
+  };
+  if (s.endDate) eventNode.endDate = new Date(s.endDate).toISOString();
+  if (s.artistName) eventNode.performer = { '@type': 'MusicGroup', name: s.artistName };
+  const ogImg = s.ogImage || s.imageUrl || (s.images && s.images[0]);
+  if (ogImg) eventNode.image = ogImg;
+  const cleanDesc = (s.description || '').replace(/<[^>]*>/g, '').replace(/\(blip:\/\/[^)]*\)/g, '').replace(/\s+/g, ' ').trim();
+  if (cleanDesc) eventNode.description = cleanDesc.slice(0, 500);
+  else if (s.albumFull) eventNode.description = s.albumFull;
+  if (isMusicEvent && s.venue) {
+    eventNode.location = { '@type': 'Place', name: s.venue };
+  } else if (isMusicEvent) {
+    eventNode.location = { '@type': 'VirtualLocation', url: fullUrl };
+  }
+
+  const breadcrumb = {
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
+      { '@type': 'ListItem', position: 2, name: 'Schedule', item: `${baseUrl}/schedule` },
+      { '@type': 'ListItem', position: 3, name: eventNode.name, item: fullUrl },
+    ],
+  };
+
+  return { '@context': 'https://schema.org', '@graph': [eventNode, breadcrumb] };
+}
+
+// 메타 description 생성
+function buildScheduleMetaDescription(s) {
+  const parts = [];
+  if (s.artistName) parts.push(s.artistName);
+  const typeLabel = TYPE_LABELS[s.type];
+  if (typeLabel) parts.push(typeLabel);
+  try {
+    const d = new Date(s.startDate);
+    d.setHours(d.getHours() + 9);
+    parts.push(`${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`);
+  } catch {}
+  if (s.venue) parts.push(`at ${s.venue}`);
+  const head = parts.join(' · ');
+  const cleanDesc = (s.description || '').replace(/<[^>]*>/g, '').replace(/\(blip:\/\/[^)]*\)/g, '').replace(/\s+/g, ' ').trim();
+  const tail = cleanDesc && cleanDesc !== s.title ? ` — ${cleanDesc}` : '';
+  return `${head}${tail} | KstarPick K-Pop Schedule.`.slice(0, 280);
+}
 
 const toKSTDateKey = (utcStr) => {
   const d = new Date(utcStr);
@@ -100,7 +163,7 @@ function renderDescription(s) {
   return { cleanText, ytUrls, streamLinks };
 }
 
-export default function ScheduleDetail({ schedule, relatedSchedules, relatedNews = [], trendingNews, upcomingComebacks, upcomingConcerts }) {
+export default function ScheduleDetail({ schedule, relatedSchedules, relatedNews = [], trendingNews, upcomingComebacks, upcomingConcerts, noindex = false }) {
   const router = useRouter();
   const sidebarRef = useRef(null);
   const [sidebarStickyTop, setSidebarStickyTop] = useState(92);
@@ -147,9 +210,16 @@ export default function ScheduleDetail({ schedule, relatedSchedules, relatedNews
   return (
     <MainLayout>
       <Seo
-        title={`${s.artistName ? s.artistName + ' - ' : ''}${s.title || s.eventName} | KstarPick`}
-        description={s.description || `${s.artistName} ${TYPE_LABELS[s.type]} schedule`}
+        title={`${s.artistName ? s.artistName + ' - ' : ''}${s.title || s.eventName}`}
+        description={buildScheduleMetaDescription(s)}
         url={`/schedule/${s._id}`}
+        image={heroImg || undefined}
+        type={isConcert ? 'event' : 'article'}
+        publishedTime={s.createdAt ? new Date(s.createdAt).toISOString() : undefined}
+        modifiedTime={s.updatedAt ? new Date(s.updatedAt).toISOString() : undefined}
+        tags={[s.artistName, TYPE_LABELS[s.type]].filter(Boolean)}
+        noindex={noindex}
+        jsonLd={buildScheduleDetailJsonLd(s)}
       />
 
       {/* ============ MOBILE ============ */}
@@ -1186,8 +1256,13 @@ export default function ScheduleDetail({ schedule, relatedSchedules, relatedNews
   );
 }
 
-export async function getServerSideProps({ params }) {
+export async function getServerSideProps({ params, res }) {
   try {
+    // SSR Cache-Control: 5분 캐시 + 10분 SWR (schedule index와 동일)
+    if (res) {
+      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    }
+
     const { db } = await dbConnect();
     const { id } = params;
 
@@ -1195,6 +1270,14 @@ export async function getServerSideProps({ params }) {
 
     const schedule = await db.collection('schedules').findOne({ _id: new ObjectId(id) });
     if (!schedule) return { notFound: true };
+
+    // 색인 정책: 미래 이벤트 또는 시작일 30일 이내 → index, 그 외 → noindex,follow
+    let noindex = false;
+    try {
+      const start = new Date(schedule.startDate).getTime();
+      const ageDays = (Date.now() - start) / (1000 * 60 * 60 * 24);
+      if (ageDays > 30) noindex = true;
+    } catch {}
 
     // Related schedules (same artist)
     let relatedSchedules = [];
@@ -1262,7 +1345,8 @@ export async function getServerSideProps({ params }) {
         relatedSchedules: JSON.parse(JSON.stringify(relatedSchedules)),
         relatedNews: JSON.parse(JSON.stringify(relatedNews)),
         upcomingComebacks: JSON.parse(JSON.stringify(upcomingComebacks)),
-        upcomingConcerts: JSON.parse(JSON.stringify(uniqueConcerts))
+        upcomingConcerts: JSON.parse(JSON.stringify(uniqueConcerts)),
+        noindex,
       }
     };
   } catch(e) {
