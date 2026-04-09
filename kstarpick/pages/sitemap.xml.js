@@ -1,21 +1,44 @@
 import { connectToDatabase } from '../utils/mongodb';
 
+const BASE_URL = 'https://kstarpick.com';
+
+// 이미지 URL 절대화 (sitemap image extension 용)
+function absImageUrl(img) {
+  if (!img || typeof img !== 'string') return null;
+  if (img.startsWith('http://') || img.startsWith('https://')) return img;
+  if (img.startsWith('/')) return `${BASE_URL}${img}`;
+  return `${BASE_URL}/${img}`;
+}
+
+// XML 안전 escape
+function xmlEscape(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 // 사이트맵 XML 생성 함수
 function generateSiteMap(pages) {
   return `<?xml version="1.0" encoding="UTF-8"?>
-    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-      ${pages.map((page) => {
-        return `
-          <url>
-            <loc>https://kstarpick.com${page.url}</loc>
-            <lastmod>${page.lastmod}</lastmod>
-            <changefreq>${page.changefreq}</changefreq>
-            <priority>${page.priority}</priority>
-          </url>
-        `;
-      }).join('')}
-    </urlset>
-  `;
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+${pages.map((page) => {
+  const imageBlock = (page.images || [])
+    .map(img => {
+      const loc = absImageUrl(img.loc);
+      if (!loc) return '';
+      const title = img.title ? `<image:title>${xmlEscape(img.title)}</image:title>` : '';
+      const caption = img.caption ? `<image:caption>${xmlEscape(img.caption)}</image:caption>` : '';
+      return `<image:image><image:loc>${xmlEscape(loc)}</image:loc>${title}${caption}</image:image>`;
+    })
+    .filter(Boolean)
+    .join('');
+  return `<url><loc>${BASE_URL}${page.url}</loc><lastmod>${page.lastmod}</lastmod><changefreq>${page.changefreq}</changefreq><priority>${page.priority}</priority>${imageBlock}</url>`;
+}).join('\n')}
+</urlset>`;
 }
 
 export async function getServerSideProps({ res }) {
@@ -121,54 +144,67 @@ export async function getServerSideProps({ res }) {
 
     // 뉴스 페이지들
     const newsCollection = db.collection('news');
-    const news = await newsCollection.find({}, { 
-      projection: { _id: 1, slug: 1, createdAt: 1, updatedAt: 1 } 
+    const news = await newsCollection.find({}, {
+      projection: { _id: 1, slug: 1, title: 1, createdAt: 1, updatedAt: 1, coverImage: 1, thumbnailUrl: 1 }
     }).sort({ createdAt: -1 }).limit(1000).toArray();
 
-    const newsPages = news.map(item => ({
-      url: `/news/${item._id}`,
-      lastmod: (item.updatedAt || item.createdAt || new Date()).toISOString(),
-      changefreq: 'monthly',
-      priority: '0.7'
-    }));
+    const newsPages = news.map(item => {
+      const img = item.coverImage || item.thumbnailUrl;
+      return {
+        url: `/news/${item._id}`,
+        lastmod: (item.updatedAt || item.createdAt || new Date()).toISOString(),
+        changefreq: 'monthly',
+        priority: '0.7',
+        images: img ? [{ loc: img, title: item.title || 'KstarPick News' }] : []
+      };
+    });
 
     // 드라마 페이지들
     const dramasCollection = db.collection('dramas');
-    const dramas = await dramasCollection.find({}, { 
-      projection: { _id: 1, slug: 1, createdAt: 1, updatedAt: 1 } 
+    const dramas = await dramasCollection.find({}, {
+      projection: { _id: 1, slug: 1, title: 1, createdAt: 1, updatedAt: 1, coverImage: 1, bannerImage: 1 }
     }).sort({ createdAt: -1 }).limit(500).toArray();
 
-    const dramaPages = dramas.map(item => ({
-      url: `/drama/${item._id}`,
-      lastmod: (item.updatedAt || item.createdAt || new Date()).toISOString(),
-      changefreq: 'weekly',
-      priority: '0.7'
-    }));
+    const dramaPages = dramas.map(item => {
+      const img = item.coverImage || item.bannerImage;
+      return {
+        url: `/drama/${item._id}`,
+        lastmod: (item.updatedAt || item.createdAt || new Date()).toISOString(),
+        changefreq: 'weekly',
+        priority: '0.7',
+        images: img ? [{ loc: img, title: item.title || 'KstarPick Drama' }] : []
+      };
+    });
 
     // TV/영화 페이지들
     const tvfilmsCollection = db.collection('tvfilms');
-    const tvfilms = await tvfilmsCollection.find({}, { 
-      projection: { _id: 1, slug: 1, createdAt: 1, updatedAt: 1 } 
+    const tvfilms = await tvfilmsCollection.find({}, {
+      projection: { _id: 1, slug: 1, title: 1, createdAt: 1, updatedAt: 1, coverImage: 1, bannerImage: 1 }
     }).sort({ createdAt: -1 }).limit(500).toArray();
 
-    const tvfilmPages = tvfilms.map(item => ({
-      url: `/tvfilm/${item._id}`,
-      lastmod: (item.updatedAt || item.createdAt || new Date()).toISOString(),
-      changefreq: 'weekly',
-      priority: '0.7'
-    }));
+    const tvfilmPages = tvfilms.map(item => {
+      const img = item.coverImage || item.bannerImage;
+      return {
+        url: `/tvfilm/${item._id}`,
+        lastmod: (item.updatedAt || item.createdAt || new Date()).toISOString(),
+        changefreq: 'weekly',
+        priority: '0.7',
+        images: img ? [{ loc: img, title: item.title || 'KstarPick Movie' }] : []
+      };
+    });
 
     // 연예인 페이지들
     const celebritiesCollection = db.collection('celebrities');
-    const celebrities = await celebritiesCollection.find({}, { 
-      projection: { _id: 1, slug: 1, createdAt: 1, updatedAt: 1 } 
+    const celebrities = await celebritiesCollection.find({}, {
+      projection: { _id: 1, slug: 1, name: 1, createdAt: 1, updatedAt: 1, profileImage: 1 }
     }).sort({ createdAt: -1 }).limit(300).toArray();
 
     const celebPages = celebrities.map(item => ({
       url: `/celeb/${item.slug || item._id}`,
       lastmod: (item.updatedAt || item.createdAt || new Date()).toISOString(),
       changefreq: 'monthly',
-      priority: '0.6'
+      priority: '0.6',
+      images: item.profileImage ? [{ loc: item.profileImage, title: item.name || 'KstarPick Celebrity' }] : []
     }));
 
     // 음악 페이지들

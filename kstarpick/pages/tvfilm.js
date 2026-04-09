@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import MainLayout from '../components/MainLayout';
+import Seo from '../components/Seo';
 import { Star, Play, Clock, ChevronLeft, ChevronRight, Eye, TrendingUp, Calendar, ChevronDown, ChevronUp, X } from 'lucide-react';
 import axios from 'axios';
 import MoreNews from '../components/MoreNews';
@@ -377,6 +378,34 @@ export default function TVFilmPage({ tvfilms = [], movieNews = [], newsPaginatio
 
   return (
     <MainLayout>
+      <Seo
+        title="Korean Movies & TV — Latest Films, Reviews & Top Picks"
+        description="Discover the best Korean movies and TV shows. Browse top-rated films, latest releases, reviews, and trending picks from Korean cinema and television on KstarPick."
+        url="/tvfilm"
+        type="website"
+        category="Movie"
+        tags={['Korean movies', 'Korean films', 'K-cinema', 'Korean TV shows']}
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@graph': [
+            {
+              '@type': 'CollectionPage',
+              '@id': 'https://kstarpick.com/tvfilm',
+              url: 'https://kstarpick.com/tvfilm',
+              name: 'Korean Movies & TV',
+              description: 'Korean movies, films, and TV shows directory with reviews and ratings.',
+              isPartOf: { '@type': 'WebSite', name: 'KstarPick', url: 'https://kstarpick.com' },
+            },
+            {
+              '@type': 'BreadcrumbList',
+              itemListElement: [
+                { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://kstarpick.com' },
+                { '@type': 'ListItem', position: 2, name: 'TV/Film', item: 'https://kstarpick.com/tvfilm' },
+              ],
+            },
+          ],
+        }}
+      />
       {/* ============ MOBILE LAYOUT (< lg) ============ */}
       <div className="lg:hidden overflow-x-hidden">
         {/* === Section 1: TV/Film TOP 5 === */}

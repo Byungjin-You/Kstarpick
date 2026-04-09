@@ -1014,9 +1014,70 @@ export default function TVFilmDetail({ tvfilm, relatedNews, recentComments, rank
     <>
     <MainLayout>
       <Seo
-        title={currentTVFilm.title || "TV/Film Details"}
-        description={currentTVFilm.summary || ""}
-        image={currentTVFilm.coverImage || ""}
+        title={currentTVFilm.title || "Korean Movie"}
+        description={(() => {
+          const clean = (currentTVFilm.summary || '').replace(/<[^>]*>/g, '').trim();
+          if (clean) return clean.slice(0, 280);
+          const parts = [currentTVFilm.title];
+          if (currentTVFilm.genres?.length) parts.push(currentTVFilm.genres.slice(0, 3).join(', '));
+          if (currentTVFilm.country) parts.push(currentTVFilm.country);
+          if (currentTVFilm.releaseDate) {
+            try { parts.push(new Date(currentTVFilm.releaseDate).getFullYear()); } catch {}
+          }
+          return `${parts.filter(Boolean).join(' · ')} — Korean ${currentTVFilm.category || 'movie'} on KstarPick.`;
+        })()}
+        image={currentTVFilm.coverImage || currentTVFilm.bannerImage || ""}
+        url={`/tvfilm/${currentTVFilm._id || currentTVFilm.slug || ''}`}
+        type="article"
+        publishedTime={currentTVFilm.releaseDate ? new Date(currentTVFilm.releaseDate).toISOString() : undefined}
+        modifiedTime={currentTVFilm.updatedAt ? new Date(currentTVFilm.updatedAt).toISOString() : undefined}
+        tags={[...(currentTVFilm.genres || []), currentTVFilm.country].filter(Boolean)}
+        category={currentTVFilm.category || 'Movie'}
+        jsonLd={(() => {
+          const baseUrl = 'https://kstarpick.com';
+          const fullUrl = `${baseUrl}/tvfilm/${currentTVFilm._id || currentTVFilm.slug || ''}`;
+          // category가 'TV' 류면 TVSeries, 그 외엔 Movie
+          const isTv = /tv|series|drama/i.test(currentTVFilm.category || '');
+          const node = {
+            '@type': isTv ? 'TVSeries' : 'Movie',
+            '@id': fullUrl,
+            name: currentTVFilm.title,
+            url: fullUrl,
+          };
+          if (currentTVFilm.summary) node.description = currentTVFilm.summary.replace(/<[^>]*>/g, '').slice(0, 500);
+          if (currentTVFilm.coverImage) node.image = currentTVFilm.coverImage;
+          if (currentTVFilm.genres?.length) node.genre = currentTVFilm.genres;
+          if (currentTVFilm.releaseDate) {
+            try { node.datePublished = new Date(currentTVFilm.releaseDate).toISOString().slice(0, 10); } catch {}
+          }
+          if (currentTVFilm.country) node.countryOfOrigin = { '@type': 'Country', name: currentTVFilm.country };
+          if (currentTVFilm.director) node.director = { '@type': 'Person', name: currentTVFilm.director };
+          if (currentTVFilm.runtime && !isTv) {
+            // ISO 8601 duration: "2h 17min" → "PT2H17M"
+            const m = String(currentTVFilm.runtime).match(/(\d+)\s*h\s*(\d+)?/);
+            if (m) node.duration = `PT${m[1]}H${m[2] || '0'}M`;
+          }
+          const rating = parseFloat(currentTVFilm.reviewRating);
+          const count = parseInt(currentTVFilm.reviewCount, 10);
+          if (rating > 0 && count > 0) {
+            node.aggregateRating = {
+              '@type': 'AggregateRating',
+              ratingValue: rating.toFixed(1),
+              bestRating: '10',
+              worstRating: '1',
+              ratingCount: count,
+            };
+          }
+          const breadcrumb = {
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+              { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
+              { '@type': 'ListItem', position: 2, name: 'TV/Film', item: `${baseUrl}/tvfilm` },
+              { '@type': 'ListItem', position: 3, name: currentTVFilm.title, item: fullUrl },
+            ],
+          };
+          return { '@context': 'https://schema.org', '@graph': [node, breadcrumb] };
+        })()}
       />
       
       <div className="min-h-screen text-gray-800">

@@ -66,7 +66,14 @@ const Seo = ({
   
   const fullTitle = cleanTitle ? `${cleanTitle} | ${siteTitle}` : siteName;
   const fullDescription = cleanDescription || defaultDescription;
-  const fullImage = image || defaultImage;
+  // og:image는 OG 사양상 절대 URL이어야 함. 상대 경로면 baseUrl 붙임.
+  const normalizeImage = (img) => {
+    if (!img) return defaultImage;
+    if (img.startsWith('http://') || img.startsWith('https://')) return img;
+    if (img.startsWith('/')) return `${baseUrl}${img}`;
+    return `${baseUrl}/${img}`;
+  };
+  const fullImage = normalizeImage(image);
   // URL 중복 방지: url이 이미 전체 URL인 경우 그대로 사용
   const fullUrl = url ? (url.startsWith('http') ? url : `${baseUrl}${url}`) : baseUrl;
 

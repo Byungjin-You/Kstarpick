@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import Head from 'next/head';
+import Seo from '../../components/Seo';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Instagram, Twitter, Youtube, Music, Award, Calendar, Users, Star, Globe, ArrowLeft, Heart, Share2, ExternalLink, Play, TrendingUp, Flag, Clock, ThumbsUp, Hash, Eye, Facebook, Smartphone, Crown, Mic, Disc, Radio, ChevronRight } from 'lucide-react';
@@ -349,18 +349,50 @@ export default function CelebrityDetailPage({ celebrity = null, recentComments, 
   
   return (
     <MainLayout>
-      <Head>
-        <title>{celebrity.name} - K-POP News Portal</title>
-        <meta name="description" content={`${celebrity.name}의 상세 정보와 소셜 미디어 통계`} />
-        <meta property="og:title" content={`${celebrity.name} - K-POP News Portal`} />
-        <meta property="og:description" content={`${celebrity.name}의 상세 정보와 소셜 미디어 통계`} />
-        <meta property="og:image" content={celebrity.profileImage || '/images/placeholder.jpg'} />
-        <meta property="og:url" content={`https://kpop-news-portal.vercel.app/celeb/${slug}`} />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={`${celebrity.name} - K-POP News Portal`} />
-        <meta name="twitter:description" content={`${celebrity.name}의 상세 정보와 소셜 미디어 통계`} />
-        <meta name="twitter:image" content={celebrity.profileImage || '/images/placeholder.jpg'} />
-      </Head>
+      <Seo
+        title={`${celebrity.name} — K-Pop Profile, News & Social Stats`}
+        description={(() => {
+          const bioRaw = (celebrity.biography || celebrity.description || celebrity.bio || '').replace(/<[^>]*>/g, '').trim();
+          if (bioRaw) return bioRaw.slice(0, 280);
+          const parts = [`${celebrity.name}`];
+          if (celebrity.agency) parts.push(`agency: ${celebrity.agency}`);
+          parts.push('K-Pop celebrity profile, latest news, music videos, and social media stats on KstarPick.');
+          return parts.join(' · ').slice(0, 280);
+        })()}
+        image={celebrity.profileImage || '/images/placeholder.jpg'}
+        url={`/celeb/${slug}`}
+        type="profile"
+        tags={[celebrity.name, celebrity.agency, 'K-Pop'].filter(Boolean)}
+        category="Celebrity"
+        jsonLd={(() => {
+          const baseUrl = 'https://kstarpick.com';
+          const fullUrl = `${baseUrl}/celeb/${slug}`;
+          const sameAs = Object.values(celebrity.socialMedia || {}).filter(u => typeof u === 'string' && /^https?:\/\//.test(u));
+          const person = {
+            '@type': 'Person',
+            '@id': fullUrl,
+            name: celebrity.name,
+            url: fullUrl,
+          };
+          if (celebrity.profileImage) person.image = celebrity.profileImage;
+          const bio = (celebrity.biography || celebrity.description || celebrity.bio || '').replace(/<[^>]*>/g, '').trim();
+          if (bio) person.description = bio.slice(0, 500);
+          if (celebrity.agency) {
+            person.affiliation = { '@type': 'Organization', name: celebrity.agency };
+          }
+          if (sameAs.length) person.sameAs = sameAs;
+          person.jobTitle = celebrity.category === 'group' ? 'K-Pop Group' : 'K-Pop Artist';
+          const breadcrumb = {
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+              { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
+              { '@type': 'ListItem', position: 2, name: 'Celebrities', item: `${baseUrl}/celeb` },
+              { '@type': 'ListItem', position: 3, name: celebrity.name, item: fullUrl },
+            ],
+          };
+          return { '@context': 'https://schema.org', '@graph': [person, breadcrumb] };
+        })()}
+      />
       
       {/* 글로벌 스타일 */}
       <style jsx global>{`

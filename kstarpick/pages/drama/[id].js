@@ -1199,9 +1199,66 @@ export default function DramaDetail({ drama, relatedNews, metaTags, recentCommen
     <>
     <MainLayout>
       <Seo
-        title={currentDrama.title || "TV/Film Details"}
-        description={currentDrama.summary || ""}
-        image={currentDrama.coverImage || ""}
+        title={currentDrama.title || "Korean Drama"}
+        description={(() => {
+          const clean = (currentDrama.summary || '').replace(/<[^>]*>/g, '').trim();
+          if (clean) return clean.slice(0, 280);
+          const parts = [currentDrama.title];
+          if (currentDrama.genres?.length) parts.push(currentDrama.genres.slice(0, 3).join(', '));
+          if (currentDrama.country) parts.push(currentDrama.country);
+          if (currentDrama.releaseDate) {
+            try { parts.push(new Date(currentDrama.releaseDate).getFullYear()); } catch {}
+          }
+          return `${parts.filter(Boolean).join(' · ')} — Korean drama on KstarPick.`;
+        })()}
+        image={currentDrama.coverImage || currentDrama.bannerImage || ""}
+        url={`/drama/${currentDrama._id || currentDrama.slug || ''}`}
+        type="article"
+        publishedTime={currentDrama.releaseDate ? new Date(currentDrama.releaseDate).toISOString() : undefined}
+        modifiedTime={currentDrama.updatedAt ? new Date(currentDrama.updatedAt).toISOString() : undefined}
+        tags={[...(currentDrama.genres || []), currentDrama.country].filter(Boolean)}
+        category="Drama"
+        jsonLd={(() => {
+          const baseUrl = 'https://kstarpick.com';
+          const fullUrl = `${baseUrl}/drama/${currentDrama._id || currentDrama.slug || ''}`;
+          const tv = {
+            '@type': 'TVSeries',
+            '@id': fullUrl,
+            name: currentDrama.title,
+            url: fullUrl,
+          };
+          if (currentDrama.summary) tv.description = currentDrama.summary.replace(/<[^>]*>/g, '').slice(0, 500);
+          if (currentDrama.coverImage) tv.image = currentDrama.coverImage;
+          if (currentDrama.genres?.length) tv.genre = currentDrama.genres;
+          if (currentDrama.releaseDate) {
+            try { tv.datePublished = new Date(currentDrama.releaseDate).toISOString().slice(0, 10); } catch {}
+          }
+          if (currentDrama.episodes) tv.numberOfEpisodes = currentDrama.episodes;
+          if (currentDrama.country) tv.countryOfOrigin = { '@type': 'Country', name: currentDrama.country };
+          if (currentDrama.director) {
+            tv.director = { '@type': 'Person', name: currentDrama.director };
+          }
+          const rating = parseFloat(currentDrama.reviewRating);
+          const count = parseInt(currentDrama.reviewCount, 10);
+          if (rating > 0 && count > 0) {
+            tv.aggregateRating = {
+              '@type': 'AggregateRating',
+              ratingValue: rating.toFixed(1),
+              bestRating: '10',
+              worstRating: '1',
+              ratingCount: count,
+            };
+          }
+          const breadcrumb = {
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+              { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
+              { '@type': 'ListItem', position: 2, name: 'Drama', item: `${baseUrl}/drama` },
+              { '@type': 'ListItem', position: 3, name: currentDrama.title, item: fullUrl },
+            ],
+          };
+          return { '@context': 'https://schema.org', '@graph': [tv, breadcrumb] };
+        })()}
       />
       
       <div className="min-h-screen bg-white text-gray-800">
