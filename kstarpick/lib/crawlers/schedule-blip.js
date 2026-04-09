@@ -59,10 +59,10 @@ function parseBlipItems(html) {
   let m;
   while ((m = pattern.exec(html)) !== null) {
     const title = m[4]
-      .replace(/\\u003c/g, '<').replace(/\\u003e/g, '>')
+      .replace(/\\u003c/g, '').replace(/\\u003e/g, '')
       .replace(/\\\\n/g, '\n').replace(/\\n/g, '\n');
     const message = (m[5] || '')
-      .replace(/\\u003c/g, '<').replace(/\\u003e/g, '>')
+      .replace(/\\u003c/g, '').replace(/\\u003e/g, '')
       .replace(/\\\\n/g, '\n').replace(/\\n/g, '\n');
 
     items.push({
