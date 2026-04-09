@@ -264,6 +264,17 @@ export default function SchedulePage({ initialSchedules, initialYear, initialMon
     sessionStorage.setItem('cal_filter', activeFilter);
     if (selectedDate) sessionStorage.setItem('cal_selectedDate', selectedDate);
   }, [year, month, activeFilter, selectedDate, mounted]);
+
+  // /schedule ↔ /schedule/archive/YYYY/MM 라우팅 시 props가 바뀌어도
+  // useState 초기값은 한 번만 적용되므로 명시적으로 동기화한다.
+  useEffect(() => {
+    if (initialYear && initialMonth && (initialYear !== year || initialMonth !== month)) {
+      setYear(initialYear);
+      setMonth(initialMonth);
+      setSchedules(initialSchedules || []);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialYear, initialMonth, initialSchedules]);
   const [loading, setLoading] = useState(false);
   const sidebarRef = useRef(null);
   const [sidebarStickyTop, setSidebarStickyTop] = useState(92);

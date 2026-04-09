@@ -11,10 +11,8 @@ export default function Document() {
         <meta property="og:locale:alternate" content="ko_KR" />
         <meta name="twitter:card" content="summary_large_image" />
         
-        {/* Global search engine optimization */}
-        <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
-        <meta name="googlebot" content="index, follow" />
-        
+        {/* robots/googlebot 메타 태그는 페이지별 Seo 컴포넌트에서 출력 (중복 방지) */}
+
         {/* Korean search engines optimization */}
         <meta name="NaverBot" content="All" />
         <meta name="Yeti" content="All" />
