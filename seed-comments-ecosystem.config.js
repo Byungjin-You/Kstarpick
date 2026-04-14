@@ -3,7 +3,7 @@ module.exports = {
     name: 'seed-comments',
     script: './seed-comments-runner.js',
     cwd: '/Users/byungjinyou/Desktop/kstarpick-server-backup',
-    cron_restart: '0 5,13,21 * * *',  // 1일 3회 분산 실행 (05시, 13시, 21시) — 리액션과 3시간 오프셋
+    cron_restart: '30 2,5,8,11,14,17,20,23 * * *',  // 3시간 간격 (02:30,05:30,...) — 리액션과 1.5시간 오프셋
     autorestart: false,
     watch: false,
     max_memory_restart: '300M',

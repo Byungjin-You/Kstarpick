@@ -3,7 +3,7 @@ module.exports = {
     name: 'seed-reactions',
     script: './seed-reactions-runner.js',
     cwd: '/Users/byungjinyou/Desktop/kstarpick-server-backup',
-    cron_restart: '0 2,10,18 * * *',  // 1일 3회 분산 실행 (02시, 10시, 18시) — 기존 6시간→8시간 간격
+    cron_restart: '0 1,4,7,10,13,16,19,22 * * *',  // 3시간 간격 (01,04,07,10,13,16,19,22시) — 다른 배치와 1시간 오프셋
     autorestart: false,             // 실행 후 자동 재시작 안 함
     watch: false,
     max_memory_restart: '200M',
