@@ -47,6 +47,7 @@ export default async function handler(req, res) {
 
       const query = {
         _id: { $nin: results.map(r => r._id) },
+        contentType: { $ne: 'photo' },
       };
 
       if (category) {

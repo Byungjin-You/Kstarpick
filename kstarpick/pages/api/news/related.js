@@ -58,6 +58,7 @@ export default async function handler(req, res) {
         .find({
           category,
           _id: { $nin: excludeIds },
+          contentType: { $ne: 'photo' },
         })
         .sort({ viewCount: -1 })
         .limit(limit)
@@ -80,6 +81,7 @@ export default async function handler(req, res) {
           .find({
             tags: { $in: tagList },
             _id: { $nin: [...excludeIds, ...results.map(r => r._id)] },
+            contentType: { $ne: 'photo' },
           })
           .sort({ viewCount: -1 })
           .limit(limit - results.length)
@@ -104,6 +106,7 @@ export default async function handler(req, res) {
         .find({
           _id: { $nin: allExcludeIds },
           createdAt: { $gte: sevenDaysAgo },
+          contentType: { $ne: 'photo' },
         })
         .sort({ viewCount: -1 })
         .limit(limit - results.length)

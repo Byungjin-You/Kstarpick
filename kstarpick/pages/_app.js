@@ -69,6 +69,8 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       '/ranking': { key: 'rankingScrollPosition', flag: 'isBackToRanking', hasMoreNews: true },
       '/schedule': { key: 'scheduleScrollPosition', flag: 'isBackToSchedule' },
       '/search': { key: 'searchScrollPosition', flag: 'isBackToSearch' },
+      '/photo': { key: 'photoScrollPosition', flag: 'isBackToPhoto' },
+      '/photo/category/[key]': { key: 'photoCategoryScrollPosition', flag: 'isBackToPhotoCategory' },
     };
 
     // 동적 라우트 매칭 함수 (window.location.pathname → config)
@@ -80,6 +82,7 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       if (path.startsWith('/tvfilm/') && path !== '/tvfilm') return pageScrollConfig['/tvfilm/[id]'];
       if (path.startsWith('/celeb/') && path !== '/celeb') return pageScrollConfig['/celeb/[slug]'];
       if (path.startsWith('/schedule/') && path !== '/schedule') return { key: 'scheduleDetailScrollPosition' };
+      if (path.startsWith('/photo/category/')) return pageScrollConfig['/photo/category/[key]'];
       // 뉴스 상세: 슬러그별 개별 키
       if (path.startsWith('/news/') && path !== '/news') {
         const slug = path.split('/news/')[1];

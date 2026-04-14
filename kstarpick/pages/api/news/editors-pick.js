@@ -65,6 +65,7 @@ export default async function handler(req, res) {
     const matchStage = {
       status: 'published',
       createdAt: { $gte: since },
+      contentType: { $ne: 'photo' },
     };
     if (category) matchStage.category = category;
     if (excludeObjectIds.length) matchStage._id = { $nin: excludeObjectIds };

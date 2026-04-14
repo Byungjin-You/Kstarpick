@@ -73,6 +73,7 @@ export default async function handler(req, res) {
     const query = {
       $and: [
         { category: { $regex: '^drama$', $options: 'i' } },
+        { contentType: { $ne: 'photo' } },
         {
           $or: [
             { title: { $exists: true, $ne: '', $ne: null } },

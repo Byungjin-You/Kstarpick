@@ -130,6 +130,22 @@ module.exports = {
       error_file: '/doohub/service/kstarpick/logs/drama-crawler-error.log',
       out_file: '/doohub/service/kstarpick/logs/drama-crawler-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+    },
+    {
+      name: 'youtube-news-crawler',
+      script: './scripts/youtube-news-crawler.js',
+      cwd: '/doohub/service/kstarpick',
+      env: {
+        NODE_ENV: 'production'
+      },
+      exec_mode: 'fork',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '300M',
+      error_file: '/doohub/service/kstarpick/logs/youtube-news-error.log',
+      out_file: '/doohub/service/kstarpick/logs/youtube-news-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
     }
   ]
 };

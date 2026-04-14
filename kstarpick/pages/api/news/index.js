@@ -214,9 +214,17 @@ async function getNews(req, res) {
       andConditions.push({ featured: true });
     }
     
+    // contentType 필터: ?contentType=photo 이면 photo만, 아니면 photo 제외
+    const { contentType } = req.query;
+
     // published 상태 뉴스만 표시 (어드민 모드가 아닐 때)
     if (adminMode !== 'true') {
       andConditions.push({ status: 'published' });
+      if (contentType === 'photo') {
+        andConditions.push({ contentType: 'photo' });
+      } else {
+        andConditions.push({ contentType: { $ne: 'photo' } });
+      }
     }
     
     // 제목 검색 기능 추가

@@ -20,6 +20,7 @@
     "db:sync": "node scripts/sync-db.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.88.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@fortawesome/fontawesome-svg-core": "^6.7.2",

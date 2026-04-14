@@ -31,6 +31,10 @@ const KO_TO_EN = {
   "프로미스나인": "fromis_9", "플레이브": "PLAVE", "피원하모니": "P1Harmony",
   "피프티피프티": "FIFTY FIFTY", "하성운": "Ha Sung Woon",
   "하이라이트": "Highlight", "하이키": "H1-KEY", "하츠투하츠": "HEARTS2HEARTS",
+  "키빗업": "KEYVITUP", "워너원": "Wanna One",
+  "휴닝바히에": "Huening Bahiyyih", "샤오팅": "Xiaoting", "김채현": "Kim Chaehyun",
+  "히카루": "Hikaru", "김다연": "Kim Dayeon", "최유진": "Choi Yujin",
+  "악뮤": "AKMU",
 };
 
 function toEnglishName(koreanName) {
