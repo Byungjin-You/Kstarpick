@@ -793,13 +793,13 @@ if (process.env.RUN_ONCE === '1') {
   console.log('[Drama Crawler] RUN_ONCE 모드 - 1회 실행 후 종료');
   runDramaCrawl().then(() => process.exit(0)).catch(() => process.exit(1));
 } else {
-  // 매일 04:00 KST
-  cron.schedule('0 4 * * *', () => {
-    console.log('[Drama Crawler] 일일 크롤링 (04:00 KST)');
+  // 매일 03:00 KST (배치 분산 스케줄)
+  cron.schedule('0 3 * * *', () => {
+    console.log('[Drama Crawler] 일일 크롤링 (03:00 KST)');
     runDramaCrawl();
   }, { timezone: 'Asia/Seoul' });
 
-  console.log('[Drama Crawler] 스케줄러 시작됨 - 매일 04:00 KST (안전 모드)');
+  console.log('[Drama Crawler] 스케줄러 시작됨 - 매일 03:00 KST (안전 모드)');
 
   // PM2 재시작 시 즉시 실행 방지 — 환경변수로 명시적으로 활성화한 경우만 실행
   if (process.env.RUN_ON_BOOT === '1') {

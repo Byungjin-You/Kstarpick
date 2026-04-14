@@ -38,14 +38,14 @@ async function runCrawl() {
   console.log(`[Schedule Crawler] 전체 크롤링 완료: ${new Date().toISOString()}`);
 }
 
-// 매일 오전 6시 (KST) = UTC 21시 (전날)
-cron.schedule('0 21 * * *', () => {
-  console.log('[Schedule Crawler] 일일 크롤링 (06:00 KST)');
+// 매일 09:00 KST (배치 분산 스케줄 — 기존 21:00 시스템시간에서 이동)
+cron.schedule('0 9 * * *', () => {
+  console.log('[Schedule Crawler] 일일 크롤링 (09:00 KST)');
   runCrawl();
-});
+}, { timezone: 'Asia/Seoul' });
 
-console.log('[Schedule Crawler] 스케줄러 시작됨 - 매일 06:00 KST 크롤링');
+console.log('[Schedule Crawler] 스케줄러 시작됨 - 매일 09:00 KST 크롤링');
 console.log(`[Schedule Crawler] API: ${API_BASE}`);
 
-// 시작 시 즉시 1회 실행
-runCrawl();
+// 시작 시 즉시 실행 제거 — PM2 재시작 시 모든 배치가 동시 실행되는 것 방지
+console.log('[Schedule Crawler] 다음 스케줄 실행 대기 중 (09:00 KST)');

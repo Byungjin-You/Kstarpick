@@ -78,14 +78,14 @@ async function runCelebUpdate() {
   }
 }
 
-// 매일 05:00 KST = UTC 20:00 (전날)
-cron.schedule('0 20 * * *', () => {
-  console.log('[Celeb Updater] 일일 업데이트 (05:00 KST)');
+// 매일 07:00 KST (배치 분산 스케줄 — 기존 20:00 KST에서 이동)
+cron.schedule('0 7 * * *', () => {
+  console.log('[Celeb Updater] 일일 업데이트 (07:00 KST)');
   runCelebUpdate();
 }, { timezone: 'Asia/Seoul' });
 
-console.log('[Celeb Updater] 스케줄러 시작됨 - 매일 05:00 KST');
+console.log('[Celeb Updater] 스케줄러 시작됨 - 매일 07:00 KST');
 console.log(`[Celeb Updater] API: ${API_BASE}`);
 
-// 시작 시 즉시 1회 실행
-runCelebUpdate();
+// 시작 시 즉시 실행 제거 — PM2 재시작 시 모든 배치가 동시 실행되는 것 방지
+console.log('[Celeb Updater] 다음 스케줄 실행 대기 중 (07:00 KST)');

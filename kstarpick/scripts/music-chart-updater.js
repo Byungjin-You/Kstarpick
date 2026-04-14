@@ -389,21 +389,21 @@ async function fetchPlaylistVideos() {
 
 // ─── 크론 스케줄 ───
 
-// 매일 07:00 KST: 조회수 업데이트 + 순위 정렬
-cron.schedule('0 7 * * *', () => {
-  console.log('[Music Chart] 일일 조회수 업데이트 (07:00 KST)');
+// 매일 11:00 KST: 조회수 업데이트 + 순위 정렬 (배치 분산 스케줄 — 기존 07:00에서 이동)
+cron.schedule('0 11 * * *', () => {
+  console.log('[Music Chart] 일일 조회수 업데이트 (11:00 KST)');
   updateViewsAndRank();
 }, { timezone: 'Asia/Seoul' });
 
-// 매주 월요일 06:00 KST: 주간 차트 갱신
-cron.schedule('0 6 * * 1', () => {
-  console.log('[Music Chart] 주간 차트 갱신 (월요일 06:00 KST)');
+// 매주 월요일 11:30 KST: 주간 차트 갱신 (배치 분산 스케줄 — 기존 06:00에서 이동)
+cron.schedule('30 11 * * 1', () => {
+  console.log('[Music Chart] 주간 차트 갱신 (월요일 11:30 KST)');
   refreshWeeklyChart();
 }, { timezone: 'Asia/Seoul' });
 
 console.log('[Music Chart] 스케줄러 시작됨');
-console.log('  - 매일 07:00 KST: 조회수 업데이트 + 순위 정렬');
-console.log('  - 매주 월요일 06:00 KST: 주간 차트 갱신 (50개)');
+console.log('  - 매일 11:00 KST: 조회수 업데이트 + 순위 정렬');
+console.log('  - 매주 월요일 11:30 KST: 주간 차트 갱신 (50개)');
 
-// 시작 시 조회수 업데이트 1회 실행
-updateViewsAndRank();
+// 시작 시 즉시 실행 제거 — PM2 재시작 시 모든 배치가 동시 실행되는 것 방지
+console.log('[Music Chart] 다음 스케줄 실행 대기 중');
