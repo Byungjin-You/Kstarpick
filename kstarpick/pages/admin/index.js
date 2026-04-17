@@ -79,6 +79,15 @@ export default function AdminDashboard() {
   const [dataMultiplier, setDataMultiplier] = useState(1);
   const [isMultiplierOpen, setIsMultiplierOpen] = useState(false);
   const [isSavingMultiplier, setIsSavingMultiplier] = useState(false);
+  const [scalingParams, setScalingParams] = useState({
+    noiseRange: 8,
+    spikeChance: 15,
+    spikeMin: 30,
+    spikeMax: 80,
+    decayDays: 3,
+    decayFactor: 0.4,
+  });
+  const [isSavingParams, setIsSavingParams] = useState(false);
   const [dashboardStats, setDashboardStats] = useState(null);
   const [dashboardStatsLoading, setDashboardStatsLoading] = useState(false);
 
@@ -129,24 +138,25 @@ export default function AdminDashboard() {
   const SUPER_ADMIN_EMAIL = 'y@fsn.co.kr';
   const isSuperAdmin = session?.user?.email === SUPER_ADMIN_EMAIL;
 
-  // 배율 값 서버에서 불러오기
+  // 배율/스케일링 파라미터 서버에서 불러오기
   useEffect(() => {
-    const fetchMultiplier = async () => {
+    const fetchSettings = async () => {
       try {
         const response = await fetch('/api/admin/settings', {
           credentials: 'include',
         });
         const data = await response.json();
-        if (data.success && data.multiplier) {
-          setDataMultiplier(data.multiplier);
+        if (data.success) {
+          if (data.multiplier) setDataMultiplier(data.multiplier);
+          if (data.scalingParams) setScalingParams(prev => ({ ...prev, ...data.scalingParams }));
         }
       } catch (error) {
-        console.error('Error fetching multiplier:', error);
+        console.error('Error fetching settings:', error);
       }
     };
 
     if (session?.user?.role === 'admin') {
-      fetchMultiplier();
+      fetchSettings();
     }
   }, [session]);
 
@@ -155,15 +165,12 @@ export default function AdminDashboard() {
     const newValue = Math.max(1, Math.min(1000, Number(value) || 1));
     setDataMultiplier(newValue);
 
-    // 슈퍼 관리자만 서버에 저장
     if (isSuperAdmin) {
       setIsSavingMultiplier(true);
       try {
         await fetch('/api/admin/settings', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ multiplier: newValue }),
         });
@@ -173,6 +180,45 @@ export default function AdminDashboard() {
         setIsSavingMultiplier(false);
       }
     }
+  };
+
+  // 스케일링 파라미터 서버 저장 (debounced)
+  const saveScalingParams = (params) => {
+    if (!isSuperAdmin) return;
+    if (saveScalingParams._timer) clearTimeout(saveScalingParams._timer);
+    saveScalingParams._timer = setTimeout(async () => {
+      setIsSavingParams(true);
+      try {
+        await fetch('/api/admin/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ scalingParams: params }),
+        });
+      } catch (error) {
+        console.error('Error saving scalingParams:', error);
+      } finally {
+        setIsSavingParams(false);
+      }
+    }, 400);
+  };
+
+  // 스케일링 파라미터 단일 키 변경
+  const handleScalingParamChange = (key, value) => {
+    setScalingParams(prev => {
+      const next = { ...prev, [key]: Number(value) };
+      if (next.spikeMin > next.spikeMax) next.spikeMin = next.spikeMax;
+      saveScalingParams(next);
+      return next;
+    });
+  };
+
+  // 프리셋 적용 (전체 한번에 교체)
+  const applyScalingPreset = (preset) => {
+    const next = { ...scalingParams, ...preset };
+    if (next.spikeMin > next.spikeMax) next.spikeMin = next.spikeMax;
+    setScalingParams(next);
+    saveScalingParams(next);
   };
 
   // 배율이 적용된 데이터 계산 + 날짜/DAU 기반 비율 변동
@@ -199,19 +245,61 @@ export default function AdminDashboard() {
     // realtime 전용 고정 시드 (기간 필터와 무관하게 항상 동일)
     const realtimeSeed = dateSeed + 7777;
 
-    const scale = (value) => {
-      if (dataMultiplier <= 1) return Math.round(value * dataMultiplier);
-      const base = value * dataMultiplier;
-      // 값 기반 시드로 ±3% 노이즈 (같은 값은 항상 같은 노이즈)
-      const noise = 1 + (seededRandom(dauSeed, Math.abs(Math.round(value)) % 9999) - 0.5) * 0.06;
-      return Math.round(base * noise);
+    // 날짜 문자열 → 시드 (YYYYMMDD)
+    const dateStrToSeed = (dateStr) => {
+      if (!dateStr) return dateSeed;
+      const [y, m, d] = dateStr.split('-').map(Number);
+      return y * 10000 + m * 100 + d;
+    };
+    const todayStr = today.toISOString().split('T')[0];
+
+    // 스파이크 배수 계산: 특정 날짜가 스파이크 데이일 확률 spikeChance%
+    // 스파이크 크기 spikeMin~spikeMax%, 이후 decayDays 동안 decayFactor^i 로 감쇠
+    const { noiseRange, spikeChance, spikeMin, spikeMax, decayDays, decayFactor } = scalingParams;
+    const getSpikeMultiplier = (dateStr) => {
+      if (spikeChance <= 0 || spikeMax <= 0) return 1;
+      const baseSeed = dateStrToSeed(dateStr);
+      let totalBoost = 0;
+      for (let i = 0; i <= decayDays; i++) {
+        // i일 전의 스파이크 여부 확인
+        const pastSeed = baseSeed - i; // 단순 YYYYMMDD 뺄셈 (월 경계 부정확하나 결정성 유지)
+        const chanceRoll = seededRandom(pastSeed, 4242);
+        if (chanceRoll < spikeChance / 100) {
+          const magRoll = seededRandom(pastSeed, 4243);
+          const spikeSize = spikeMin + magRoll * (spikeMax - spikeMin);
+          const decay = Math.pow(decayFactor, i);
+          totalBoost += (spikeSize / 100) * decay;
+        }
+      }
+      return 1 + totalBoost;
     };
 
-    // realtime 전용 scale (기간 필터 변경에 영향받지 않음)
+    // 일반 scale (dateStr 주면 해당 날짜의 스파이크 적용, 없으면 집계값으로 스파이크 미적용)
+    const scale = (value, dateStr) => {
+      if (dataMultiplier <= 1) return Math.round(value * dataMultiplier);
+      const base = value * dataMultiplier;
+      const noiseAmp = (noiseRange || 0) / 100;
+      const noise = 1 + (seededRandom(dauSeed, Math.abs(Math.round(value)) % 9999) - 0.5) * 2 * noiseAmp;
+      const spike = dateStr ? getSpikeMultiplier(dateStr) : 1;
+      return Math.round(base * noise * spike);
+    };
+
+    // realtime 전용 scale: 오늘의 스파이크 적용 (DAU/realtime 카드)
     const scaleRealtime = (value) => {
       if (dataMultiplier <= 1) return Math.round(value * dataMultiplier);
       const base = value * dataMultiplier;
-      const noise = 1 + (seededRandom(realtimeSeed, Math.abs(Math.round(value)) % 9999) - 0.5) * 0.06;
+      const noiseAmp = (noiseRange || 0) / 100;
+      const noise = 1 + (seededRandom(realtimeSeed, Math.abs(Math.round(value)) % 9999) - 0.5) * 2 * noiseAmp;
+      const spike = getSpikeMultiplier(todayStr);
+      return Math.round(base * noise * spike);
+    };
+
+    // 집계형 realtime (WAU/MAU): 스파이크 미적용 (장기 평균이라 튀지 않음)
+    const scaleAggregate = (value) => {
+      if (dataMultiplier <= 1) return Math.round(value * dataMultiplier);
+      const base = value * dataMultiplier;
+      const noiseAmp = (noiseRange || 0) / 100;
+      const noise = 1 + (seededRandom(realtimeSeed, Math.abs(Math.round(value)) % 9999) - 0.5) * 2 * noiseAmp;
       return Math.round(base * noise);
     };
 
@@ -257,14 +345,14 @@ export default function AdminDashboard() {
           pageViews: scaleRealtime(gaData.summary.dau.pageViews),
         },
         wau: {
-          users: scaleRealtime(gaData.summary.wau.users),
-          sessions: scaleRealtime(gaData.summary.wau.sessions),
-          pageViews: scaleRealtime(gaData.summary.wau.pageViews),
+          users: scaleAggregate(gaData.summary.wau.users),
+          sessions: scaleAggregate(gaData.summary.wau.sessions),
+          pageViews: scaleAggregate(gaData.summary.wau.pageViews),
         },
         mau: {
-          users: scaleRealtime(gaData.summary.mau.users),
-          sessions: scaleRealtime(gaData.summary.mau.sessions),
-          pageViews: scaleRealtime(gaData.summary.mau.pageViews),
+          users: scaleAggregate(gaData.summary.mau.users),
+          sessions: scaleAggregate(gaData.summary.mau.sessions),
+          pageViews: scaleAggregate(gaData.summary.mau.pageViews),
         },
       },
       engagement: {
@@ -277,13 +365,12 @@ export default function AdminDashboard() {
       },
       dailyTrends: gaData.dailyTrends?.filter(day => {
         // 오늘 날짜 제외 (오늘 데이터는 불완전하므로)
-        const today = new Date().toISOString().split('T')[0];
-        return day.date !== today;
+        return day.date !== todayStr;
       }).map((day, i) => ({
         ...day,
-        dau: scale(day.dau),
-        sessions: scale(day.sessions),
-        pageViews: scale(day.pageViews),
+        dau: scale(day.dau, day.date),
+        sessions: scale(day.sessions, day.date),
+        pageViews: scale(day.pageViews, day.date),
       })),
       demographics: {
         countries: gaData.demographics.countries?.map(c => ({
@@ -475,22 +562,47 @@ export default function AdminDashboard() {
   const getScaledSectionData = (period) => {
     const raw = gaDataByPeriod[period] || gaData;
     if (!raw) return null;
-    const scaleVal = (value) => {
+    const noiseAmp = (scalingParams.noiseRange || 0) / 100;
+    const dateStrToSeedLocal = (dateStr) => {
+      if (!dateStr) return realtimeFixedSeed;
+      const [y, m, d] = dateStr.split('-').map(Number);
+      return y * 10000 + m * 100 + d;
+    };
+    const spikeMult = (dateStr) => {
+      const { spikeChance, spikeMin, spikeMax, decayDays, decayFactor } = scalingParams;
+      if (spikeChance <= 0 || spikeMax <= 0) return 1;
+      const baseSeed = dateStrToSeedLocal(dateStr);
+      let totalBoost = 0;
+      for (let i = 0; i <= decayDays; i++) {
+        const pastSeed = baseSeed - i;
+        const xA = Math.sin(pastSeed + 4242 * 9999) * 10000;
+        const chanceRoll = xA - Math.floor(xA);
+        if (chanceRoll < spikeChance / 100) {
+          const xB = Math.sin(pastSeed + 4243 * 9999) * 10000;
+          const magRoll = xB - Math.floor(xB);
+          const spikeSize = spikeMin + magRoll * (spikeMax - spikeMin);
+          totalBoost += (spikeSize / 100) * Math.pow(decayFactor, i);
+        }
+      }
+      return 1 + totalBoost;
+    };
+    const scaleVal = (value, dateStr) => {
       if (dataMultiplier <= 1) return Math.round(value * dataMultiplier);
       const base = value * dataMultiplier;
       const x = Math.sin(realtimeFixedSeed + Math.abs(Math.round(value)) % 9999 * 9999) * 10000;
-      const noise = 1 + ((x - Math.floor(x)) - 0.5) * 0.06;
-      return Math.round(base * noise);
+      const noise = 1 + ((x - Math.floor(x)) - 0.5) * 2 * noiseAmp;
+      const spike = dateStr ? spikeMult(dateStr) : 1;
+      return Math.round(base * noise * spike);
     };
+    const todayStr = new Date().toISOString().split('T')[0];
     return {
       dailyTrends: raw.dailyTrends?.filter(day => {
-        const today = new Date().toISOString().split('T')[0];
-        return day.date !== today;
+        return day.date !== todayStr;
       }).map(day => ({
         ...day,
-        dau: scaleVal(day.dau),
-        sessions: scaleVal(day.sessions),
-        pageViews: scaleVal(day.pageViews),
+        dau: scaleVal(day.dau, day.date),
+        sessions: scaleVal(day.sessions, day.date),
+        pageViews: scaleVal(day.pageViews, day.date),
       })),
       userFlow: {
         ...raw.userFlow,
@@ -954,7 +1066,7 @@ export default function AdminDashboard() {
                       )}
                     </button>
                     {isMultiplierOpen && (
-                      <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-50 min-w-[280px]" onClick={(e) => e.stopPropagation()}>
+                      <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-50 min-w-[340px] max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="text-sm font-bold text-gray-800">Data Multiplier</h4>
                           <button onClick={() => setIsMultiplierOpen(false)} className="text-gray-400 hover:text-gray-600">
@@ -1004,6 +1116,144 @@ export default function AdminDashboard() {
                               Saving...
                             </p>
                           )}
+                        </div>
+
+                        {/* Scaling Parameters */}
+                        <div className="mt-5 pt-4 border-t border-gray-200">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-sm font-bold text-gray-800">Variation Pattern</h4>
+                            {isSavingParams && (
+                              <div className="w-3 h-3 border-2 border-violet-400 border-t-transparent rounded-full animate-spin"></div>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 mb-4">Mimic real GA spike-and-decay behavior</p>
+
+                          <div className="space-y-4">
+                            {/* Noise Range */}
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="text-xs font-semibold text-gray-700">Daily noise</label>
+                                <span className="text-xs text-violet-600 font-bold">±{scalingParams.noiseRange}%</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="0"
+                                max="30"
+                                step="1"
+                                value={scalingParams.noiseRange}
+                                onChange={(e) => handleScalingParamChange('noiseRange', e.target.value)}
+                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-violet-600"
+                              />
+                            </div>
+
+                            {/* Spike Chance */}
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="text-xs font-semibold text-gray-700">Spike chance</label>
+                                <span className="text-xs text-violet-600 font-bold">{scalingParams.spikeChance}%</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="0"
+                                max="50"
+                                step="1"
+                                value={scalingParams.spikeChance}
+                                onChange={(e) => handleScalingParamChange('spikeChance', e.target.value)}
+                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-violet-600"
+                              />
+                              <p className="text-[10px] text-gray-400 mt-0.5">Probability of a surge per day</p>
+                            </div>
+
+                            {/* Spike Range */}
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="text-xs font-semibold text-gray-700">Spike size</label>
+                                <span className="text-xs text-violet-600 font-bold">+{scalingParams.spikeMin}% ~ +{scalingParams.spikeMax}%</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="500"
+                                  value={scalingParams.spikeMin}
+                                  onChange={(e) => handleScalingParamChange('spikeMin', e.target.value)}
+                                  className="w-20 px-2 py-1.5 text-xs font-semibold text-center border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+                                />
+                                <span className="text-gray-400 text-xs">~</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="500"
+                                  value={scalingParams.spikeMax}
+                                  onChange={(e) => handleScalingParamChange('spikeMax', e.target.value)}
+                                  className="w-20 px-2 py-1.5 text-xs font-semibold text-center border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+                                />
+                                <span className="text-[10px] text-gray-400">(%)</span>
+                              </div>
+                            </div>
+
+                            {/* Decay */}
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="text-xs font-semibold text-gray-700">Decay days</label>
+                                  <span className="text-xs text-violet-600 font-bold">{scalingParams.decayDays}d</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="7"
+                                  step="1"
+                                  value={scalingParams.decayDays}
+                                  onChange={(e) => handleScalingParamChange('decayDays', e.target.value)}
+                                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-violet-600"
+                                />
+                              </div>
+                              <div>
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="text-xs font-semibold text-gray-700">Decay factor</label>
+                                  <span className="text-xs text-violet-600 font-bold">{scalingParams.decayFactor}</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="1"
+                                  step="0.05"
+                                  value={scalingParams.decayFactor}
+                                  onChange={(e) => handleScalingParamChange('decayFactor', e.target.value)}
+                                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-violet-600"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Presets */}
+                            <div className="flex gap-2 flex-wrap pt-1">
+                              <button
+                                onClick={() => applyScalingPreset({ noiseRange: 5, spikeChance: 5, spikeMin: 10, spikeMax: 25, decayDays: 2, decayFactor: 0.4 })}
+                                className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200"
+                              >
+                                Calm
+                              </button>
+                              <button
+                                onClick={() => applyScalingPreset({ noiseRange: 8, spikeChance: 15, spikeMin: 30, spikeMax: 80, decayDays: 3, decayFactor: 0.4 })}
+                                className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-violet-100 text-violet-700 hover:bg-violet-200"
+                              >
+                                Default
+                              </button>
+                              <button
+                                onClick={() => applyScalingPreset({ noiseRange: 12, spikeChance: 25, spikeMin: 50, spikeMax: 150, decayDays: 4, decayFactor: 0.5 })}
+                                className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-orange-100 text-orange-700 hover:bg-orange-200"
+                              >
+                                Viral
+                              </button>
+                              <button
+                                onClick={() => applyScalingPreset({ noiseRange: 3, spikeChance: 0, spikeMin: 0, spikeMax: 0, decayDays: 0, decayFactor: 0.4 })}
+                                className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-gray-100 text-gray-500 hover:bg-gray-200"
+                              >
+                                Off
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}

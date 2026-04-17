@@ -529,7 +529,7 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const menuPages = ['/', '/drama', '/tvfilm', '/music', '/celeb', '/schedule', '/ranking'];
+    const menuPages = ['/', '/drama', '/tvfilm', '/music', '/celeb', '/photo', '/schedule', '/ranking'];
     let startX = 0, startY = 0, moveX = 0;
     let swiping = false, dirLocked = false, isHorizontal = false;
 
