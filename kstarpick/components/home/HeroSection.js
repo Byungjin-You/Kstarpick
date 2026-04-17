@@ -44,17 +44,17 @@ const HeroSection = ({ article, onNavigate, children }) => {
   return (
     <section className="mb-0 lg:mb-8">
       <div className="bg-white border-0 lg:border-[1.5px] border-ksp-border rounded-none lg:rounded-xl overflow-hidden">
-        <div className="flex flex-col lg:flex-row items-center gap-1.5 lg:gap-9 pt-2 px-4 pb-1.5 lg:pt-10 lg:px-4 lg:pb-10" style={{ backgroundColor: 'rgba(249, 250, 251, 0.5)' }}>
-          {/* Left: Featured Image */}
+        <div className="flex flex-col lg:flex-row items-center gap-1.5 lg:gap-6 xl:gap-9 pt-2 px-4 pb-1.5 lg:pt-10 lg:px-4 lg:pb-10" style={{ backgroundColor: 'rgba(249, 250, 251, 0.5)' }}>
+          {/* Left: Featured Image — shrinks with container on desktop */}
           <div
-            className="relative cursor-pointer overflow-hidden rounded-[10px] lg:rounded-2xl flex-shrink-0 shadow-sm lg:shadow-card w-full"
+            className="relative cursor-pointer overflow-hidden rounded-[10px] lg:rounded-2xl shadow-sm lg:shadow-card w-full lg:basis-[55%] lg:shrink lg:min-w-0"
             style={{ maxWidth: '664px' }}
             onClick={handleClick}
           >
             <img
               src={article.coverImage || article.thumbnailUrl || '/images/placeholder.jpg'}
               alt={article.title}
-              className="w-full h-[227px] lg:h-[378px] object-cover hover:scale-105 transition-transform duration-500"
+              className="w-full h-[227px] lg:h-auto lg:aspect-[664/378] object-cover hover:scale-105 transition-transform duration-500"
               onError={(e) => { e.target.src = '/images/placeholder.jpg'; }}
             />
             {/* Desktop Badge */}
@@ -74,7 +74,7 @@ const HeroSection = ({ article, onNavigate, children }) => {
           </div>
 
           {/* Right: Content */}
-          <div className="flex flex-col justify-center flex-1 gap-1 lg:gap-4 px-0 pb-0">
+          <div className="flex flex-col justify-center flex-1 min-w-0 gap-1 lg:gap-4 px-0 pb-0">
             {/* Today's News + Date - Desktop only */}
             <div className="hidden lg:flex items-center gap-2">
               <span className="text-sm font-bold" style={{ color: '#518EF4' }}>Today&apos;s News</span>
@@ -82,9 +82,9 @@ const HeroSection = ({ article, onNavigate, children }) => {
               <span className="text-sm font-bold" style={{ color: '#518EF4' }}>{dateStr}</span>
             </div>
 
-            {/* Headline */}
+            {/* Headline — scales with viewport */}
             <h1
-              className="text-[18px] leading-[1.33] lg:text-[36px] lg:leading-[1.25] font-bold lg:font-black text-[#0A0A0A] lg:text-[#101828] cursor-pointer transition-colors line-clamp-2 lg:line-clamp-3"
+              className="text-[18px] leading-[1.33] lg:text-[24px] lg:leading-[1.25] xl:text-[30px] 2xl:text-[36px] font-bold lg:font-black text-[#0A0A0A] lg:text-[#101828] cursor-pointer transition-colors line-clamp-2 lg:line-clamp-3 break-words"
               style={{ fontFamily: 'Pretendard, Inter, sans-serif', letterSpacing: '-0.0244em' }}
               onClick={handleClick}
             >
@@ -92,7 +92,7 @@ const HeroSection = ({ article, onNavigate, children }) => {
             </h1>
 
             {/* Description - Desktop only */}
-            <p className="hidden lg:block text-base leading-[1.625] line-clamp-3" style={{ color: '#4A5565', fontFamily: 'Pretendard, Inter, sans-serif' }}>
+            <p className="hidden lg:block text-sm xl:text-base leading-[1.625] line-clamp-2 xl:line-clamp-3" style={{ color: '#4A5565', fontFamily: 'Pretendard, Inter, sans-serif' }}>
               {summary}
             </p>
 

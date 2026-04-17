@@ -385,9 +385,9 @@ function Home({ initialData }) {
 
       <main className="pt-0 pb-16 bg-white lg:bg-[#F8F9FA]">
         {/* Full-width 2-column layout: Main (1212px) + Sidebar (500px) */}
-        <div className="max-w-[1772px] mx-auto px-0 lg:px-10 pt-0 lg:pt-8">
-          <div className="flex flex-col lg:flex-row gap-0 lg:gap-[60px]">
-            {/* Left: Main Content Area (1212px) */}
+        <div className="max-w-[1772px] mx-auto px-0 lg:px-6 xl:px-8 2xl:px-10 pt-0 lg:pt-8">
+          <div className="flex flex-col lg:flex-row gap-0 lg:gap-8 xl:gap-10 2xl:gap-[60px]">
+            {/* Left: Main Content Area (1212px at 2xl) */}
             <div className="flex-1 min-w-0 lg:max-w-content">
 
               {/* Mobile Comment Ticker - above hero */}
@@ -580,8 +580,8 @@ function Home({ initialData }) {
               </div>
             </div>
 
-            {/* Right: Sidebar (500px, Naver-style bi-directional sticky) */}
-            <div className="hidden lg:block w-[500px] flex-shrink-0">
+            {/* Right: Sidebar — responsive: 360 → 420 → 500px, Naver-style bi-directional sticky */}
+            <div className="hidden lg:block lg:w-[360px] xl:w-[420px] 2xl:w-[500px] flex-shrink-0">
               <div ref={sidebarStickyRef} className="sticky" style={{ top: sidebarStickyTop + 'px' }}>
                 <Sidebar
                   rankingNews={rankingNews}

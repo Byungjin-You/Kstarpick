@@ -80,19 +80,19 @@ const KpopRankingSection = ({ songs = [], onPlayVideo }) => {
         </div>
       </div>
 
-      {/* Desktop Layout - 3 items */}
-      <div className="hidden md:flex gap-9">
+      {/* Desktop Layout - 3 items (responsive grid with fluid sizing) */}
+      <div className="hidden md:grid md:grid-cols-3 md:gap-4 xl:gap-6 2xl:gap-9">
         {topSongs.slice(0, 3).map((song, index) => (
           <div
             key={song._id || index}
-            className="flex flex-col items-start gap-3 cursor-pointer group"
+            className="flex flex-col items-start gap-3 cursor-pointer group min-w-0"
             onClick={() => {
               if (song.youtubeUrl && onPlayVideo) {
                 onPlayVideo(song.youtubeUrl);
               }
             }}
           >
-            <div className="relative w-[342px] h-[342px] rounded-xl overflow-hidden bg-[#F3F4F6]">
+            <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-[#F3F4F6]">
               <img
                 src={song.albumArt || song.thumbnailUrl || song.coverImage || '/images/placeholder.jpg'}
                 alt={song.title || song.name}
@@ -114,13 +114,13 @@ const KpopRankingSection = ({ songs = [], onPlayVideo }) => {
               </div>
             </div>
             <h4
-              className="font-bold text-xl text-left text-[#101828] line-clamp-1 w-[342px] transition-colors"
+              className="font-bold text-base xl:text-lg 2xl:text-xl text-left text-[#101828] line-clamp-1 w-full transition-colors"
               style={{ letterSpacing: '-0.022em' }}
             >
               {song.title || song.name}
             </h4>
             {song.artist && (
-              <span className="text-sm text-ksp-meta text-left">{song.artist}</span>
+              <span className="text-sm text-ksp-meta text-left line-clamp-1">{song.artist}</span>
             )}
           </div>
         ))}
