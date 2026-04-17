@@ -4,6 +4,9 @@ Allow: /
 # 사이트맵 위치
 Sitemap: https://kstarpick.com/sitemap.xml
 
+# Google News 전용 사이트맵 (최근 48시간 이내 기사)
+Sitemap: https://kstarpick.com/news-sitemap.xml
+
 # RSS 피드
 Sitemap: https://kstarpick.com/rss.xml
 

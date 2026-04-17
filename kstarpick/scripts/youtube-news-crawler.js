@@ -184,14 +184,23 @@ function youtubeEmbed(videoId) {
   return `<div style="display:flex;justify-content:center;margin:20px 0;"><iframe width="315" height="560" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="border-radius:12px;max-width:100%;"></iframe></div>`;
 }
 
-// Claude API로 기사 생성
+// Claude API로 기사 생성 (SEO 친화적 본문 400~600 words)
 async function generateArticleContent(originalTitle, translatedTitle, artistNames, groupNames, category, eventName, dateStr) {
+  // 키 없거나 실패 시 최소한의 의미있는 fallback (thin content 방지)
+  const buildFallbackBody = () => {
+    const who = artistNames.join(' and ') || 'A K-Pop artist';
+    const groupMention = groupNames.length > 0 ? ` from ${groupNames.join(' and ')}` : '';
+    const when = dateStr ? ` on ${dateStr}` : ' recently';
+    const eventDesc = eventName ? ` at a ${eventName} appearance` : '';
+    return [
+      `<p>${who}${groupMention} made headlines${when}${eventDesc}, drawing attention from fans across the K-Pop community.</p>`,
+      `<p>The appearance quickly spread across social media, with fans sharing photos and clips of the moment. Such appearances remain a core part of K-Pop culture, where artists regularly connect with their global fandom through public events, broadcast stages, and fan interactions.</p>`,
+      `<p>K-Pop continues to grow as a leading force in global entertainment, with Korean artists consistently breaking records and expanding their international reach. Stay tuned for more updates on ${who}${groupMention} and the latest from the K-Pop world.</p>`,
+    ].join('');
+  };
+
   if (!CLAUDE_API_KEY) {
-    // API 키 없으면 fallback
-    return {
-      title: translatedTitle,
-      body: `<p>${artistNames.join(' & ') || 'K-Pop Artist'} was featured in a new video${dateStr ? ` on ${dateStr}` : ''}.</p>`,
-    };
+    return { title: translatedTitle, body: buildFallbackBody() };
   }
 
   const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
@@ -200,7 +209,7 @@ async function generateArticleContent(originalTitle, translatedTitle, artistName
     ? `Artist(s): ${artistNames.join(', ')}${groupNames.length > 0 ? ` (Group: ${groupNames.join(', ')})` : ''}`
     : 'Artist: Unknown K-Pop artist';
 
-  const prompt = `You are a K-Pop entertainment news writer for KstarPick. Write a short English news article based on this YouTube Shorts video info.
+  const prompt = `You are a professional K-Pop entertainment journalist writing for KstarPick, an English-language K-Pop news site. Write a comprehensive, SEO-friendly news article based on this YouTube Shorts video.
 
 Video title (Korean): ${originalTitle}
 Video title (English): ${translatedTitle}
@@ -209,22 +218,27 @@ Category: ${category}${eventName ? ` (${eventName})` : ''}
 Date: ${dateStr || 'Recent'}
 
 Rules:
-- Write a catchy, professional headline (not a direct translation — make it engaging like a news headline)
-- Write 2-3 short paragraphs in HTML (<p> tags only)
-- Tone: professional K-Pop entertainment news, friendly but factual
-- Do NOT mention the source channel name
-- Do NOT say "Watch the video" or reference YouTube
-- Focus on the event/moment itself
-- If it's a music show performance, mention the song name if available
-- Keep it under 150 words
+- Headline: 8-14 words, specific and engaging, include the artist/group name. NOT a direct translation. Avoid clickbait like "You won't believe" or "SHOCKING".
+- Body: 400-600 words total, structured as:
+  1. Lead paragraph (60-80 words): The core story — who, what, where, when.
+  2. <h2>Section heading</h2> — Background / context about the artist/group (80-120 words). Recent activities, achievements, discography highlights, group introduction if applicable.
+  3. <h2>Section heading</h2> — Event details (80-120 words). Describe the moment: what happened at the ${eventName || 'event'}, visual highlights, notable outfits/stage presence, song performed if applicable.
+  4. <h2>Section heading</h2> — Fan reactions and impact (80-120 words). Social media buzz, fandom response, significance for the artist's career.
+  5. Closing paragraph (50-80 words): Upcoming activities or broader K-Pop trend context.
+- HTML: use only <p> and <h2> tags. No <ul>, <li>, <strong>, or other formatting.
+- Tone: professional entertainment journalism, informative and engaging.
+- SEO: naturally include terms like "K-Pop", group/artist names, relevant event names, song titles. Include related K-Pop context (e.g., "4th-generation group", "rookie artist", "veteran performer") where fitting.
+- Do NOT mention the source YouTube channel. Do NOT say "the video shows" or "watch the video". Treat this as independent reporting on the event itself.
+- If artist details are unknown, write general but plausible K-Pop context — DO NOT invent specific awards, dates, or numbers.
+- Section headings should be informative (e.g., "Rising Stars of Fourth Generation" not just "Background").
 
-Respond in this exact JSON format:
-{"title":"headline here","body":"<p>paragraph 1</p><p>paragraph 2</p>"}`;
+Respond with ONLY valid JSON, no markdown fences:
+{"title":"headline","body":"<p>lead</p><h2>heading 1</h2><p>para</p><h2>heading 2</h2><p>para</p><h2>heading 3</h2><p>para</p><p>closing</p>"}`;
 
   try {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
+      max_tokens: 2000,
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -232,15 +246,23 @@ Respond in this exact JSON format:
     // JSON 추출 (코드블록 감싸져 있을 수 있음)
     const jsonMatch = text.match(/\{[\s\S]*"title"[\s\S]*"body"[\s\S]*\}/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonMatch[0]);
+      // 본문이 너무 짧으면 fallback과 결합
+      const bodyText = (parsed.body || '').replace(/<[^>]*>/g, '').trim();
+      if (bodyText.length < 300) {
+        console.log(`  ⚠ 본문 짧음 (${bodyText.length}자) — fallback 보강`);
+        parsed.body = (parsed.body || '') + buildFallbackBody();
+      }
+      return parsed;
     }
-    return { title: translatedTitle, body: `<p>${text.replace(/\n/g, '</p><p>')}</p>` };
-  } catch (e) {
-    console.log(`  ⚠ Claude API 에러: ${e.message} — fallback 사용`);
+    // JSON 파싱 실패 시 원문을 최대한 살림
     return {
       title: translatedTitle,
-      body: `<p>${artistNames.join(' & ') || 'K-Pop Artist'} was featured in a new video${dateStr ? ` on ${dateStr}` : ''}.</p>`,
+      body: `<p>${text.replace(/\n{2,}/g, '</p><p>').replace(/\n/g, ' ')}</p>` + buildFallbackBody(),
     };
+  } catch (e) {
+    console.log(`  ⚠ Claude API 에러: ${e.message} — fallback 사용`);
+    return { title: translatedTitle, body: buildFallbackBody() };
   }
 }
 
