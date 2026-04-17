@@ -79,14 +79,18 @@ export default function AdminDashboard() {
   const [dataMultiplier, setDataMultiplier] = useState(1);
   const [isMultiplierOpen, setIsMultiplierOpen] = useState(false);
   const [isSavingMultiplier, setIsSavingMultiplier] = useState(false);
-  const [scalingParams, setScalingParams] = useState({
+  const DEFAULT_SCALING_PARAMS = {
     noiseRange: 8,
     spikeChance: 15,
     spikeMin: 30,
     spikeMax: 80,
     decayDays: 3,
     decayFactor: 0.4,
-  });
+  };
+  const [scalingParams, setScalingParams] = useState(DEFAULT_SCALING_PARAMS);
+  const [scalingParamsHistory, setScalingParamsHistory] = useState([
+    { params: DEFAULT_SCALING_PARAMS, effectiveFrom: '1970-01-01' },
+  ]);
   const [isSavingParams, setIsSavingParams] = useState(false);
   const [dashboardStats, setDashboardStats] = useState(null);
   const [dashboardStatsLoading, setDashboardStatsLoading] = useState(false);
@@ -148,7 +152,13 @@ export default function AdminDashboard() {
         const data = await response.json();
         if (data.success) {
           if (data.multiplier) setDataMultiplier(data.multiplier);
-          if (data.scalingParams) setScalingParams(prev => ({ ...prev, ...data.scalingParams }));
+          if (data.scalingParamsHistory && data.scalingParamsHistory.length > 0) {
+            setScalingParamsHistory(data.scalingParamsHistory);
+            const latest = data.scalingParamsHistory[data.scalingParamsHistory.length - 1].params;
+            setScalingParams(prev => ({ ...prev, ...latest }));
+          } else if (data.scalingParams) {
+            setScalingParams(prev => ({ ...prev, ...data.scalingParams }));
+          }
         }
       } catch (error) {
         console.error('Error fetching settings:', error);
@@ -182,6 +192,20 @@ export default function AdminDashboard() {
     }
   };
 
+  // 오늘자 히스토리 엔트리를 갱신 (없으면 추가)
+  const upsertTodayHistory = (params) => {
+    const today = new Date().toISOString().split('T')[0];
+    setScalingParamsHistory(prev => {
+      const last = prev[prev.length - 1];
+      if (last?.effectiveFrom === today) {
+        const next = [...prev];
+        next[next.length - 1] = { params, effectiveFrom: today };
+        return next;
+      }
+      return [...prev, { params, effectiveFrom: today }];
+    });
+  };
+
   // 스케일링 파라미터 서버 저장 (debounced)
   const saveScalingParams = (params) => {
     if (!isSuperAdmin) return;
@@ -189,12 +213,16 @@ export default function AdminDashboard() {
     saveScalingParams._timer = setTimeout(async () => {
       setIsSavingParams(true);
       try {
-        await fetch('/api/admin/settings', {
+        const response = await fetch('/api/admin/settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ scalingParams: params }),
         });
+        const data = await response.json();
+        if (data?.success && data.scalingParamsHistory) {
+          setScalingParamsHistory(data.scalingParamsHistory);
+        }
       } catch (error) {
         console.error('Error saving scalingParams:', error);
       } finally {
@@ -208,6 +236,7 @@ export default function AdminDashboard() {
     setScalingParams(prev => {
       const next = { ...prev, [key]: Number(value) };
       if (next.spikeMin > next.spikeMax) next.spikeMin = next.spikeMax;
+      upsertTodayHistory(next);
       saveScalingParams(next);
       return next;
     });
@@ -218,6 +247,7 @@ export default function AdminDashboard() {
     const next = { ...scalingParams, ...preset };
     if (next.spikeMin > next.spikeMax) next.spikeMin = next.spikeMax;
     setScalingParams(next);
+    upsertTodayHistory(next);
     saveScalingParams(next);
   };
 
@@ -245,40 +275,57 @@ export default function AdminDashboard() {
     // realtime 전용 고정 시드 (기간 필터와 무관하게 항상 동일)
     const realtimeSeed = dateSeed + 7777;
 
-    // 날짜 문자열 → 시드 (YYYYMMDD)
+    // 날짜 문자열 → 시드 (YYYYMMDD). 월 경계 건너뛰기를 위해 Date 객체로 정확한 파싱
     const dateStrToSeed = (dateStr) => {
       if (!dateStr) return dateSeed;
       const [y, m, d] = dateStr.split('-').map(Number);
       return y * 10000 + m * 100 + d;
     };
+    const shiftDateStr = (dateStr, deltaDays) => {
+      const d = new Date(dateStr + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() + deltaDays);
+      return d.toISOString().split('T')[0];
+    };
     const todayStr = today.toISOString().split('T')[0];
 
-    // 스파이크 배수 계산: 특정 날짜가 스파이크 데이일 확률 spikeChance%
-    // 스파이크 크기 spikeMin~spikeMax%, 이후 decayDays 동안 decayFactor^i 로 감쇠
-    const { noiseRange, spikeChance, spikeMin, spikeMax, decayDays, decayFactor } = scalingParams;
+    // 날짜별 파라미터 룩업: effectiveFrom <= dateStr 중 가장 최근 엔트리
+    const getParamsForDate = (dateStr) => {
+      for (let i = scalingParamsHistory.length - 1; i >= 0; i--) {
+        if (scalingParamsHistory[i].effectiveFrom <= dateStr) {
+          return scalingParamsHistory[i].params;
+        }
+      }
+      return scalingParamsHistory[0]?.params || scalingParams;
+    };
+
+    // 스파이크 배수 계산 (날짜별 파라미터 적용)
+    // - 해당 날짜의 노이즈/감쇠 파라미터는 대상 날짜 기준
+    // - 과거 스파이크 여부 판단은 그 과거 날짜의 파라미터(spikeChance/Min/Max) 기준
     const getSpikeMultiplier = (dateStr) => {
-      if (spikeChance <= 0 || spikeMax <= 0) return 1;
-      const baseSeed = dateStrToSeed(dateStr);
+      const targetParams = getParamsForDate(dateStr);
+      if (targetParams.decayDays < 0) return 1;
       let totalBoost = 0;
-      for (let i = 0; i <= decayDays; i++) {
-        // i일 전의 스파이크 여부 확인
-        const pastSeed = baseSeed - i; // 단순 YYYYMMDD 뺄셈 (월 경계 부정확하나 결정성 유지)
+      for (let i = 0; i <= targetParams.decayDays; i++) {
+        const pastDateStr = i === 0 ? dateStr : shiftDateStr(dateStr, -i);
+        const pastParams = getParamsForDate(pastDateStr);
+        if (pastParams.spikeChance <= 0 || pastParams.spikeMax <= 0) continue;
+        const pastSeed = dateStrToSeed(pastDateStr);
         const chanceRoll = seededRandom(pastSeed, 4242);
-        if (chanceRoll < spikeChance / 100) {
+        if (chanceRoll < pastParams.spikeChance / 100) {
           const magRoll = seededRandom(pastSeed, 4243);
-          const spikeSize = spikeMin + magRoll * (spikeMax - spikeMin);
-          const decay = Math.pow(decayFactor, i);
-          totalBoost += (spikeSize / 100) * decay;
+          const spikeSize = pastParams.spikeMin + magRoll * (pastParams.spikeMax - pastParams.spikeMin);
+          totalBoost += (spikeSize / 100) * Math.pow(targetParams.decayFactor, i);
         }
       }
       return 1 + totalBoost;
     };
 
-    // 일반 scale (dateStr 주면 해당 날짜의 스파이크 적용, 없으면 집계값으로 스파이크 미적용)
+    // 일반 scale (dateStr 주면 해당 날짜 파라미터+스파이크 적용, 없으면 최신 파라미터 노이즈만)
     const scale = (value, dateStr) => {
       if (dataMultiplier <= 1) return Math.round(value * dataMultiplier);
       const base = value * dataMultiplier;
-      const noiseAmp = (noiseRange || 0) / 100;
+      const p = dateStr ? getParamsForDate(dateStr) : scalingParams;
+      const noiseAmp = (p.noiseRange || 0) / 100;
       const noise = 1 + (seededRandom(dauSeed, Math.abs(Math.round(value)) % 9999) - 0.5) * 2 * noiseAmp;
       const spike = dateStr ? getSpikeMultiplier(dateStr) : 1;
       return Math.round(base * noise * spike);
@@ -288,7 +335,8 @@ export default function AdminDashboard() {
     const scaleRealtime = (value) => {
       if (dataMultiplier <= 1) return Math.round(value * dataMultiplier);
       const base = value * dataMultiplier;
-      const noiseAmp = (noiseRange || 0) / 100;
+      const p = getParamsForDate(todayStr);
+      const noiseAmp = (p.noiseRange || 0) / 100;
       const noise = 1 + (seededRandom(realtimeSeed, Math.abs(Math.round(value)) % 9999) - 0.5) * 2 * noiseAmp;
       const spike = getSpikeMultiplier(todayStr);
       return Math.round(base * noise * spike);
@@ -298,7 +346,8 @@ export default function AdminDashboard() {
     const scaleAggregate = (value) => {
       if (dataMultiplier <= 1) return Math.round(value * dataMultiplier);
       const base = value * dataMultiplier;
-      const noiseAmp = (noiseRange || 0) / 100;
+      const p = getParamsForDate(todayStr);
+      const noiseAmp = (p.noiseRange || 0) / 100;
       const noise = 1 + (seededRandom(realtimeSeed, Math.abs(Math.round(value)) % 9999) - 0.5) * 2 * noiseAmp;
       return Math.round(base * noise);
     };
@@ -562,26 +611,39 @@ export default function AdminDashboard() {
   const getScaledSectionData = (period) => {
     const raw = gaDataByPeriod[period] || gaData;
     if (!raw) return null;
-    const noiseAmp = (scalingParams.noiseRange || 0) / 100;
     const dateStrToSeedLocal = (dateStr) => {
       if (!dateStr) return realtimeFixedSeed;
       const [y, m, d] = dateStr.split('-').map(Number);
       return y * 10000 + m * 100 + d;
     };
+    const shiftDateStrLocal = (dateStr, deltaDays) => {
+      const d = new Date(dateStr + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() + deltaDays);
+      return d.toISOString().split('T')[0];
+    };
+    const getParamsForDateLocal = (dateStr) => {
+      for (let i = scalingParamsHistory.length - 1; i >= 0; i--) {
+        if (scalingParamsHistory[i].effectiveFrom <= dateStr) {
+          return scalingParamsHistory[i].params;
+        }
+      }
+      return scalingParamsHistory[0]?.params || scalingParams;
+    };
     const spikeMult = (dateStr) => {
-      const { spikeChance, spikeMin, spikeMax, decayDays, decayFactor } = scalingParams;
-      if (spikeChance <= 0 || spikeMax <= 0) return 1;
-      const baseSeed = dateStrToSeedLocal(dateStr);
+      const target = getParamsForDateLocal(dateStr);
       let totalBoost = 0;
-      for (let i = 0; i <= decayDays; i++) {
-        const pastSeed = baseSeed - i;
+      for (let i = 0; i <= target.decayDays; i++) {
+        const pastDateStr = i === 0 ? dateStr : shiftDateStrLocal(dateStr, -i);
+        const past = getParamsForDateLocal(pastDateStr);
+        if (past.spikeChance <= 0 || past.spikeMax <= 0) continue;
+        const pastSeed = dateStrToSeedLocal(pastDateStr);
         const xA = Math.sin(pastSeed + 4242 * 9999) * 10000;
         const chanceRoll = xA - Math.floor(xA);
-        if (chanceRoll < spikeChance / 100) {
+        if (chanceRoll < past.spikeChance / 100) {
           const xB = Math.sin(pastSeed + 4243 * 9999) * 10000;
           const magRoll = xB - Math.floor(xB);
-          const spikeSize = spikeMin + magRoll * (spikeMax - spikeMin);
-          totalBoost += (spikeSize / 100) * Math.pow(decayFactor, i);
+          const spikeSize = past.spikeMin + magRoll * (past.spikeMax - past.spikeMin);
+          totalBoost += (spikeSize / 100) * Math.pow(target.decayFactor, i);
         }
       }
       return 1 + totalBoost;
@@ -589,6 +651,8 @@ export default function AdminDashboard() {
     const scaleVal = (value, dateStr) => {
       if (dataMultiplier <= 1) return Math.round(value * dataMultiplier);
       const base = value * dataMultiplier;
+      const p = dateStr ? getParamsForDateLocal(dateStr) : scalingParams;
+      const noiseAmp = (p.noiseRange || 0) / 100;
       const x = Math.sin(realtimeFixedSeed + Math.abs(Math.round(value)) % 9999 * 9999) * 10000;
       const noise = 1 + ((x - Math.floor(x)) - 0.5) * 2 * noiseAmp;
       const spike = dateStr ? spikeMult(dateStr) : 1;
@@ -1126,7 +1190,13 @@ export default function AdminDashboard() {
                               <div className="w-3 h-3 border-2 border-violet-400 border-t-transparent rounded-full animate-spin"></div>
                             )}
                           </div>
-                          <p className="text-xs text-gray-500 mb-4">Mimic real GA spike-and-decay behavior</p>
+                          <p className="text-xs text-gray-500 mb-1">Mimic real GA spike-and-decay behavior</p>
+                          <p className="text-[10px] text-gray-400 mb-4">
+                            Changes apply from today forward. Past days stay frozen.
+                            {scalingParamsHistory.length > 1 && (
+                              <span className="ml-1 text-violet-500">· {scalingParamsHistory.length} history entries</span>
+                            )}
+                          </p>
 
                           <div className="space-y-4">
                             {/* Noise Range */}

@@ -13,6 +13,9 @@ const DEFAULT_SCALING_PARAMS = {
   decayFactor: 0.4,
 };
 
+// 파라미터 최초 도입 전 과거 날짜까지 커버하는 초기 effectiveFrom
+const EPOCH_DATE = '1970-01-01';
+
 function sanitizeScalingParams(input) {
   const out = { ...DEFAULT_SCALING_PARAMS };
   if (!input || typeof input !== 'object') return out;
@@ -27,6 +30,22 @@ function sanitizeScalingParams(input) {
   return out;
 }
 
+function todayStr() {
+  return new Date().toISOString().split('T')[0];
+}
+
+// 히스토리 조회 + 레거시 scalingParams를 히스토리로 마이그레이션
+async function loadHistory(db) {
+  const historyDoc = await db.collection('adminSettings').findOne({ key: 'scalingParamsHistory' });
+  if (historyDoc?.value && Array.isArray(historyDoc.value) && historyDoc.value.length > 0) {
+    return historyDoc.value;
+  }
+  // 레거시: scalingParams 단일값을 히스토리의 첫 엔트리로 마이그레이션
+  const legacy = await db.collection('adminSettings').findOne({ key: 'scalingParams' });
+  const initialParams = legacy?.value ? sanitizeScalingParams(legacy.value) : { ...DEFAULT_SCALING_PARAMS };
+  return [{ params: initialParams, effectiveFrom: EPOCH_DATE }];
+}
+
 export default async function handler(req, res) {
   try {
     const session = await getServerSession(req, res, authOptions);
@@ -38,15 +57,16 @@ export default async function handler(req, res) {
     const { db } = await connectToDatabase();
 
     if (req.method === 'GET') {
-      const [multiplierDoc, paramsDoc] = await Promise.all([
+      const [multiplierDoc, history] = await Promise.all([
         db.collection('adminSettings').findOne({ key: 'dataMultiplier' }),
-        db.collection('adminSettings').findOne({ key: 'scalingParams' }),
+        loadHistory(db),
       ]);
 
       return res.status(200).json({
         success: true,
         multiplier: multiplierDoc?.value || 1,
-        scalingParams: { ...DEFAULT_SCALING_PARAMS, ...(paramsDoc?.value || {}) },
+        scalingParams: history[history.length - 1].params, // 최신 파라미터 (UI 표시용)
+        scalingParamsHistory: history,
         updatedAt: multiplierDoc?.updatedAt || null,
         updatedBy: multiplierDoc?.updatedBy || null,
       });
@@ -56,12 +76,14 @@ export default async function handler(req, res) {
       if (session.user.email !== SUPER_ADMIN_EMAIL) {
         return res.status(403).json({
           success: false,
-          message: '배율 설정은 지정된 관리자만 변경할 수 있습니다.'
+          message: '설정 변경은 지정된 관리자만 가능합니다.'
         });
       }
 
       const { multiplier, scalingParams } = req.body;
       const ops = [];
+      let savedParams = null;
+      let savedHistory = null;
 
       if (multiplier !== undefined) {
         if (typeof multiplier !== 'number' || multiplier < 1 || multiplier > 1000) {
@@ -86,10 +108,34 @@ export default async function handler(req, res) {
         );
       }
 
-      let savedParams = null;
       if (scalingParams !== undefined) {
         savedParams = sanitizeScalingParams(scalingParams);
+        const history = await loadHistory(db);
+        const today = todayStr();
+        const last = history[history.length - 1];
+
+        if (last.effectiveFrom === today) {
+          // 같은 날 안에서 여러 번 조정 시 오늘자 엔트리를 덮어씀
+          history[history.length - 1] = { params: savedParams, effectiveFrom: today };
+        } else {
+          history.push({ params: savedParams, effectiveFrom: today });
+        }
+
+        savedHistory = history;
         ops.push(
+          db.collection('adminSettings').updateOne(
+            { key: 'scalingParamsHistory' },
+            {
+              $set: {
+                key: 'scalingParamsHistory',
+                value: history,
+                updatedAt: new Date(),
+                updatedBy: session.user.email,
+              },
+            },
+            { upsert: true }
+          ),
+          // 레거시 호환: 최신 파라미터를 scalingParams에도 보관
           db.collection('adminSettings').updateOne(
             { key: 'scalingParams' },
             {
@@ -118,6 +164,7 @@ export default async function handler(req, res) {
         success: true,
         multiplier: multiplier !== undefined ? multiplier : undefined,
         scalingParams: savedParams || undefined,
+        scalingParamsHistory: savedHistory || undefined,
         message: '설정이 저장되었습니다.'
       });
     }
