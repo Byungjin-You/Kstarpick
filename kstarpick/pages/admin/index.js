@@ -1395,8 +1395,7 @@ export default function AdminDashboard() {
                           <Users className="w-5 h-5 text-white" />
                         </div>
                         <h3 className="text-3xl font-black text-white">{formatNumber((() => {
-                          // 차트 값과 동기화: 어제 dailyTrends 값 사용
-                          const trends = scaledGaData.dailyTrends || [];
+                          const trends = dauSectionData?.dailyTrends || scaledGaData.dailyTrends || [];
                           const last = trends[trends.length - 1];
                           return last?.dau ?? scaledGaData.summary.dau.users;
                         })())}</h3>
