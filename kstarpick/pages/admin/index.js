@@ -1394,7 +1394,12 @@ export default function AdminDashboard() {
                         <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl w-fit shadow-lg shadow-blue-500/30 mb-3">
                           <Users className="w-5 h-5 text-white" />
                         </div>
-                        <h3 className="text-3xl font-black text-white">{formatNumber(scaledGaData.summary.dau.users)}</h3>
+                        <h3 className="text-3xl font-black text-white">{formatNumber((() => {
+                          // 차트 값과 동기화: 어제 dailyTrends 값 사용
+                          const trends = scaledGaData.dailyTrends || [];
+                          const last = trends[trends.length - 1];
+                          return last?.dau ?? scaledGaData.summary.dau.users;
+                        })())}</h3>
                         <p className="text-sm text-slate-400 font-medium mt-1">Daily Active</p>
                       </div>
 
