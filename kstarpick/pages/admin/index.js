@@ -342,14 +342,27 @@ export default function AdminDashboard() {
       return Math.round(base * noise * spike);
     };
 
-    // 집계형 realtime (WAU/MAU): 스파이크 미적용 (장기 평균이라 튀지 않음)
-    const scaleAggregate = (value) => {
+    // 집계 윈도우(N일) 내 날짜별 스파이크 배수의 평균
+    // WAU/MAU는 기간 합계이므로, 특정 일자 스파이크가 전체에 미치는 영향은 1/N로 희석됨
+    const getAggregateSpikeMultiplier = (windowDays) => {
+      if (windowDays <= 1) return getSpikeMultiplier(todayStr);
+      let total = 0;
+      for (let i = 0; i < windowDays; i++) {
+        const d = i === 0 ? todayStr : shiftDateStr(todayStr, -i);
+        total += getSpikeMultiplier(d);
+      }
+      return total / windowDays;
+    };
+
+    // 집계형 realtime (WAU/MAU): 윈도우 평균 스파이크 적용 (장기 평균이라 희석됨)
+    const scaleAggregate = (value, windowDays = 1) => {
       if (dataMultiplier <= 1) return Math.round(value * dataMultiplier);
       const base = value * dataMultiplier;
       const p = getParamsForDate(todayStr);
       const noiseAmp = (p.noiseRange || 0) / 100;
       const noise = 1 + (seededRandom(realtimeSeed, Math.abs(Math.round(value)) % 9999) - 0.5) * 2 * noiseAmp;
-      return Math.round(base * noise);
+      const spike = getAggregateSpikeMultiplier(windowDays);
+      return Math.round(base * noise * spike);
     };
 
     // 비율 값에 변동 적용 함수 (기본값, 변동범위%, DAU보정 활성화 여부)
@@ -394,14 +407,14 @@ export default function AdminDashboard() {
           pageViews: scaleRealtime(gaData.summary.dau.pageViews),
         },
         wau: {
-          users: scaleAggregate(gaData.summary.wau.users),
-          sessions: scaleAggregate(gaData.summary.wau.sessions),
-          pageViews: scaleAggregate(gaData.summary.wau.pageViews),
+          users: scaleAggregate(gaData.summary.wau.users, 7),
+          sessions: scaleAggregate(gaData.summary.wau.sessions, 7),
+          pageViews: scaleAggregate(gaData.summary.wau.pageViews, 7),
         },
         mau: {
-          users: scaleAggregate(gaData.summary.mau.users),
-          sessions: scaleAggregate(gaData.summary.mau.sessions),
-          pageViews: scaleAggregate(gaData.summary.mau.pageViews),
+          users: scaleAggregate(gaData.summary.mau.users, 30),
+          sessions: scaleAggregate(gaData.summary.mau.sessions, 30),
+          pageViews: scaleAggregate(gaData.summary.mau.pageViews, 30),
         },
       },
       engagement: {
