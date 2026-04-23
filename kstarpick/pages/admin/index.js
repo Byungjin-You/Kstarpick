@@ -192,9 +192,17 @@ export default function AdminDashboard() {
     }
   };
 
+  // 로컬(사용자 브라우저) 기준 YYYY-MM-DD (GA4 속성 타임존과 맞추기 위해 UTC 변환 사용 안 함)
+  const getLocalDateStr = (d = new Date()) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   // 오늘자 히스토리 엔트리를 갱신 (없으면 추가)
   const upsertTodayHistory = (params) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateStr();
     setScalingParamsHistory(prev => {
       const last = prev[prev.length - 1];
       if (last?.effectiveFrom === today) {
@@ -286,7 +294,7 @@ export default function AdminDashboard() {
       d.setUTCDate(d.getUTCDate() + deltaDays);
       return d.toISOString().split('T')[0];
     };
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = getLocalDateStr(today);
 
     // 날짜별 파라미터 룩업: effectiveFrom <= dateStr 중 가장 최근 엔트리
     const getParamsForDate = (dateStr) => {
@@ -671,7 +679,7 @@ export default function AdminDashboard() {
       const spike = dateStr ? spikeMult(dateStr) : 1;
       return Math.round(base * noise * spike);
     };
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateStr();
     return {
       dailyTrends: raw.dailyTrends?.filter(day => {
         return day.date !== todayStr;
