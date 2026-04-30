@@ -139,6 +139,36 @@ export async function getServerSideProps({ res }) {
         lastmod: new Date().toISOString(),
         changefreq: 'weekly',
         priority: '0.6'
+      },
+      {
+        url: '/photo',
+        lastmod: new Date().toISOString(),
+        changefreq: 'daily',
+        priority: '0.7'
+      },
+      {
+        url: '/about',
+        lastmod: new Date().toISOString(),
+        changefreq: 'monthly',
+        priority: '0.5'
+      },
+      {
+        url: '/contact',
+        lastmod: new Date().toISOString(),
+        changefreq: 'monthly',
+        priority: '0.5'
+      },
+      {
+        url: '/privacy',
+        lastmod: new Date().toISOString(),
+        changefreq: 'yearly',
+        priority: '0.3'
+      },
+      {
+        url: '/terms',
+        lastmod: new Date().toISOString(),
+        changefreq: 'yearly',
+        priority: '0.3'
       }
     ];
 
@@ -151,7 +181,7 @@ export async function getServerSideProps({ res }) {
     const newsPages = news.map(item => {
       const img = item.coverImage || item.thumbnailUrl;
       return {
-        url: `/news/${item._id}`,
+        url: `/news/${item.slug || item._id}`,
         lastmod: (item.updatedAt || item.createdAt || new Date()).toISOString(),
         changefreq: 'monthly',
         priority: '0.7',
@@ -168,7 +198,7 @@ export async function getServerSideProps({ res }) {
     const dramaPages = dramas.map(item => {
       const img = item.coverImage || item.bannerImage;
       return {
-        url: `/drama/${item._id}`,
+        url: `/drama/${item.slug || item._id}`,
         lastmod: (item.updatedAt || item.createdAt || new Date()).toISOString(),
         changefreq: 'weekly',
         priority: '0.7',
@@ -185,7 +215,7 @@ export async function getServerSideProps({ res }) {
     const tvfilmPages = tvfilms.map(item => {
       const img = item.coverImage || item.bannerImage;
       return {
-        url: `/tvfilm/${item._id}`,
+        url: `/tvfilm/${item.slug || item._id}`,
         lastmod: (item.updatedAt || item.createdAt || new Date()).toISOString(),
         changefreq: 'weekly',
         priority: '0.7',
@@ -216,7 +246,7 @@ export async function getServerSideProps({ res }) {
       }).sort({ createdAt: -1 }).limit(300).toArray();
 
       musicPages = music.map(item => ({
-        url: `/music/${item._id}`,
+        url: `/music/${item.slug || item._id}`,
         lastmod: (item.updatedAt || item.createdAt || new Date()).toISOString(),
         changefreq: 'weekly',
         priority: '0.7'
