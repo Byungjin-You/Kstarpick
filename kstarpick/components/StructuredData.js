@@ -102,8 +102,9 @@ export default function StructuredData({ type = 'website', data = {} }) {
     "datePublished": data.publishedDate,
     "dateModified": data.modifiedDate || data.publishedDate,
     "author": {
-      "@type": "Person",
-      "name": data.author || "KstarPick Editorial Team"
+      "@type": "Organization",
+      "name": "KstarPick Editorial",
+      "url": "https://www.kstarpick.com"
     },
     "publisher": {
       "@type": "Organization",

@@ -1901,12 +1901,12 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
     modifiedTime: newsArticle.updatedAt,
     category: newsArticle.category,
     tags: newsArticle.tags || [],
-    author: newsArticle.author?.name
+    author: 'KstarPick Editorial'
   }) : {};
 
   const keywords = newsArticle ? generateKeywords(
     newsArticle.tags || [],
-    [newsArticle.category, newsArticle.author?.name].filter(Boolean)
+    [newsArticle.category].filter(Boolean)
   ) : [];
 
   // 공유 함수들
@@ -1996,11 +1996,15 @@ export default function NewsDetail({ newsArticle, relatedArticles, recentComment
         type="article" 
         data={{
           title: newsArticle.title,
-          description: newsArticle.description || newsArticle.content?.substring(0, 200).replace(/<[^>]*>/g, '') + '...',
+          description: (() => {
+            const raw = newsArticle.description || newsArticle.content || '';
+            const stripped = raw.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '').replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+            return stripped.length > 200 ? stripped.slice(0, 199).replace(/\s+\S*$/, '') + '…' : stripped;
+          })(),
           image: newsArticle.coverImage || newsArticle.featuredImage,
           publishedDate: newsArticle.createdAt,
           modifiedDate: newsArticle.updatedAt,
-          author: newsArticle.author?.name,
+          author: 'KstarPick Editorial',
           url: `https://www.kstarpick.com/news/${newsArticle.slug || newsArticle._id}`,
           breadcrumbs: [
             { name: 'Home', url: 'https://www.kstarpick.com' },

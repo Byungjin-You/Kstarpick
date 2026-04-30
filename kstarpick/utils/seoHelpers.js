@@ -17,17 +17,27 @@ export const SITE_CONFIG = {
 
 // 뉴스 아티클용 JSON-LD 생성
 export function generateNewsArticleJsonLd(article) {
+  const stripHtml = (s) => (s || '').toString().replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '').replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const truncate = (s, n) => (s.length > n ? s.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : s);
+  const cleanDescription = truncate(stripHtml(article.description || article.content || ''), 200) || SITE_CONFIG.description;
+  const absImage = (img) => {
+    if (!img) return `${SITE_CONFIG.url}/images/og-image.jpg`;
+    if (img.startsWith('http://') || img.startsWith('https://')) return img;
+    if (img.startsWith('/')) return `${SITE_CONFIG.url}${img}`;
+    return `${SITE_CONFIG.url}/${img}`;
+  };
   return {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
     "headline": article.title,
-    "description": article.description || article.content?.substring(0, 200),
-    "image": article.featuredImage || `${SITE_CONFIG.url}/images/og-image.jpg`,
+    "description": cleanDescription,
+    "image": absImage(article.coverImage || article.thumbnailUrl || article.featuredImage),
     "datePublished": article.createdAt,
     "dateModified": article.updatedAt || article.createdAt,
     "author": {
-      "@type": "Person",
-      "name": article.author || SITE_CONFIG.name
+      "@type": "Organization",
+      "name": "KstarPick Editorial",
+      "url": SITE_CONFIG.url
     },
     "publisher": {
       "@type": "Organization",
