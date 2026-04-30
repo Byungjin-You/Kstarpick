@@ -92,13 +92,21 @@ export default function StructuredData({ type = 'website', data = {} }) {
     }
   };
 
+  // 이미지 URL 절대화 (Google 구조화 데이터는 절대 URL 필수)
+  const absUrl = (img) => {
+    if (!img) return "https://www.kstarpick.com/default-news.jpg";
+    if (img.startsWith('http://') || img.startsWith('https://')) return img;
+    if (img.startsWith('/')) return `https://www.kstarpick.com${img}`;
+    return `https://www.kstarpick.com/${img}`;
+  };
+
   // 뉴스 기사 구조화 데이터
   const articleSchema = type === 'article' ? {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
     "headline": data.title,
     "description": data.description,
-    "image": data.image || "https://www.kstarpick.com/default-news.jpg",
+    "image": absUrl(data.image),
     "datePublished": data.publishedDate,
     "dateModified": data.modifiedDate || data.publishedDate,
     "author": {
