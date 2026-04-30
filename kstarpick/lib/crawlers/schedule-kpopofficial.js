@@ -54,13 +54,18 @@ async function crawlKpopOfficial(db) {
 
   $('.gspbgrid_item').each((i, el) => {
     try {
-      const text = $(el).text().replace(/\s+/g, ' ').trim();
+      const rawText = $(el).text().replace(/\s+/g, ' ').trim();
       const img = $(el).find('img').attr('src') || '';
       const link = $(el).find('a').attr('href') || '';
 
-      // "MAR 30 IRENE (Red Velvet) March 30 (Mon) · 6 PM KST Title – "Biggest Fan" The 1st Album – Biggest Fan 843Views"
-      // 또는 "MAR 31 Kep1er March 31 (Tue) · 6 PM KST 8th Mini Album – CRACK CODE 510Views"
+      // 조회수 추출 (콤마 포함 숫자 지원: 1,353Views)
+      const viewsMatch = rawText.match(/(\d[\d,]*)\s*Views/i);
+      const views = viewsMatch ? parseInt(viewsMatch[1].replace(/,/g, '')) : 0;
 
+      // 조회수 부분을 텍스트에서 완전 제거 → 다른 필드로 새지 않도록
+      const text = rawText.replace(/\s*\d[\d,]*\s*Views\s*$/i, '').replace(/\s*\d[\d,]*\s*Views/gi, '').trim();
+
+      // "MAR 30 IRENE (Red Velvet) March 30 (Mon) · 6 PM KST Title – "Biggest Fan" The 1st Album – Biggest Fan"
       // 앞부분: MAR DD ARTIST_NAME
       const headerMatch = text.match(/^[A-Z]{3}\s+\d+\s+(.+?)\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)/);
       if (!headerMatch) return;
@@ -84,18 +89,14 @@ async function crawlKpopOfficial(db) {
       const titleSong = titleSongMatch ? titleSongMatch[1] : '';
 
       // 앨범: "1st Album – Biggest Fan" or "8th Mini Album – CRACK CODE"
-      const albumMatch = text.match(/(?:The\s+)?(\d+(?:st|nd|rd|th)\s+(?:Full\s+)?(?:Mini\s+)?(?:Album|EP|Single))\s*[–-]\s*(.+?)(?:\s+\d+Views|$)/i);
+      const albumMatch = text.match(/(?:The\s+)?(\d+(?:st|nd|rd|th)\s+(?:Full\s+)?(?:Mini\s+)?(?:Album|EP|Single))\s*[–-]\s*(.+?)$/i);
       const albumType = albumMatch ? albumMatch[1] : '';
       const albumName = albumMatch ? albumMatch[2].trim() : '';
 
       // EP만 있는 경우: "EP – Love in the Margins"
-      const epMatch = !albumMatch && text.match(/(?:EP|Single)\s*[–-]\s*(.+?)(?:\s+\d+Views|$)/i);
+      const epMatch = !albumMatch && text.match(/(?:EP|Single)\s*[–-]\s*(.+?)$/i);
       const finalAlbumName = albumName || (epMatch ? epMatch[1].trim() : '');
       const finalAlbumType = albumType || (epMatch ? 'EP' : '');
-
-      // 조회수
-      const viewsMatch = text.match(/(\d+)Views/);
-      const views = viewsMatch ? parseInt(viewsMatch[1]) : 0;
 
       const sourceId = `kpopofficial-${slugify(artistName)}-${slugify(finalAlbumName || titleSong)}-${startDate.toISOString().substring(0, 10)}`;
 

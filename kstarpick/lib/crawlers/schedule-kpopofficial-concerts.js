@@ -84,22 +84,22 @@ async function crawlKpopOfficialConcerts(db) {
 
   $('.gspbgrid_item').each((i, el) => {
     try {
-      const text = $(el).text().replace(/\s+/g, ' ').trim();
+      const rawText = $(el).text().replace(/\s+/g, ' ').trim();
       const img = $(el).find('img').attr('src') || '';
       const link = $(el).find('a').attr('href') || '';
       if (!link.includes('/event/')) return;
 
+      // 조회수 추출 (콤마 포함: 1,353Views)
+      const viewsMatch = rawText.match(/(\d[\d,]*)\s*Views/i);
+      const views = viewsMatch ? parseInt(viewsMatch[1].replace(/,/g, '')) : 0;
+
+      // 조회수 부분을 텍스트에서 완전 제거 → 다른 필드로 새지 않도록
+      const text = rawText.replace(/\s*\d[\d,]*\s*Views\s*$/i, '').replace(/\s*\d[\d,]*\s*Views/gi, '').trim();
+
       // "April 9, 11, 12, 2026 BTS World Tour ARIRANG 2026 – Goyang, South Korea ..."
       // 날짜 부분과 제목 부분 분리
-      const titleMatch = text.match(/\d{4}\s+(.+?)(?:\s+\d+,?\d*Views|$)/);
+      const titleMatch = text.match(/\d{4}\s+(.+?)$/);
       const eventTitle = titleMatch ? titleMatch[1].trim() : text.substring(0, 80);
-
-      // 장소 추출
-      const venueMatch = text.match(/(?:Arena|Stadium|Dome|Hall|Center|Centre|Park|Messe|Convention|Garden|Forum|Olympic|Inspire)[^,]*,\s*([^0-9]+?)(?:\s+\d|Views|$)/i);
-
-      // 조회수
-      const viewsMatch = text.match(/(\d[\d,]*)Views/);
-      const views = viewsMatch ? parseInt(viewsMatch[1].replace(',', '')) : 0;
 
       concertLinks.push({ text, img, link, eventTitle, views });
       total++;
