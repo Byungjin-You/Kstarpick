@@ -32,6 +32,8 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
+      max_memory_restart: '500M',
+      kill_timeout: 10000,
       error_file: '/doohub/service/kstarpick/logs/news-crawler-error.log',
       out_file: '/doohub/service/kstarpick/logs/news-crawler-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
@@ -48,6 +50,8 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
+      max_memory_restart: '500M',
+      kill_timeout: 10000,
       error_file: '/doohub/service/kstarpick/logs/schedule-crawler-error.log',
       out_file: '/doohub/service/kstarpick/logs/schedule-crawler-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
@@ -63,6 +67,7 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
+      max_memory_restart: '200M',
       error_file: '/doohub/service/kstarpick/logs/seed-reactions-error.log',
       out_file: '/doohub/service/kstarpick/logs/seed-reactions-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
@@ -78,6 +83,7 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
+      max_memory_restart: '200M',
       error_file: '/doohub/service/kstarpick/logs/seed-comments-error.log',
       out_file: '/doohub/service/kstarpick/logs/seed-comments-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
@@ -94,6 +100,7 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
+      max_memory_restart: '300M',
       error_file: '/doohub/service/kstarpick/logs/celeb-updater-error.log',
       out_file: '/doohub/service/kstarpick/logs/celeb-updater-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
@@ -109,6 +116,7 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
+      max_memory_restart: '300M',
       error_file: '/doohub/service/kstarpick/logs/music-chart-error.log',
       out_file: '/doohub/service/kstarpick/logs/music-chart-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
