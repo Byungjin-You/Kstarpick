@@ -143,6 +143,18 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
     },
     {
+      name: 'self-heal',
+      script: './scripts/self-heal.sh',
+      interpreter: 'bash',
+      cwd: '/doohub/service/kstarpick',
+      autorestart: false,
+      cron_restart: '*/5 * * * *',
+      watch: false,
+      out_file: '/doohub/service/kstarpick/logs/self-heal-out.log',
+      error_file: '/doohub/service/kstarpick/logs/self-heal-error.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
+    },
+    {
       name: 'youtube-news-crawler',
       script: './scripts/youtube-news-crawler.js',
       cwd: '/doohub/service/kstarpick',
