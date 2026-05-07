@@ -57,41 +57,6 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
     },
     {
-      name: 'seed-reactions',
-      script: './scripts/seed-reactions-runner.js',
-      cwd: '/doohub/service/kstarpick',
-      env: {
-        NODE_ENV: 'production'
-      },
-      exec_mode: 'fork',
-      instances: 1,
-      // 스크립트가 일회성으로 끝나면 즉시 재시작 → 무한 폭주. cron_restart로만 트리거.
-      autorestart: false,
-      cron_restart: '0 1,4,7,10,13,16,19,22 * * *',
-      watch: false,
-      max_memory_restart: '200M',
-      error_file: '/doohub/service/kstarpick/logs/seed-reactions-error.log',
-      out_file: '/doohub/service/kstarpick/logs/seed-reactions-out.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
-    },
-    {
-      name: 'seed-comments',
-      script: './scripts/seed-comments-runner.js',
-      cwd: '/doohub/service/kstarpick',
-      env: {
-        NODE_ENV: 'production'
-      },
-      exec_mode: 'fork',
-      instances: 1,
-      autorestart: false,
-      cron_restart: '30 2,5,8,11,14,17,20,23 * * *',
-      watch: false,
-      max_memory_restart: '200M',
-      error_file: '/doohub/service/kstarpick/logs/seed-comments-error.log',
-      out_file: '/doohub/service/kstarpick/logs/seed-comments-out.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
-    },
-    {
       name: 'celeb-updater',
       script: './scripts/celeb-updater.js',
       cwd: '/doohub/service/kstarpick',
