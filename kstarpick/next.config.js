@@ -60,6 +60,8 @@ const nextConfig = {
       'www.google.com',
       'watcha.com',
       'tv.apple.com',
+      'imgnews.pstatic.net',
+      'mimgnews.pstatic.net',
     ],
     remotePatterns: [
       {
