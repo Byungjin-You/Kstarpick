@@ -69,6 +69,7 @@ export default function AdminDashboard() {
   const [recentActivity, setRecentActivity] = useState([]);
   const [gaData, setGaData] = useState(null);
   const [gaLoading, setGaLoading] = useState(false);
+  const [gaError, setGaError] = useState(null);
   const [isUserAnalyticsOpen, setIsUserAnalyticsOpen] = useState(true);
   const [chartTooltip, setChartTooltip] = useState({ visible: false, x: 0, y: 0, date: '', value: 0 });
   const [countryTooltip, setCountryTooltip] = useState({ visible: false, x: 0, y: 0, date: '', data: [] });
@@ -94,7 +95,7 @@ export default function AdminDashboard() {
     try {
       const response = await fetch(`/api/analytics/ga-realtime?period=${period}`, { credentials: 'include' });
       const data = await response.json();
-      if (data.success) {
+      if (data.success && data.data) {
         setGaDataByPeriod(prev => ({ ...prev, [period]: data.data }));
         return data.data;
       }
@@ -368,16 +369,19 @@ export default function AdminDashboard() {
         credentials: 'include',
       });
       const data = await response.json();
-      if (data.success) {
+      if (data.success && data.data) {
         setGaData(data.data);
-        // 기간별 캐시에도 저장
+        setGaError(null);
         const p = period || gaPeriod || 30;
         if (!startDate) {
           setGaDataByPeriod(prev => ({ ...prev, [p]: data.data }));
         }
+      } else {
+        setGaError(data.message || 'Failed to load GA data');
       }
     } catch (err) {
       console.error('Error fetching GA data:', err);
+      setGaError('Network error loading GA data');
     } finally {
       setGaLoading(false);
     }
@@ -2130,13 +2134,29 @@ export default function AdminDashboard() {
               {isUserAnalyticsOpen && !scaledGaData && (
               <div className="px-6 pb-8 border-t border-gray-100">
                 <div className="p-12 text-center">
-                  <div className="relative mx-auto w-16 h-16 mb-4">
-                    <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 to-violet-500 animate-spin" style={{ animationDuration: '1.5s' }}></div>
-                    <div className="absolute inset-1 rounded-full bg-white"></div>
-                    <div className="absolute inset-3 rounded-full bg-gradient-to-r from-blue-500 to-violet-500 animate-pulse"></div>
-                  </div>
-                  <p className="text-gray-600 font-medium">Loading analytics data...</p>
-                  <p className="text-sm text-gray-400 mt-1">Please wait a moment</p>
+                  {gaLoading ? (
+                    <>
+                      <div className="relative mx-auto w-16 h-16 mb-4">
+                        <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 to-violet-500 animate-spin" style={{ animationDuration: '1.5s' }}></div>
+                        <div className="absolute inset-1 rounded-full bg-white"></div>
+                        <div className="absolute inset-3 rounded-full bg-gradient-to-r from-blue-500 to-violet-500 animate-pulse"></div>
+                      </div>
+                      <p className="text-gray-600 font-medium">Loading analytics data...</p>
+                      <p className="text-sm text-gray-400 mt-1">Please wait a moment</p>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
+                      <p className="text-gray-600 font-medium">{gaError || 'Google Analytics not configured'}</p>
+                      <p className="text-sm text-gray-400 mt-1">Set GA_PROPERTY_ID and GOOGLE_APPLICATION_CREDENTIALS_JSON in .env.local to enable analytics</p>
+                      <button
+                        onClick={() => fetchGAData()}
+                        className="mt-4 px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                      >
+                        Retry
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             )}
