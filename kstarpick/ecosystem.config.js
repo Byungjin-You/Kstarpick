@@ -21,6 +21,8 @@ module.exports = {
       out_file: '/doohub/service/kstarpick/logs/kstarpick-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z'
     },
+    // Soompi crawler disabled — replaced by naver-crawler
+    // To re-enable: set autorestart: true, remove the comment
     {
       name: 'news-crawler',
       script: './scripts/auto-crawler.js',
@@ -29,8 +31,8 @@ module.exports = {
         NODE_ENV: 'production'
       },
       exec_mode: 'fork',
-      instances: 1,
-      autorestart: true,
+      instances: 0,
+      autorestart: false,
       watch: false,
       max_memory_restart: '500M',
       kill_timeout: 10000,
